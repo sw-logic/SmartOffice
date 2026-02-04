@@ -1,0 +1,695 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================================
+// AUTHENTICATION & AUTHORIZATION
+// ============================================================================
+
+model User {
+  id            String          @id @default(cuid())
+  email         String          @unique
+  emailVerified DateTime?
+  password      String          // Hashed
+  name          String
+  image         String?
+
+  // Relations
+  accounts      Account[]
+  sessions      Session[]
+  userGroups    UserGroupUser[]
+
+  // Audit trail
+  auditLogs     AuditLog[]
+  createdIncome     Income[]    @relation("CreatedBy")
+  createdExpenses   Expense[]   @relation("CreatedBy")
+  createdPayments   Payment[]   @relation("CreatedBy")
+  createdClients    Client[]    @relation("CreatedBy")
+  createdProjects   Project[]   @relation("CreatedBy")
+  createdOffers     Offer[]     @relation("CreatedBy")
+
+  // Person profile (if user is linked to a person record)
+  person        Person?
+
+  // Soft delete
+  deletedAt     DateTime?
+
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([email])
+}
+
+// Auth.js required models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model UserGroup {
+  id          String              @id @default(cuid())
+  name        String              @unique
+  description String?
+
+  users       UserGroupUser[]
+  permissions GroupPermission[]
+
+  deletedAt   DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([name])
+}
+
+model UserGroupUser {
+  userId      String
+  userGroupId String
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userGroup   UserGroup @relation(fields: [userGroupId], references: [id], onDelete: Cascade)
+
+  assignedAt  DateTime  @default(now())
+
+  @@id([userId, userGroupId])
+}
+
+model Permission {
+  id          String              @id @default(cuid())
+  module      String              // e.g., "clients", "finances.income"
+  action      String              // e.g., "read", "create", "update", "delete"
+  description String?
+
+  groups      GroupPermission[]
+
+  deletedAt   DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@unique([module, action])
+  @@index([module, action])
+}
+
+model GroupPermission {
+  userGroupId  String
+  permissionId String
+
+  userGroup    UserGroup  @relation(fields: [userGroupId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  grantedAt    DateTime   @default(now())
+
+  @@id([userGroupId, permissionId])
+}
+
+// ============================================================================
+// AUDIT LOGGING
+// ============================================================================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+
+  action     String   // "created", "updated", "deleted", "exported", "login", etc.
+  module     String   // "clients", "projects", "finances", etc.
+  entityId   String?  // ID of the affected record
+  entityType String?  // "Client", "Project", "Income", etc.
+
+  oldValues  Json?    // Previous state (for updates)
+  newValues  Json?    // New state (for creates/updates)
+
+  ipAddress  String?
+  userAgent  String?
+
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([module, entityId])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// COMPANY & EMPLOYEES
+// ============================================================================
+
+model Company {
+  id          String   @id @default(cuid())
+  name        String
+  legalName   String?
+  taxId       String?
+  vatNumber   String?
+
+  // Address
+  street      String?
+  city        String?
+  postalCode  String?
+  country     String?
+
+  // Contact
+  email       String?
+  phone       String?
+  website     String?
+
+  // Settings
+  logo        String?
+  currency    String   @default("USD")
+  fiscalYearStart Int  @default(1) // Month (1-12)
+
+  // Relations
+  clients     Client[]
+  projects    Project[]
+  employees   Person[]  @relation("CompanyEmployees")
+
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// ============================================================================
+// PERSON MODEL - Central contact management
+// ============================================================================
+
+model Person {
+  id              String    @id @default(cuid())
+
+  // Basic Information
+  firstName       String
+  lastName        String
+  email           String?
+  phone           String?
+  mobile          String?
+  dateOfBirth     DateTime?
+
+  // Address
+  street          String?
+  city            String?
+  postalCode      String?
+  country         String?
+
+  // Person Type & Relations
+  personType      String    // "company_employee", "client_contact", "vendor_contact"
+
+  // Company Employee (if personType = "company_employee")
+  companyId       String?
+  company         Company?  @relation("CompanyEmployees", fields: [companyId], references: [id])
+  userId          String?   @unique
+  user            User?     @relation(fields: [userId], references: [id])
+  hireDate        DateTime?
+  employmentType  String?   // "full-time", "part-time", "contractor"
+  department      String?
+  jobTitle        String?
+  salary          Decimal?  @db.Decimal(10, 2) // Encrypted in app, restricted access
+  employeeStatus  String?   // "active", "on_leave", "terminated"
+
+  // Client Contact (if personType = "client_contact")
+  clientId        String?
+  client          Client?   @relation(fields: [clientId], references: [id])
+  isPrimaryContact Boolean  @default(false)
+
+  // Vendor Contact (if personType = "vendor_contact")
+  vendorId        String?
+  vendor          Vendor?   @relation(fields: [vendorId], references: [id])
+
+  // Additional Info
+  position        String?   // Job position/title (for all types)
+  notes           String?
+  emergencyContact String?
+
+  // Relations
+  managedProjects Project[] @relation("ProjectManager")
+  assignedProjects ProjectEmployee[]
+
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([email])
+  @@index([personType])
+  @@index([companyId])
+  @@index([clientId])
+  @@index([vendorId])
+  @@index([userId])
+}
+
+// ============================================================================
+// CLIENTS
+// ============================================================================
+
+model Client {
+  id              String    @id @default(cuid())
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id])
+
+  name            String
+  companyName     String?
+
+  // Address
+  street          String?
+  city            String?
+  postalCode      String?
+  country         String?
+
+  // Business info
+  taxId           String?
+  vatNumber       String?
+  website         String?
+  industry        String?
+
+  // Contact - Primary contact info (can also be in Person records)
+  email           String?
+  phone           String?
+
+  // Settings
+  status          String    @default("active") // "active", "inactive", "archived"
+  paymentTerms    Int       @default(30) // Days
+  currency        String    @default("USD")
+
+  notes           String?
+
+  // Relations
+  contacts        Person[]  // Client contacts/employees
+  projects        Project[]
+  income          Income[]
+  payments        Payment[]
+  offers          Offer[]
+
+  createdById     String
+  createdBy       User      @relation("CreatedBy", fields: [createdById], references: [id])
+
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([companyId])
+  @@index([email])
+  @@index([status])
+}
+
+// ============================================================================
+// VENDORS
+// ============================================================================
+
+model Vendor {
+  id              String    @id @default(cuid())
+
+  name            String
+  companyName     String?
+
+  // Address
+  street          String?
+  city            String?
+  postalCode      String?
+  country         String?
+
+  // Business info
+  taxId           String?
+  vatNumber       String?
+  website         String?
+
+  // Contact - Primary contact info (can also be in Person records)
+  email           String?
+  phone           String?
+
+  // Settings
+  status          String    @default("active") // "active", "inactive"
+  paymentTerms    Int       @default(30) // Days
+  currency        String    @default("USD")
+
+  category        String?   // Type of vendor (supplier, contractor, service provider, etc.)
+
+  notes           String?
+
+  // Relations
+  contacts        Person[]  // Vendor contacts/employees
+  expenses        Expense[]
+
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([email])
+  @@index([status])
+  @@index([category])
+}
+
+// ============================================================================
+// PROJECTS
+// ============================================================================
+
+model Project {
+  id              String    @id @default(cuid())
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id])
+
+  name            String
+  description     String?
+
+  clientId        String
+  client          Client    @relation(fields: [clientId], references: [id])
+
+  status          String    @default("planning") // "planning", "active", "on_hold", "completed", "cancelled"
+  priority        String    @default("medium") // "low", "medium", "high"
+
+  startDate       DateTime?
+  endDate         DateTime?
+
+  // Budget
+  budgetEstimate  Decimal?  @db.Decimal(10, 2)
+
+  // Calculated fields (via relations)
+  // actualCost = sum of related expenses
+  // actualIncome = sum of related income
+
+  // Relations
+  projectManagerId String?
+  projectManager   Person? @relation("ProjectManager", fields: [projectManagerId], references: [id])
+
+  assignedEmployees ProjectEmployee[]
+  tasks            Task[]
+  income           Income[]
+  expenses         Expense[]
+
+  tags             String[] // Array of tags
+  notes            String?
+
+  createdById      String
+  createdBy        User     @relation("CreatedBy", fields: [createdById], references: [id])
+
+  deletedAt        DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([clientId])
+  @@index([status])
+}
+
+model ProjectEmployee {
+  projectId   String
+  personId    String
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  person      Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  role        String?  // Role in this project
+  assignedAt  DateTime @default(now())
+
+  @@id([projectId, personId])
+}
+
+model Task {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+  status      String   @default("todo") // "todo", "in_progress", "review", "done"
+  priority    String   @default("medium")
+
+  assignedTo  String?  // Employee ID
+  dueDate     DateTime?
+
+  order       Int      // For kanban column ordering
+  column      String   @default("todo") // Kanban column
+
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([status])
+}
+
+// ============================================================================
+// FINANCES
+// ============================================================================
+
+model Income {
+  id              String    @id @default(cuid())
+
+  amount          Decimal   @db.Decimal(10, 2)
+  currency        String    @default("USD")
+  date            DateTime
+  description     String
+
+  category        String    // "project_payment", "consulting", "product_sale", "other"
+
+  // Relations
+  clientId        String?
+  client          Client?   @relation(fields: [clientId], references: [id])
+
+  projectId       String?
+  project         Project?  @relation(fields: [projectId], references: [id])
+
+  paymentId       String?   @unique
+  payment         Payment?  @relation(fields: [paymentId], references: [id])
+
+  invoiceReference String?  // External invoice number/reference
+  taxRate         Decimal?  @db.Decimal(5, 2)
+
+  notes           String?
+
+  createdById     String
+  createdBy       User      @relation("CreatedBy", fields: [createdById], references: [id])
+
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([date])
+  @@index([clientId])
+  @@index([projectId])
+  @@index([category])
+}
+
+model Expense {
+  id              String    @id @default(cuid())
+
+  amount          Decimal   @db.Decimal(10, 2)
+  currency        String    @default("USD")
+  date            DateTime
+  description     String
+
+  category        String    // "salary", "software", "office", "marketing", "travel", "equipment", "contractor", "other"
+
+  // Relations
+  projectId       String?
+  project         Project?  @relation(fields: [projectId], references: [id])
+
+  vendorId        String?
+  vendor          Vendor?   @relation(fields: [vendorId], references: [id])
+
+  paymentId       String?   @unique
+  payment         Payment?  @relation(fields: [paymentId], references: [id])
+
+  receiptPath     String?   // File path on own server
+
+  taxDeductible   Boolean   @default(true)
+
+  notes           String?
+
+  createdById     String
+  createdBy       User      @relation("CreatedBy", fields: [createdById], references: [id])
+
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([date])
+  @@index([projectId])
+  @@index([vendorId])
+  @@index([category])
+}
+
+model Payment {
+  id              String    @id @default(cuid())
+
+  amount          Decimal   @db.Decimal(10, 2)
+  currency        String    @default("USD")
+  date            DateTime
+
+  type            String    // "received", "paid"
+  method          String    // "bank_transfer", "cash", "credit_card", "check", "other"
+  status          String    // "pending", "completed", "failed", "cancelled"
+
+  // Relations
+  clientId        String?
+  client          Client?   @relation(fields: [clientId], references: [id])
+
+  income          Income?
+  expense         Expense?
+
+  referenceNumber String?   // Bank transaction ID, check number, etc.
+  expectedDate    DateTime? // For pending payments
+
+  reconciled      Boolean   @default(false)
+  reconciledDate  DateTime?
+
+  notes           String?
+
+  createdById     String
+  createdBy       User      @relation("CreatedBy", fields: [createdById], references: [id])
+
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([date])
+  @@index([type])
+  @@index([status])
+  @@index([clientId])
+}
+
+// ============================================================================
+// PRICE LISTS
+// ============================================================================
+
+model PriceListItem {
+  id              String    @id @default(cuid())
+
+  name            String
+  description     String?
+  sku             String?   @unique
+  category        String?
+
+  unitPrice       Decimal   @db.Decimal(10, 2)
+  currency        String    @default("USD")
+  unitOfMeasure   String    @default("piece") // "hour", "piece", "project", "day", etc.
+
+  taxRate         Decimal?  @db.Decimal(5, 2)
+
+  active          Boolean   @default(true)
+  validFrom       DateTime?
+  validTo         DateTime?
+
+  // Relations
+  offerItems      OfferItem[]
+
+  notes           String?
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([active])
+  @@index([category])
+}
+
+// ============================================================================
+// OFFERS
+// ============================================================================
+
+model Offer {
+  id              String      @id @default(cuid())
+  offerNumber     String      @unique // Auto-generated
+
+  date            DateTime    @default(now())
+  validUntil      DateTime
+
+  clientId        String
+  client          Client      @relation(fields: [clientId], references: [id])
+
+  status          String      @default("draft") // "draft", "sent", "accepted", "rejected", "expired"
+
+  // Financials
+  currency        String      @default("USD")
+  subtotal        Decimal     @db.Decimal(10, 2)
+  taxTotal        Decimal     @db.Decimal(10, 2)
+  grandTotal      Decimal     @db.Decimal(10, 2)
+
+  // Relations
+  items           OfferItem[]
+
+  // Content
+  terms           String?     @db.Text // Terms and conditions
+  notes           String?     // Internal notes
+
+  // PDF
+  pdfUrl          String?
+
+  // Status tracking
+  sentDate        DateTime?
+  acceptedDate    DateTime?
+  rejectedDate    DateTime?
+
+  // Conversion
+  convertedToProjectId String?
+
+  createdById     String
+  createdBy       User        @relation("CreatedBy", fields: [createdById], references: [id])
+
+  deletedAt       DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([offerNumber])
+  @@index([clientId])
+  @@index([status])
+}
+
+model OfferItem {
+  id              String         @id @default(cuid())
+  offerId         String
+  offer           Offer          @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  // Can link to price list or be custom
+  priceListItemId String?
+  priceListItem   PriceListItem? @relation(fields: [priceListItemId], references: [id])
+
+  name            String
+  description     String?
+  quantity        Decimal        @db.Decimal(10, 2)
+  unitPrice       Decimal        @db.Decimal(10, 2)
+  taxRate         Decimal        @db.Decimal(5, 2)
+
+  // Calculated: quantity * unitPrice
+  subtotal        Decimal        @db.Decimal(10, 2)
+  // Calculated: subtotal * (taxRate / 100)
+  taxAmount       Decimal        @db.Decimal(10, 2)
+  // Calculated: subtotal + taxAmount
+  total           Decimal        @db.Decimal(10, 2)
+
+  order           Int            // Display order
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([offerId])
+}
