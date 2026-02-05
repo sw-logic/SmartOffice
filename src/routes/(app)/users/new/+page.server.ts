@@ -77,7 +77,7 @@ export const actions: Actions = {
 				password: hashedPassword,
 				userGroups: {
 					create: groupIds.map(groupId => ({
-						userGroupId: groupId
+						userGroupId: parseInt(groupId)
 					}))
 				}
 			}

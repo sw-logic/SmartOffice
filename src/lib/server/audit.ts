@@ -198,7 +198,7 @@ export async function getEntityAuditLogs(
 	limit = 50
 ): Promise<
 	Array<{
-		id: string;
+		id: number;
 		action: string;
 		oldValues: unknown;
 		newValues: unknown;
@@ -237,7 +237,7 @@ export async function getUserAuditLogs(
 	limit = 50
 ): Promise<
 	Array<{
-		id: string;
+		id: number;
 		action: string;
 		module: string;
 		entityType: string | null;

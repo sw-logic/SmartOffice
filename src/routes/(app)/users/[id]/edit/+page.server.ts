@@ -1,6 +1,6 @@
 import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
-import { requirePermission } from '$lib/server/access-control';
+import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { fail, redirect, error } from '@sveltejs/kit';
 import { logUpdate } from '$lib/server/audit';
 import bcrypt from 'bcryptjs';
@@ -8,12 +8,17 @@ import bcrypt from 'bcryptjs';
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'settings', 'users');
 
+	// Check if current user is admin (can edit deleted users)
+	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+
+	// First find the user without deletedAt filter
 	const user = await prisma.user.findUnique({
-		where: { id: params.id, deletedAt: null },
+		where: { id: params.id },
 		select: {
 			id: true,
 			name: true,
 			email: true,
+			deletedAt: true,
 			userGroups: {
 				select: {
 					userGroupId: true
@@ -24,6 +29,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	if (!user) {
 		error(404, 'User not found');
+	}
+
+	// If user is deleted and current user is not admin, deny access
+	if (user.deletedAt && !isAdmin) {
+		error(403, 'Only administrators can edit deleted users');
 	}
 
 	const userGroups = await prisma.userGroup.findMany({
@@ -39,9 +49,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	return {
 		user: {
 			...user,
-			groupIds: user.userGroups.map(ug => ug.userGroupId)
+			groupIds: user.userGroups.map(ug => ug.userGroupId),
+			isDeleted: user.deletedAt !== null
 		},
-		userGroups
+		userGroups,
+		isAdmin
 	};
 };
 
@@ -130,7 +142,7 @@ export const actions: Actions = {
 				await tx.userGroupUser.createMany({
 					data: groupIds.map(groupId => ({
 						userId: params.id,
-						userGroupId: groupId
+						userGroupId: parseInt(groupId)
 					}))
 				});
 			}

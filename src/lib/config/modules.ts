@@ -13,7 +13,8 @@ import {
 	UserCog,
 	Package,
 	Shield,
-	UsersRound
+	UsersRound,
+	List
 } from 'lucide-svelte';
 import type { ComponentType } from 'svelte';
 
@@ -159,6 +160,14 @@ export const modules: Module[] = [
 				route: '/settings/company',
 				permissions: ['settings.company'],
 				description: 'Company profile'
+			},
+			{
+				id: 'settings.enums',
+				name: 'Enums',
+				icon: List,
+				route: '/settings/enums',
+				permissions: ['settings.enums'],
+				description: 'Manage dropdown values'
 			}
 		]
 	}

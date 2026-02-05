@@ -1,4 +1,4 @@
-import { error } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import { prisma } from './prisma';
 
 export interface SessionUser {
@@ -9,7 +9,7 @@ export interface SessionUser {
 }
 
 export interface Locals {
-	user: SessionUser | null;
+	user?: SessionUser | null;
 }
 
 /**
@@ -69,25 +69,30 @@ export async function checkPermission(
 }
 
 /**
- * Require a specific permission, throw 403 if not authorized
+ * Require a specific permission, redirect to login if not authenticated or authorized
  * @param locals - The SvelteKit locals object containing user info
  * @param module - The module name
  * @param action - The action
- * @throws 401 if not authenticated, 403 if not authorized
+ * @param url - Optional URL for callback redirect
+ * @throws Redirect to login if not authenticated or not authorized
  */
 export async function requirePermission(
 	locals: Locals,
 	module: string,
-	action: string
+	action: string,
+	url?: URL
 ): Promise<void> {
 	if (!locals.user) {
-		throw error(401, 'Not authenticated');
+		const callbackUrl = url ? `?callbackUrl=${encodeURIComponent(url.pathname)}` : '';
+		redirect(303, `/login${callbackUrl}`);
 	}
 
 	const hasPermission = await checkPermission(locals.user.id, module, action);
 
 	if (!hasPermission) {
-		throw error(403, `Not authorized to ${action} ${module}`);
+		// Redirect to login with a message indicating access denied
+		const callbackUrl = url ? `?callbackUrl=${encodeURIComponent(url.pathname)}&error=access_denied` : '?error=access_denied';
+		redirect(303, `/login${callbackUrl}`);
 	}
 }
 
@@ -96,7 +101,7 @@ export async function requirePermission(
  * @param userId - The user's ID
  * @returns Array of permission objects
  */
-export async function getUserPermissions(userId: string): Promise<Array<{ id: string; module: string; action: string; description: string | null }>> {
+export async function getUserPermissions(userId: string): Promise<Array<{ id: number; module: string; action: string; description: string | null }>> {
 	const userWithPermissions = await prisma.user.findUnique({
 		where: { id: userId },
 		include: {
@@ -121,7 +126,7 @@ export async function getUserPermissions(userId: string): Promise<Array<{ id: st
 	}
 
 	// Collect all unique permissions
-	const permissionsMap = new Map<string, { id: string; module: string; action: string; description: string | null }>();
+	const permissionsMap = new Map<string, { id: number; module: string; action: string; description: string | null }>();
 
 	for (const userGroup of userWithPermissions.userGroups) {
 		for (const groupPermission of userGroup.userGroup.permissions) {

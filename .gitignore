@@ -1,25 +1,70 @@
+# Dependencies
 node_modules
+.pnpm-store
 
-# Output
+# Build outputs
 .output
 .vercel
 .netlify
 .wrangler
 /.svelte-kit
 /build
+/dist
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Env
+# Environment files
 .env
 .env.*
 !.env.example
-!.env.test
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# IDE - WebStorm/IntelliJ
+.idea
+
+# IDE - VS Code
+.vscode
+*.code-workspace
 
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-/../generated/prisma
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Testing
+coverage
+.nyc_output
+
+# Prisma
+prisma/generated
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Claude Code
+.claude
+
+# Uploaded files (if stored locally)
+/uploads
+/storage
+
+# Misc
+nul

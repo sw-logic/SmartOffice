@@ -23,6 +23,12 @@ declare const globalThis: {
 	prismaGlobal: ReturnType<typeof prismaClientSingleton>;
 } & typeof global;
 
+// Force fresh client if enumType is missing (schema changed)
+if (globalThis.prismaGlobal && !('enumType' in globalThis.prismaGlobal)) {
+	console.log('Prisma client outdated, creating fresh instance...');
+	delete (globalThis as any).prismaGlobal;
+}
+
 // Use existing instance in development to prevent multiple connections
 export const prisma = globalThis.prismaGlobal ?? prismaClientSingleton();
 
@@ -47,5 +53,7 @@ export const softDeleteModels = [
 	'Expense',
 	'Payment',
 	'PriceListItem',
-	'Offer'
+	'Offer',
+	'EnumType',
+	'EnumValue'
 ] as const;

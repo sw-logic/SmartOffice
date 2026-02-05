@@ -18,11 +18,22 @@
 	const filteredModules = $derived(filterModulesByPermissions(permissions));
 	const currentPath = $derived($page.url.pathname);
 
-	function isActive(route: string): boolean {
+	function isActive(route: string, hasChildren: boolean = false): boolean {
 		if (route === '/dashboard') {
 			return currentPath === '/dashboard';
 		}
-		return currentPath.startsWith(route);
+		// For parent modules with children, only match exact route
+		// Child routes will be handled by hasActiveChild
+		if (hasChildren) {
+			return currentPath === route;
+		}
+		// For leaf modules (no children), use startsWith for nested routes
+		// but ensure it's a proper path segment match
+		if (currentPath === route) {
+			return true;
+		}
+		// Check if it's a sub-path (e.g., /users/groups/new matches /users/groups)
+		return currentPath.startsWith(route + '/');
 	}
 
 	function toggleExpand(moduleId: string) {
@@ -36,15 +47,39 @@
 	}
 
 	function hasActiveChild(module: Module): boolean {
-		return module.subModules?.some(sub => isActive(sub.route)) ?? false;
+		return module.subModules?.some(sub => isSubModuleActive(sub.route, module.subModules ?? [])) ?? false;
+	}
+
+	function isSubModuleActive(route: string, siblings: Array<{ route: string }>): boolean {
+		// Exact match
+		if (currentPath === route) {
+			return true;
+		}
+
+		// Check if currentPath starts with this route
+		if (!currentPath.startsWith(route + '/')) {
+			return false;
+		}
+
+		// Check if any sibling is a better (longer prefix) match
+		for (const sibling of siblings) {
+			if (sibling.route !== route && sibling.route.length > route.length) {
+				if (currentPath === sibling.route || currentPath.startsWith(sibling.route + '/')) {
+					// Another sibling is a better match
+					return false;
+				}
+			}
+		}
+
+		return true;
 	}
 </script>
 
 <nav class="flex h-full flex-col gap-2 p-2">
 	{#each filteredModules as module}
 		{@const Icon = module.icon}
-		{@const active = isActive(module.route)}
 		{@const hasChildren = module.subModules && module.subModules.length > 0}
+		{@const active = isActive(module.route, hasChildren)}
 		{@const isExpanded = expandedModules.has(module.id) || hasActiveChild(module)}
 
 		<div>
@@ -72,7 +107,7 @@
 					<div class="ml-4 mt-1 flex flex-col gap-1 border-l pl-3">
 						{#each module.subModules ?? [] as subModule}
 							{@const SubIcon = subModule.icon}
-							{@const subActive = isActive(subModule.route)}
+							{@const subActive = isSubModuleActive(subModule.route, module.subModules ?? [])}
 							<Button
 								variant={subActive ? 'secondary' : 'ghost'}
 								class="w-full justify-start gap-3"

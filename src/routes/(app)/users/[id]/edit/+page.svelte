@@ -5,16 +5,21 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Card from '$lib/components/ui/card';
-	import { ArrowLeft } from 'lucide-svelte';
+	import * as Alert from '$lib/components/ui/alert';
+	import { ArrowLeft, AlertTriangle } from 'lucide-svelte';
 
 	let { data, form } = $props();
 
 	let isSubmitting = $state(false);
-	let selectedGroups = $state<Set<string>>(
-		new Set(form?.values?.groupIds || data.user.groupIds)
+	let selectedGroups = $state<Set<number>>(
+		new Set((form?.values?.groupIds || data.user.groupIds).map((id: string | number) => typeof id === 'string' ? parseInt(id) : id))
 	);
 
-	function toggleGroup(groupId: string) {
+	// Type helper for form errors
+	type FormErrors = Record<string, string> | undefined;
+	const errors = $derived(form?.errors as FormErrors);
+
+	function toggleGroup(groupId: number) {
 		const newSet = new Set(selectedGroups);
 		if (newSet.has(groupId)) {
 			newSet.delete(groupId);
@@ -35,6 +40,16 @@
 			<p class="text-muted-foreground">Update user information</p>
 		</div>
 	</div>
+
+	{#if data.user.isDeleted}
+		<Alert.Root variant="destructive" class="max-w-2xl">
+			<AlertTriangle class="h-4 w-4" />
+			<Alert.Title>Deleted User</Alert.Title>
+			<Alert.Description>
+				This user has been deleted. You can edit their details, but they won't be able to log in until restored.
+			</Alert.Description>
+		</Alert.Root>
+	{/if}
 
 	<Card.Root class="max-w-2xl">
 		<Card.Header>
@@ -62,8 +77,8 @@
 						value={form?.values?.name || data.user.name}
 						required
 					/>
-					{#if form?.errors?.name}
-						<p class="text-sm text-destructive">{form.errors.name}</p>
+					{#if errors?.name}
+						<p class="text-sm text-destructive">{errors.name}</p>
 					{/if}
 				</div>
 
@@ -77,8 +92,8 @@
 						value={form?.values?.email || data.user.email}
 						required
 					/>
-					{#if form?.errors?.email}
-						<p class="text-sm text-destructive">{form.errors.email}</p>
+					{#if errors?.email}
+						<p class="text-sm text-destructive">{errors.email}</p>
 					{/if}
 				</div>
 
@@ -90,8 +105,8 @@
 						type="password"
 						placeholder="Enter new password (leave blank to keep current)"
 					/>
-					{#if form?.errors?.password}
-						<p class="text-sm text-destructive">{form.errors.password}</p>
+					{#if errors?.password}
+						<p class="text-sm text-destructive">{errors.password}</p>
 					{/if}
 					<p class="text-sm text-muted-foreground">Leave blank to keep the current password</p>
 				</div>

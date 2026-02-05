@@ -461,32 +461,41 @@ UI Primitives (src/lib/components/ui/)
 
 #### Rules
 - **Standard route structure** for all resources
-- **Consistent layouts** using `CrudLayout.svelte`
-- **Superforms for validation** on all forms
-- **Optimistic UI updates** where appropriate
-- **Confirmation dialogs** for destructive actions
+- **Consistent list view pattern** following the Users module implementation
+- **Form validation** with inline error handling
+- **Confirmation dialogs** for destructive actions (delete, restore)
+- **Soft delete** with admin-only restore capability
 
 #### Standard CRUD Routes
 ```
-List:   /module
-Create: /module/new
-View:   /module/[id]
-Edit:   /module/[id]/edit
-Delete: POST /module/[id] (with confirmation)
+List:   /module                    # Searchable, sortable, paginated table
+Create: /module/new                # Form with validation
+View:   /module/[id]               # Detail page (optional)
+Edit:   /module/[id]/edit          # Form with pre-populated values
+Delete: POST /module?/delete       # Soft delete with confirmation
+Restore: POST /module?/restore     # Admin-only restore
 ```
 
-#### Standard CRUD Components
-- List view: Table with search, sort, filter, pagination
-- Create/Edit: Form with validation and error handling
-- View: Read-only detail page with action buttons
-- Delete: Confirmation dialog before soft-delete
+#### Reference Implementation
+**Users module** (`src/routes/(app)/users/`) serves as the reference implementation for all CRUD operations:
+- `+page.svelte` & `+page.server.ts` - List view with full features
+- `new/+page.svelte` & `new/+page.server.ts` - Create form
+- `[id]/edit/+page.svelte` & `[id]/edit/+page.server.ts` - Edit form
+
+See **"List View Pattern"** in Common Patterns section for detailed code examples.
+
+#### Standard List View Features
+- **Search**: Inline search input with Enter to search, auto-clear detection
+- **Sorting**: Clickable column headers with asc/desc toggle
+- **Pagination**: Page navigation with item count
+- **Status Filter**: Admin-only Active/Deleted/All filter
+- **Actions**: Edit, Delete (soft), Restore (admin-only)
+- **Visual States**: Deleted items grayed out with status badges
 
 #### Implementation Checklist
-- [ ] Create `CrudLayout.svelte` base component
-- [ ] Create form templates
-- [ ] Create table templates
-- [ ] Set up Superforms schemas
-- [ ] Build first module as reference
+- [x] Users module as reference implementation
+- [ ] Create form templates for other modules
+- [ ] Apply pattern to Clients, Vendors, Employees, Projects, etc.
 
 ### 8. Theme Support
 
@@ -2556,54 +2565,453 @@ export const actions = {
 </form>
 ```
 
-### DataTable Pattern
+### List View Pattern (Reference Implementation)
+
+The standard list view pattern includes: search, sorting, pagination, status filtering, and CRUD actions.
+**Reference:** `src/routes/(app)/users/+page.svelte` and `src/routes/(app)/users/+page.server.ts`
+
+#### Server-Side Pattern (`+page.server.ts`)
+
+```typescript
+import type { PageServerLoad, Actions } from './$types';
+import { prisma } from '$lib/server/prisma';
+import { requirePermission, checkPermission } from '$lib/server/access-control';
+import { fail } from '@sveltejs/kit';
+import { logDelete, logAction } from '$lib/server/audit';
+
+export const load: PageServerLoad = async ({ locals, url }) => {
+  await requirePermission(locals, 'module', 'read');
+
+  // Check if user is admin (can see deleted items)
+  const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+
+  // URL parameters for filtering, sorting, pagination
+  const search = url.searchParams.get('search') || '';
+  const sortBy = url.searchParams.get('sortBy') || 'name';
+  const sortOrder = (url.searchParams.get('sortOrder') || 'asc') as 'asc' | 'desc';
+  const page = parseInt(url.searchParams.get('page') || '1');
+  const limit = parseInt(url.searchParams.get('limit') || '10');
+  const status = url.searchParams.get('status') || 'active'; // 'all', 'active', 'deleted'
+
+  // Build where clause based on status filter
+  let deletedAtFilter: object = {};
+  if (status === 'active') {
+    deletedAtFilter = { deletedAt: null };
+  } else if (status === 'deleted' && isAdmin) {
+    deletedAtFilter = { deletedAt: { not: null } };
+  } else if (status === 'all' && isAdmin) {
+    deletedAtFilter = {}; // No filter
+  } else {
+    deletedAtFilter = { deletedAt: null }; // Non-admins only see active
+  }
+
+  const where = {
+    ...deletedAtFilter,
+    ...(search ? {
+      OR: [
+        { name: { contains: search, mode: 'insensitive' as const } },
+        { email: { contains: search, mode: 'insensitive' as const } }
+      ]
+    } : {})
+  };
+
+  const [items, total] = await Promise.all([
+    prisma.model.findMany({
+      where,
+      orderBy: { [sortBy]: sortOrder },
+      skip: (page - 1) * limit,
+      take: limit,
+      select: {
+        id: true,
+        name: true,
+        // ... other fields
+        deletedAt: true,
+        createdAt: true
+      }
+    }),
+    prisma.model.count({ where })
+  ]);
+
+  return {
+    items,
+    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    filters: { search, sortBy, sortOrder, status },
+    isAdmin
+  };
+};
+
+export const actions: Actions = {
+  delete: async ({ locals, request }) => {
+    await requirePermission(locals, 'module', 'delete');
+    const formData = await request.formData();
+    const id = formData.get('id') as string;
+
+    if (!id) return fail(400, { error: 'ID is required' });
+
+    const item = await prisma.model.findUnique({ where: { id } });
+    if (!item) return fail(404, { error: 'Not found' });
+
+    // Soft delete
+    await prisma.model.update({
+      where: { id },
+      data: { deletedAt: new Date() }
+    });
+
+    await logDelete(locals.user!.id, 'module', id, 'Model', { name: item.name });
+    return { success: true };
+  },
+
+  restore: async ({ locals, request }) => {
+    await requirePermission(locals, 'module', 'delete');
+
+    // Only admins can restore
+    const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+    if (!isAdmin) return fail(403, { error: 'Only administrators can restore' });
+
+    const formData = await request.formData();
+    const id = formData.get('id') as string;
+
+    await prisma.model.update({
+      where: { id },
+      data: { deletedAt: null }
+    });
+
+    await logAction({
+      userId: locals.user!.id,
+      action: 'restored',
+      module: 'module',
+      entityId: id,
+      entityType: 'Model'
+    });
+
+    return { success: true };
+  }
+};
+```
+
+#### Client-Side Pattern (`+page.svelte`)
 
 ```svelte
-<!-- src/lib/components/shared/DataTable.svelte -->
-<script lang="ts" generics="T">
-  import { createTable } from '@tanstack/svelte-table';
-  import type { ColumnDef } from '@tanstack/svelte-table';
-  
-  export let data: T[];
-  export let columns: ColumnDef<T>[];
-  
-  const table = createTable({
-    data,
-    columns,
-    getCoreRowModel: getCoreRowModel()
-  });
+<script lang="ts">
+  import { goto, invalidateAll } from '$app/navigation';
+  import { page } from '$app/stores';
+  import { Button } from '$lib/components/ui/button';
+  import { Input } from '$lib/components/ui/input';
+  import { Badge } from '$lib/components/ui/badge';
+  import * as Table from '$lib/components/ui/table';
+  import * as AlertDialog from '$lib/components/ui/alert-dialog';
+  import * as Select from '$lib/components/ui/select';
+  import {
+    Plus, Search, ArrowUpDown, ArrowUp, ArrowDown,
+    Pencil, Trash2, ChevronLeft, ChevronRight, RotateCcw
+  } from 'lucide-svelte';
+  import { toast } from 'svelte-sonner';
+
+  let { data } = $props();
+
+  let search = $state(data.filters.search);
+  let deleteDialogOpen = $state(false);
+  let restoreDialogOpen = $state(false);
+  let itemToDelete = $state<{ id: string; name: string } | null>(null);
+  let itemToRestore = $state<{ id: string; name: string } | null>(null);
+  let isDeleting = $state(false);
+  let isRestoring = $state(false);
+
+  const statusOptions = [
+    { value: 'active', label: 'Active' },
+    { value: 'deleted', label: 'Deleted' },
+    { value: 'all', label: 'All' }
+  ];
+
+  // Search with auto-clear detection
+  function updateSearch() {
+    const url = new URL($page.url);
+    if (search) {
+      url.searchParams.set('search', search);
+    } else {
+      url.searchParams.delete('search');
+    }
+    url.searchParams.set('page', '1');
+    goto(url.toString(), { replaceState: true });
+  }
+
+  // Status filter (admin only)
+  function updateStatus(value: string | undefined) {
+    if (!value) return;
+    const url = new URL($page.url);
+    url.searchParams.set('status', value);
+    url.searchParams.set('page', '1');
+    goto(url.toString(), { replaceState: true });
+  }
+
+  // Column sorting
+  function updateSort(column: string) {
+    const url = new URL($page.url);
+    const currentSort = url.searchParams.get('sortBy');
+    const currentOrder = url.searchParams.get('sortOrder') || 'asc';
+    if (currentSort === column) {
+      url.searchParams.set('sortOrder', currentOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      url.searchParams.set('sortBy', column);
+      url.searchParams.set('sortOrder', 'asc');
+    }
+    goto(url.toString(), { replaceState: true });
+  }
+
+  // Pagination
+  function goToPage(newPage: number) {
+    const url = new URL($page.url);
+    url.searchParams.set('page', newPage.toString());
+    goto(url.toString(), { replaceState: true });
+  }
+
+  // Sort icon helper
+  function getSortIcon(column: string) {
+    if (data.filters.sortBy !== column) return ArrowUpDown;
+    return data.filters.sortOrder === 'asc' ? ArrowUp : ArrowDown;
+  }
+
+  // Delete/Restore handlers
+  async function handleDelete() {
+    if (!itemToDelete) return;
+    isDeleting = true;
+    const formData = new FormData();
+    formData.append('id', itemToDelete.id);
+    const response = await fetch('?/delete', { method: 'POST', body: formData });
+    const result = await response.json();
+    if (result.type === 'success') {
+      toast.success('Deleted successfully');
+      invalidateAll();
+    } else {
+      toast.error(result.data?.error || 'Failed to delete');
+    }
+    isDeleting = false;
+    deleteDialogOpen = false;
+    itemToDelete = null;
+  }
+
+  async function handleRestore() {
+    if (!itemToRestore) return;
+    isRestoring = true;
+    const formData = new FormData();
+    formData.append('id', itemToRestore.id);
+    const response = await fetch('?/restore', { method: 'POST', body: formData });
+    const result = await response.json();
+    if (result.type === 'success') {
+      toast.success('Restored successfully');
+      invalidateAll();
+    } else {
+      toast.error(result.data?.error || 'Failed to restore');
+    }
+    isRestoring = false;
+    restoreDialogOpen = false;
+    itemToRestore = null;
+  }
+
+  function isDeleted(item: { deletedAt: string | Date | null }): boolean {
+    return item.deletedAt !== null;
+  }
 </script>
 
-<div class="rounded-md border">
-  <table class="w-full">
-    <thead>
-      {#each table.getHeaderGroups() as headerGroup}
-        <tr>
-          {#each headerGroup.headers as header}
-            <th class="px-4 py-2 text-left">
-              {header.column.columnDef.header}
-            </th>
+<!-- Page Header -->
+<div class="space-y-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-3xl font-bold tracking-tight">Items</h1>
+      <p class="text-muted-foreground">Manage items</p>
+    </div>
+    <Button href="/items/new">
+      <Plus class="mr-2 h-4 w-4" />
+      Add Item
+    </Button>
+  </div>
+
+  <!-- Search and Filters -->
+  <div class="flex items-center gap-4">
+    <div class="relative flex-1 max-w-sm">
+      <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        type="search"
+        placeholder="Search..."
+        class="pl-10 pr-10"
+        bind:value={search}
+        onkeydown={(e) => e.key === 'Enter' && updateSearch()}
+        oninput={(e) => {
+          if (e.currentTarget.value === '' && data.filters.search) {
+            updateSearch();
+          }
+        }}
+      />
+      {#if search}
+        <Button
+          variant="ghost"
+          size="icon"
+          class="absolute right-0 top-1/2 -translate-y-1/2 h-full px-3 hover:bg-transparent"
+          onclick={updateSearch}
+        >
+          <Search class="h-4 w-4" />
+        </Button>
+      {/if}
+    </div>
+
+    {#if data.isAdmin}
+      <Select.Root type="single" value={data.filters.status} onValueChange={updateStatus}>
+        <Select.Trigger class="w-[180px]">
+          {statusOptions.find(o => o.value === data.filters.status)?.label || 'Active'}
+        </Select.Trigger>
+        <Select.Content>
+          {#each statusOptions as option}
+            <Select.Item value={option.value}>{option.label}</Select.Item>
           {/each}
-        </tr>
-      {/each}
-    </thead>
-    <tbody>
-      {#each table.getRowModel().rows as row}
-        <tr class="border-t hover:bg-muted/50">
-          {#each row.getVisibleCells() as cell}
-            <td class="px-4 py-2">
-              <svelte:component 
-                this={cell.column.columnDef.cell} 
-                {...cell.getContext()} 
-              />
-            </td>
+        </Select.Content>
+      </Select.Root>
+    {/if}
+  </div>
+
+  <!-- Table -->
+  <div class="rounded-md border">
+    <Table.Root>
+      <Table.Header>
+        <Table.Row>
+          <Table.Head>
+            <Button variant="ghost" class="-ml-4" onclick={() => updateSort('name')}>
+              Name
+              <svelte:component this={getSortIcon('name')} class="ml-2 h-4 w-4" />
+            </Button>
+          </Table.Head>
+          {#if data.isAdmin}
+            <Table.Head class="w-[100px]">Status</Table.Head>
+          {/if}
+          <Table.Head class="w-[120px]">Actions</Table.Head>
+        </Table.Row>
+      </Table.Header>
+      <Table.Body>
+        {#if data.items.length === 0}
+          <Table.Row>
+            <Table.Cell colspan={data.isAdmin ? 3 : 2} class="h-24 text-center">
+              No items found.
+            </Table.Cell>
+          </Table.Row>
+        {:else}
+          {#each data.items as item}
+            <Table.Row class={isDeleted(item) ? 'opacity-60' : ''}>
+              <Table.Cell class="font-medium">{item.name}</Table.Cell>
+              {#if data.isAdmin}
+                <Table.Cell>
+                  {#if isDeleted(item)}
+                    <Badge variant="destructive">Deleted</Badge>
+                  {:else}
+                    <Badge variant="default">Active</Badge>
+                  {/if}
+                </Table.Cell>
+              {/if}
+              <Table.Cell>
+                <div class="flex items-center gap-1">
+                  <Button variant="ghost" size="icon" href="/items/{item.id}/edit">
+                    <Pencil class="h-4 w-4" />
+                  </Button>
+                  {#if isDeleted(item)}
+                    {#if data.isAdmin}
+                      <Button variant="ghost" size="icon"
+                        onclick={() => { itemToRestore = item; restoreDialogOpen = true; }}>
+                        <RotateCcw class="h-4 w-4" />
+                      </Button>
+                    {/if}
+                  {:else}
+                    <Button variant="ghost" size="icon"
+                      onclick={() => { itemToDelete = item; deleteDialogOpen = true; }}>
+                      <Trash2 class="h-4 w-4" />
+                    </Button>
+                  {/if}
+                </div>
+              </Table.Cell>
+            </Table.Row>
           {/each}
-        </tr>
-      {/each}
-    </tbody>
-  </table>
+        {/if}
+      </Table.Body>
+    </Table.Root>
+  </div>
+
+  <!-- Pagination -->
+  {#if data.pagination.totalPages > 1}
+    <div class="flex items-center justify-between">
+      <p class="text-sm text-muted-foreground">
+        Showing {(data.pagination.page - 1) * data.pagination.limit + 1} to
+        {Math.min(data.pagination.page * data.pagination.limit, data.pagination.total)}
+        of {data.pagination.total}
+      </p>
+      <div class="flex items-center gap-2">
+        <Button variant="outline" size="sm" disabled={data.pagination.page === 1}
+          onclick={() => goToPage(data.pagination.page - 1)}>
+          <ChevronLeft class="h-4 w-4" /> Previous
+        </Button>
+        <span class="text-sm">Page {data.pagination.page} of {data.pagination.totalPages}</span>
+        <Button variant="outline" size="sm"
+          disabled={data.pagination.page === data.pagination.totalPages}
+          onclick={() => goToPage(data.pagination.page + 1)}>
+          Next <ChevronRight class="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  {/if}
 </div>
+
+<!-- Delete Confirmation Dialog -->
+<AlertDialog.Root bind:open={deleteDialogOpen}>
+  <AlertDialog.Content>
+    <AlertDialog.Header>
+      <AlertDialog.Title>Delete Item</AlertDialog.Title>
+      <AlertDialog.Description>
+        Are you sure you want to delete <strong>{itemToDelete?.name}</strong>?
+      </AlertDialog.Description>
+    </AlertDialog.Header>
+    <AlertDialog.Footer>
+      <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+      <AlertDialog.Action
+        class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+        onclick={handleDelete}
+        disabled={isDeleting}
+      >
+        {isDeleting ? 'Deleting...' : 'Delete'}
+      </AlertDialog.Action>
+    </AlertDialog.Footer>
+  </AlertDialog.Content>
+</AlertDialog.Root>
+
+<!-- Restore Confirmation Dialog -->
+<AlertDialog.Root bind:open={restoreDialogOpen}>
+  <AlertDialog.Content>
+    <AlertDialog.Header>
+      <AlertDialog.Title>Restore Item</AlertDialog.Title>
+      <AlertDialog.Description>
+        Are you sure you want to restore <strong>{itemToRestore?.name}</strong>?
+      </AlertDialog.Description>
+    </AlertDialog.Header>
+    <AlertDialog.Footer>
+      <AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+      <AlertDialog.Action onclick={handleRestore} disabled={isRestoring}>
+        {isRestoring ? 'Restoring...' : 'Restore'}
+      </AlertDialog.Action>
+    </AlertDialog.Footer>
+  </AlertDialog.Content>
+</AlertDialog.Root>
 ```
+
+#### List View Features Summary
+
+| Feature | Description |
+|---------|-------------|
+| **Search** | Input with icon, Enter to search, auto-clears on empty |
+| **Sorting** | Click column headers, toggle asc/desc, visual indicators |
+| **Pagination** | Page navigation, item count display |
+| **Status Filter** | Admin-only filter: Active/Deleted/All |
+| **Soft Delete** | Items marked deleted, not removed |
+| **Restore** | Admin-only restore functionality |
+| **Visual States** | Deleted items shown with opacity, status badges |
+| **Confirmation Dialogs** | Delete and restore confirmations |
+| **Toast Notifications** | Success/error feedback |
+| **Permission Checks** | Server-side permission enforcement |
+| **Audit Logging** | All actions logged for audit trail |
 
 ### Money Calculation Pattern
 

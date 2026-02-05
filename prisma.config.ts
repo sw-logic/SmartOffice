@@ -21,6 +21,7 @@ export default defineConfig({
 			});
 
 			return new PrismaPg(pool);
-		}
+		},
+		seed: 'npx tsx prisma/seed.ts'
 	}
 });

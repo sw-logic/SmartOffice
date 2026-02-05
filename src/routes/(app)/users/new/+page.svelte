@@ -10,7 +10,11 @@
 	let { data, form } = $props();
 
 	let isSubmitting = $state(false);
-	let selectedGroups = $state<Set<string>>(new Set(form?.values?.groupIds || []));
+	let selectedGroups = $state<Set<string>>(new Set((form?.values?.groupIds || []).map((id: number | string) => String(id))));
+
+	// Type helper for form errors
+	type FormErrors = Record<string, string> | undefined;
+	const errors = $derived(form?.errors as FormErrors);
 
 	function toggleGroup(groupId: string) {
 		const newSet = new Set(selectedGroups);
@@ -60,8 +64,8 @@
 						value={form?.values?.name || ''}
 						required
 					/>
-					{#if form?.errors?.name}
-						<p class="text-sm text-destructive">{form.errors.name}</p>
+					{#if errors?.name}
+						<p class="text-sm text-destructive">{errors.name}</p>
 					{/if}
 				</div>
 
@@ -75,8 +79,8 @@
 						value={form?.values?.email || ''}
 						required
 					/>
-					{#if form?.errors?.email}
-						<p class="text-sm text-destructive">{form.errors.email}</p>
+					{#if errors?.email}
+						<p class="text-sm text-destructive">{errors.email}</p>
 					{/if}
 				</div>
 
@@ -89,8 +93,8 @@
 						placeholder="Enter password"
 						required
 					/>
-					{#if form?.errors?.password}
-						<p class="text-sm text-destructive">{form.errors.password}</p>
+					{#if errors?.password}
+						<p class="text-sm text-destructive">{errors.password}</p>
 					{/if}
 					<p class="text-sm text-muted-foreground">Minimum 6 characters</p>
 				</div>
@@ -103,14 +107,14 @@
 								class="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50"
 							>
 								<Checkbox
-									checked={selectedGroups.has(group.id)}
-									onCheckedChange={() => toggleGroup(group.id)}
+									checked={selectedGroups.has(String(group.id))}
+									onCheckedChange={() => toggleGroup(String(group.id))}
 								/>
 								<input
 									type="checkbox"
 									name="groups"
-									value={group.id}
-									checked={selectedGroups.has(group.id)}
+									value={String(group.id)}
+									checked={selectedGroups.has(String(group.id))}
 									class="hidden"
 								/>
 								<div class="space-y-1">

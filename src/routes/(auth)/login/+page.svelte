@@ -1,51 +1,42 @@
 <script lang="ts">
 	import { signIn } from '@auth/sveltekit/client';
-	import { page } from '$app/stores';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import * as Card from '$lib/components/ui/card';
-	import { toast } from 'svelte-sonner';
+
+	let { data } = $props();
 
 	let email = $state('');
 	let password = $state('');
 	let isLoading = $state(false);
-	let error = $state('');
+	let localError = $state('');
 
-	const callbackUrl = $derived($page.url.searchParams.get('callbackUrl') || '/dashboard');
-	const urlError = $derived($page.url.searchParams.get('error'));
-
-	// Show error from URL if present
-	$effect(() => {
-		if (urlError) {
-			error = 'Invalid credentials. Please try again.';
-		}
-	});
+	// Use derived to track data.errorMessage changes
+	const error = $derived(localError || data.errorMessage);
 
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
-		error = '';
+		localError = '';
 
 		if (!email || !password) {
-			error = 'Please enter email and password';
+			localError = 'Please enter email and password';
 			return;
 		}
 
 		isLoading = true;
 
 		try {
-			const result = await signIn('credentials', {
+			// signIn with redirect will navigate away on success, or redirect with error param on failure
+			await signIn('credentials', {
 				email,
 				password,
-				redirectTo: callbackUrl
+				redirectTo: data.callbackUrl
 			});
-
-			// If we get here without redirect, there was an error
-			if (result?.error) {
-				error = 'Invalid email or password';
-			}
+			// If we reach here, the redirect should have happened on success
+			// On failure, Auth.js redirects to the same page with ?error param
 		} catch (err) {
-			error = 'An error occurred. Please try again.';
+			localError = 'An error occurred. Please try again.';
 			console.error('Login error:', err);
 		} finally {
 			isLoading = false;
