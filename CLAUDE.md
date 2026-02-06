@@ -261,11 +261,27 @@ Reference implementations:
 
 ### Finances
 
-- **Income**: Track money coming in, link to client/project
-- **Expenses**: Track money going out, link to vendor/project, receipt upload
-- **Payments**: Payment transactions, reconciliation
-- Date range filtering with DateRangeSelector component
-- Recurring income/expenses support
+- **Dashboard** (`/finances`): Monthly/quarterly/yearly financial overview
+  - Period selector: 12 month tabs + Q1, Q2, Q3, Q4, Year shortcuts
+  - Year navigation with arrow buttons, URL param-based (`?year=2026&period=3` or `?period=q1`)
+  - 4 summary cards: Total Income, Total Expenses, Employee Costs, Balance
+  - 3 side-by-side tables (Income, Expenses, Salaries) in `xl:grid-cols-3` layout
+  - Balance = Income - (Expenses + Salaries + Salary Tax + Salary Bonus)
+  - Employee salary totals multiplied by period months (3 for quarters, 12 for year)
+  - Only shows employees with `salary > 0` and `employeeStatus: 'active'`
+- **Income** (`/finances/income`): Track money coming in, link to client/project
+  - List with search, sort, pagination, status filter
+  - CRUD via form pages (`new/`, `[id]/edit/`) and `IncomeFormModal.svelte`
+  - API: `POST /api/income`, `GET/PUT/DELETE /api/income/[id]`
+  - Tax percentage field (0-100%) with calculated tax_value
+- **Expenses** (`/finances/expenses`): Track money going out, link to vendor/project
+  - Same list pattern as Income
+  - CRUD via form pages and `ExpenseFormModal.svelte` (matches Income modal layout)
+  - API: `POST /api/expenses`, `GET/PUT/DELETE /api/expenses/[id]`
+  - Tax percentage field (0-100%) with calculated tax_value
+- **Payments** (`/finances/payments`): Payment transactions, reconciliation (not yet implemented)
+- Recurring income/expenses support with configurable period
+- All financial fields use `Decimal @db.Decimal(10, 2)` in Prisma schema
 
 ### Offers
 

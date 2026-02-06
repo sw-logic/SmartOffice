@@ -59,7 +59,6 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 			recurringPeriod: true,
 			vendorId: true,
 			projectId: true,
-			taxDeductible: true,
 			notes: true
 		}
 	});
@@ -95,7 +94,7 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 
 	const allowedFields = [
 		'currency', 'description', 'category', 'status',
-		'isRecurring', 'recurringPeriod', 'taxDeductible', 'notes'
+		'isRecurring', 'recurringPeriod', 'notes'
 	];
 
 	for (const field of allowedFields) {
@@ -135,7 +134,7 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 	if ('amount' in body || 'tax' in body) {
 		const finalAmount = (data.amount as number) ?? Number(existing.amount);
 		const finalTax = (data.tax as number) ?? Number(existing.tax);
-		data.tax_value = Math.round((finalAmount + finalAmount * (finalTax / 100)) * 100) / 100;
+		data.tax_value = Math.round(finalAmount * (finalTax / 100) * 100) / 100;
 		oldValues.tax_value = existing.tax_value;
 	}
 

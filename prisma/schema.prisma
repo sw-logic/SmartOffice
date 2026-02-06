@@ -786,8 +786,6 @@ model Expense {
 
   receiptPath String? // File path on own server
 
-  taxDeductible Boolean @default(true)
-
   notes String?
 
   createdById String

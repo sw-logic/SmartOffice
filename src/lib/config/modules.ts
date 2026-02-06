@@ -107,6 +107,14 @@ export const modules: Module[] = [
 		description: 'Financial management',
 		subModules: [
 			{
+				id: 'finances.dashboard',
+				name: 'Dashboard',
+				icon: LayoutDashboard,
+				route: '/finances',
+				permissions: ['finances.income.read', 'finances.expenses.read'],
+				description: 'Monthly financial overview'
+			},
+			{
 				id: 'finances.income',
 				name: 'Income',
 				icon: TrendingUp,

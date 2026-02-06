@@ -58,7 +58,6 @@
 	let date = $state('');
 	let dueDate = $state('');
 	let tax = $state('');
-	let taxDeductible = $state(true);
 	let isRecurring = $state(false);
 	let recurringPeriod = $state('');
 	let selectedVendor = $state('');
@@ -80,7 +79,6 @@
 		date = new Date().toISOString().split('T')[0];
 		dueDate = '';
 		tax = '0';
-		taxDeductible = true;
 		isRecurring = false;
 		recurringPeriod = '';
 		selectedVendor = defaults?.vendorId ? String(defaults.vendorId) : '';
@@ -107,7 +105,6 @@
 			date = expense.date ? new Date(expense.date).toISOString().split('T')[0] : '';
 			dueDate = expense.dueDate ? new Date(expense.dueDate).toISOString().split('T')[0] : '';
 			tax = expense.tax != null ? String(expense.tax) : '0';
-			taxDeductible = expense.taxDeductible ?? true;
 			isRecurring = expense.isRecurring || false;
 			recurringPeriod = expense.recurringPeriod || '';
 			selectedVendor = expense.vendorId ? String(expense.vendorId) : '';
@@ -144,7 +141,6 @@
 			date,
 			dueDate: dueDate || null,
 			tax,
-			taxDeductible,
 			isRecurring,
 			recurringPeriod: isRecurring ? recurringPeriod : null,
 			vendorId: selectedVendor || null,
@@ -205,11 +201,12 @@
 					</div>
 				{/if}
 
-				<div class="grid grid-cols-2 gap-4">
+				<div class="grid grid-cols-3 gap-4">
 					<div class="space-y-2">
 						<Label for="expAmount">Amount *</Label>
 						<Input
 							id="expAmount"
+							class="w-full"
 							type="number"
 							step="0.01"
 							min="0"
@@ -218,11 +215,24 @@
 							required
 						/>
 					</div>
-
+					<div class="space-y-2">
+						<Label for="expTax">Tax (%) *</Label>
+						<Input
+							id="expTax"
+							class="w-full"
+							type="number"
+							step="0.01"
+							min="0"
+							max="100"
+							placeholder="0"
+							bind:value={tax}
+							required
+						/>
+					</div>
 					<div class="space-y-2">
 						<Label for="expCurrency">Currency</Label>
 						<Select.Root type="single" value={currency} onValueChange={(v) => { if (v) currency = v; }}>
-							<Select.Trigger id="expCurrency">
+							<Select.Trigger id="expCurrency" class="w-full">
 								{currencies.find((c) => c.value === currency)?.label || currency}
 							</Select.Trigger>
 							<Select.Content>
@@ -234,21 +244,21 @@
 					</div>
 				</div>
 
-				<div class="space-y-2">
-					<Label for="expDescription">Description *</Label>
-					<Input
-						id="expDescription"
-						placeholder="Office supplies purchase"
-						bind:value={description}
-						required
-					/>
-				</div>
+				<div class="grid grid-cols-3 gap-4">
+					<div class="col-span-2 space-y-2">
+						<Label for="expDescription">Description *</Label>
+						<Input
+							id="expDescription"
+							placeholder="Office supplies purchase"
+							bind:value={description}
+							required
+						/>
+					</div>
 
-				<div class="grid grid-cols-2 gap-4">
 					<div class="space-y-2">
 						<Label for="expCategory">Category *</Label>
 						<Select.Root type="single" value={category} onValueChange={(v) => { if (v) category = v; }}>
-							<Select.Trigger id="expCategory">
+							<Select.Trigger id="expCategory" class="w-full">
 								{categories.find((c) => c.value === category)?.label || 'Select category'}
 							</Select.Trigger>
 							<Select.Content>
@@ -258,91 +268,25 @@
 							</Select.Content>
 						</Select.Root>
 					</div>
-
-					<div class="space-y-2">
-						<Label for="expStatus">Status</Label>
-						<Select.Root type="single" value={status} onValueChange={(v) => { if (v) status = v; }}>
-							<Select.Trigger id="expStatus">
-								{statuses.find((s) => s.value === status)?.label || 'Select status'}
-							</Select.Trigger>
-							<Select.Content>
-								{#each statuses as st}
-									<Select.Item value={st.value}>{st.label}</Select.Item>
-								{/each}
-							</Select.Content>
-						</Select.Root>
-					</div>
 				</div>
 
-				<div class="grid grid-cols-2 gap-4">
-					<div class="space-y-2">
-						<Label for="expDate">Date *</Label>
-						<Input id="expDate" type="date" bind:value={date} required />
-					</div>
-
-					<div class="space-y-2">
-						<Label for="expDueDate">Due Date</Label>
-						<Input id="expDueDate" type="date" bind:value={dueDate} />
-					</div>
-				</div>
-
-				<div class="grid grid-cols-2 gap-4">
-					<div class="space-y-2">
-						<Label for="expTax">Tax (%) *</Label>
-						<Input
-							id="expTax"
-							type="number"
-							step="0.01"
-							min="0"
-							max="100"
-							placeholder="0"
-							bind:value={tax}
-							required
-						/>
-					</div>
-				</div>
-
-				<div class="flex items-center space-x-2">
-					<Checkbox
-						id="expTaxDeductible"
-						checked={taxDeductible}
-						onCheckedChange={(checked) => (taxDeductible = checked === true)}
+				<div class="space-y-2">
+					<Label for="expNotes">Notes</Label>
+					<Textarea
+						id="expNotes"
+						placeholder="Additional notes..."
+						bind:value={notes}
+						rows={3}
 					/>
-					<Label for="expTaxDeductible" class="cursor-pointer">Tax deductible expense</Label>
 				</div>
 
-				<div class="grid grid-cols-2 gap-4 items-end">
-					<div class="flex items-center space-x-2 pb-1">
-						<Checkbox
-							id="expIsRecurring"
-							checked={isRecurring}
-							onCheckedChange={(checked) => (isRecurring = checked === true)}
-						/>
-						<Label for="expIsRecurring" class="cursor-pointer">Recurring expense</Label>
-					</div>
+				<hr>
 
-					{#if isRecurring}
-						<div class="space-y-2">
-							<Label for="expRecurringPeriod">Period *</Label>
-							<Select.Root type="single" value={recurringPeriod} onValueChange={(v) => { if (v) recurringPeriod = v; }}>
-								<Select.Trigger id="expRecurringPeriod">
-									{recurringPeriods.find((r) => r.value === recurringPeriod)?.label || 'Select period'}
-								</Select.Trigger>
-								<Select.Content>
-									{#each recurringPeriods as period}
-										<Select.Item value={period.value}>{period.label}</Select.Item>
-									{/each}
-								</Select.Content>
-							</Select.Root>
-						</div>
-					{/if}
-				</div>
-
-				<div class="grid grid-cols-2 gap-4">
+				<div class="grid grid-cols-3 gap-4">
 					<div class="space-y-2">
 						<Label for="expVendor">Vendor</Label>
 						<Select.Root type="single" value={selectedVendor} onValueChange={(v) => { selectedVendor = v; }}>
-							<Select.Trigger id="expVendor">
+							<Select.Trigger id="expVendor" class="w-full">
 								{vendors.find((v) => String(v.id) === selectedVendor)?.name || 'Select vendor'}
 							</Select.Trigger>
 							<Select.Content>
@@ -357,7 +301,7 @@
 					<div class="space-y-2">
 						<Label for="expProject">Project</Label>
 						<Select.Root type="single" value={selectedProject} onValueChange={(v) => { selectedProject = v; }}>
-							<Select.Trigger id="expProject">
+							<Select.Trigger id="expProject" class="w-full">
 								{projects.find((p) => String(p.id) === selectedProject)?.name || 'Select project'}
 							</Select.Trigger>
 							<Select.Content>
@@ -373,16 +317,60 @@
 							</Select.Content>
 						</Select.Root>
 					</div>
+
+					<div class="space-y-2">
+						<Label for="expStatus">Status</Label>
+						<Select.Root type="single" value={status} onValueChange={(v) => { if (v) status = v; }}>
+							<Select.Trigger id="expStatus" class="w-full">
+								{statuses.find((s) => s.value === status)?.label || 'Select status'}
+							</Select.Trigger>
+							<Select.Content>
+								{#each statuses as st}
+									<Select.Item value={st.value}>{st.label}</Select.Item>
+								{/each}
+							</Select.Content>
+						</Select.Root>
+					</div>
 				</div>
 
-				<div class="space-y-2">
-					<Label for="expNotes">Notes</Label>
-					<Textarea
-						id="expNotes"
-						placeholder="Additional notes..."
-						bind:value={notes}
-						rows={3}
-					/>
+				<div class="grid grid-cols-3 gap-4">
+					<div class="space-y-2">
+						<Label for="expDate">Date *</Label>
+						<Input id="expDate" class="w-full" type="date" bind:value={date} required />
+					</div>
+
+					<div class="space-y-2">
+						<Label for="expDueDate">Due Date</Label>
+						<Input id="expDueDate" class="w-full" type="date" bind:value={dueDate} />
+					</div>
+				</div>
+
+				<hr>
+
+				<div class="grid grid-cols-2 gap-8">
+					<div class="grid grid-cols-2 gap-4 items-end">
+						<div class="flex items-center space-x-2 pb-3">
+							<Checkbox
+								id="expIsRecurring"
+								checked={isRecurring}
+								onCheckedChange={(checked) => (isRecurring = checked === true)}
+							/>
+							<Label for="expIsRecurring" class="cursor-pointer">Recurring expense</Label>
+						</div>
+
+						<div class="space-y-2">
+							<Select.Root type="single" value={recurringPeriod} onValueChange={(v) => { if (v) recurringPeriod = v; }}>
+								<Select.Trigger id="expRecurringPeriod" disabled={!isRecurring} class={!isRecurring ? 'pointer-events-none' : ''}>
+									{recurringPeriods.find((r) => r.value === recurringPeriod)?.label || 'Select period'}
+								</Select.Trigger>
+								<Select.Content>
+									{#each recurringPeriods as period}
+										<Select.Item value={period.value}>{period.label}</Select.Item>
+									{/each}
+								</Select.Content>
+							</Select.Root>
+						</div>
+					</div>
 				</div>
 
 				<Dialog.Footer>

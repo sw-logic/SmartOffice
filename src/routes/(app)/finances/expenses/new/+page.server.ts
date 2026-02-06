@@ -56,7 +56,6 @@ export const actions: Actions = {
 		const recurringPeriod = formData.get('recurringPeriod') as string;
 		const vendorId = formData.get('vendorId') as string;
 		const projectId = formData.get('projectId') as string;
-		const taxDeductible = formData.get('taxDeductible') === 'true';
 		const notes = formData.get('notes') as string;
 
 		// Validation
@@ -97,7 +96,6 @@ export const actions: Actions = {
 					recurringPeriod,
 					vendorId,
 					projectId,
-					taxDeductible,
 					notes
 				}
 			});
@@ -109,7 +107,7 @@ export const actions: Actions = {
 			data: {
 				amount: parsedAmount,
 				tax: 0,
-				tax_value: parsedAmount,
+				tax_value: 0,
 				currency,
 				date: new Date(date),
 				description: description.trim(),
@@ -120,7 +118,6 @@ export const actions: Actions = {
 				recurringPeriod: isRecurring ? recurringPeriod : null,
 				vendorId: vendorId ? parseInt(vendorId) : null,
 				projectId: projectId ? parseInt(projectId) : null,
-				taxDeductible,
 				notes: notes?.trim() || null,
 				createdById: locals.user!.id
 			}

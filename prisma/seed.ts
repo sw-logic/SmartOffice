@@ -496,8 +496,7 @@ async function main() {
 				description: expense.description,
 				category: expense.category,
 				vendorId: vendor.id,
-				createdById: adminUser.id,
-				taxDeductible: true
+				createdById: adminUser.id
 			}
 		});
 	}

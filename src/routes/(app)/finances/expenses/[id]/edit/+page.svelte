@@ -27,7 +27,6 @@
 		form?.values?.recurringPeriod || data.expense.recurringPeriod || ''
 	);
 	let isRecurring = $state(form?.values?.isRecurring ?? data.expense.isRecurring);
-	let taxDeductible = $state(form?.values?.taxDeductible ?? data.expense.taxDeductible);
 </script>
 
 <div class="space-y-6">
@@ -178,16 +177,7 @@
 					</div>
 				</div>
 
-				<div class="flex items-center space-x-2">
-					<Checkbox
-						id="taxDeductible"
-						checked={taxDeductible}
-						onCheckedChange={(checked) => (taxDeductible = checked === true)}
-					/>
-					<Label for="taxDeductible" class="cursor-pointer">Tax deductible expense</Label>
-				</div>
-				<input type="hidden" name="taxDeductible" value={taxDeductible.toString()} />
-			</Card.Content>
+				</Card.Content>
 		</Card.Root>
 
 		<Card.Root class="max-w-2xl">

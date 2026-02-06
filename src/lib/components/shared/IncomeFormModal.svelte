@@ -212,11 +212,12 @@
 					</div>
 				{/if}
 
-				<div class="grid grid-cols-2 gap-4">
+				<div class="grid grid-cols-3 gap-4">
 					<div class="space-y-2">
 						<Label for="incAmount">Amount *</Label>
 						<Input
 							id="incAmount"
+                            class="w-full"
 							type="number"
 							step="0.01"
 							min="0"
@@ -225,11 +226,24 @@
 							required
 						/>
 					</div>
-
+                    <div class="space-y-2">
+                        <Label for="incTax">Tax (%) *</Label>
+                        <Input
+                                id="incTax"
+                                class="w-full"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                max="100"
+                                placeholder="0"
+                                bind:value={tax}
+                                required
+                        />
+                    </div>
 					<div class="space-y-2">
 						<Label for="incCurrency">Currency</Label>
 						<Select.Root type="single" value={currency} onValueChange={(v) => { if (v) currency = v; }}>
-							<Select.Trigger id="incCurrency">
+							<Select.Trigger id="incCurrency" class="w-full">
 								{currencies.find((c) => c.value === currency)?.label || currency}
 							</Select.Trigger>
 							<Select.Content>
@@ -241,21 +255,79 @@
 					</div>
 				</div>
 
-				<div class="space-y-2">
-					<Label for="incDescription">Description *</Label>
-					<Input
-						id="incDescription"
-						placeholder="Payment for services"
-						bind:value={description}
-						required
-					/>
-				</div>
+				<div class="grid grid-cols-3 gap-4">
+                    <div class="col-span-2 space-y-2">
+                        <Label for="incDescription">Description *</Label>
+                        <Input
+                                id="incDescription"
+                                placeholder="Payment for services"
+                                bind:value={description}
+                                required
+                        />
+                    </div>
 
-				<div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <Label for="incInvoiceRef">Invoice Reference</Label>
+                        <Input
+                                id="incInvoiceRef"
+                                placeholder="INV-2024-001"
+                                bind:value={invoiceReference}
+                        />
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <Label for="incNotes">Notes</Label>
+                    <Textarea
+                            id="incNotes"
+                            placeholder="Additional notes..."
+                            bind:value={notes}
+                            rows={3}
+                    />
+                </div>
+
+                <hr>
+
+				<div class="grid grid-cols-3 gap-4">
+                    <div class="space-y-2">
+                        <Label for="incClient">Client</Label>
+                        <Select.Root type="single" value={selectedClient} onValueChange={(v) => { selectedClient = v; if (!v) selectedProject = ''; }}>
+                            <Select.Trigger id="incClient" class="w-full">
+                                {clients.find((c) => String(c.id) === selectedClient)?.name || 'Select client'}
+                            </Select.Trigger>
+                            <Select.Content>
+                                <Select.Item value="">No client</Select.Item>
+                                {#each clients as client}
+                                    <Select.Item value={String(client.id)}>{client.name}</Select.Item>
+                                {/each}
+                            </Select.Content>
+                        </Select.Root>
+                    </div>
+
+                    <div class="space-y-2">
+                        <Label for="incProject">Project</Label>
+                        <Select.Root type="single" value={selectedProject} onValueChange={(v) => { selectedProject = v; }}>
+                            <Select.Trigger id="incProject" class="w-full">
+                                {filteredProjects.find((p) => String(p.id) === selectedProject)?.name || 'Select project'}
+                            </Select.Trigger>
+                            <Select.Content>
+                                <Select.Item value="">No project</Select.Item>
+                                {#each filteredProjects as project}
+                                    <Select.Item value={String(project.id)}>
+                                        {project.name}
+                                        {#if project.client}
+                                            <span class="text-muted-foreground">({project.client.name})</span>
+                                        {/if}
+                                    </Select.Item>
+                                {/each}
+                            </Select.Content>
+                        </Select.Root>
+                    </div>
+
 					<div class="space-y-2">
 						<Label for="incCategory">Category *</Label>
 						<Select.Root type="single" value={category} onValueChange={(v) => { if (v) category = v; }}>
-							<Select.Trigger id="incCategory">
+							<Select.Trigger id="incCategory" class="w-full">
 								{categories.find((c) => c.value === category)?.label || 'Select category'}
 							</Select.Trigger>
 							<Select.Content>
@@ -265,131 +337,60 @@
 							</Select.Content>
 						</Select.Root>
 					</div>
-
-					<div class="space-y-2">
-						<Label for="incStatus">Status</Label>
-						<Select.Root type="single" value={status} onValueChange={(v) => { if (v) status = v; }}>
-							<Select.Trigger id="incStatus">
-								{statuses.find((s) => s.value === status)?.label || 'Select status'}
-							</Select.Trigger>
-							<Select.Content>
-								{#each statuses as st}
-									<Select.Item value={st.value}>{st.label}</Select.Item>
-								{/each}
-							</Select.Content>
-						</Select.Root>
-					</div>
 				</div>
 
-				<div class="grid grid-cols-2 gap-4">
+				<div class="grid grid-cols-3 gap-4">
 					<div class="space-y-2">
 						<Label for="incDate">Date *</Label>
-						<Input id="incDate" type="date" bind:value={date} required />
+						<Input id="incDate" class="w-full" type="date" bind:value={date} required />
 					</div>
 
 					<div class="space-y-2">
 						<Label for="incDueDate">Due Date</Label>
-						<Input id="incDueDate" type="date" bind:value={dueDate} />
+						<Input id="incDueDate" class="w-full" type="date" bind:value={dueDate} />
 					</div>
+
+                    <div class="space-y-2">
+                        <Label for="incStatus">Status</Label>
+                        <Select.Root type="single" value={status} onValueChange={(v) => { if (v) status = v; }}>
+                            <Select.Trigger id="incStatus" class="w-full">
+                                {statuses.find((s) => s.value === status)?.label || 'Select status'}
+                            </Select.Trigger>
+                            <Select.Content>
+                                {#each statuses as st}
+                                    <Select.Item value={st.value}>{st.label}</Select.Item>
+                                {/each}
+                            </Select.Content>
+                        </Select.Root>
+                    </div>
 				</div>
 
-				<div class="grid grid-cols-2 gap-4">
-					<div class="space-y-2">
-						<Label for="incTax">Tax (%) *</Label>
-						<Input
-							id="incTax"
-							type="number"
-							step="0.01"
-							min="0"
-							max="100"
-							placeholder="0"
-							bind:value={tax}
-							required
-						/>
-					</div>
+                <hr>
 
-					<div class="space-y-2">
-						<Label for="incInvoiceRef">Invoice Reference</Label>
-						<Input
-							id="incInvoiceRef"
-							placeholder="INV-2024-001"
-							bind:value={invoiceReference}
-						/>
-					</div>
-				</div>
+				<div class="grid grid-cols-2 gap-8">
+                    <div class="grid grid-cols-2 gap-4 items-end">
+                        <div class="flex items-center space-x-2 pb-3">
+                            <Checkbox
+                                    id="incIsRecurring"
+                                    checked={isRecurring}
+                                    onCheckedChange={(checked) => (isRecurring = checked === true)}
+                            />
+                            <Label for="incIsRecurring" class="cursor-pointer">Recurring income</Label>
+                        </div>
 
-				<div class="grid grid-cols-2 gap-4 items-end">
-					<div class="flex items-center space-x-2 pb-1">
-						<Checkbox
-							id="incIsRecurring"
-							checked={isRecurring}
-							onCheckedChange={(checked) => (isRecurring = checked === true)}
-						/>
-						<Label for="incIsRecurring" class="cursor-pointer">Recurring income</Label>
-					</div>
-
-					{#if isRecurring}
-						<div class="space-y-2">
-							<Label for="incRecurringPeriod">Period *</Label>
-							<Select.Root type="single" value={recurringPeriod} onValueChange={(v) => { if (v) recurringPeriod = v; }}>
-								<Select.Trigger id="incRecurringPeriod">
-									{recurringPeriods.find((r) => r.value === recurringPeriod)?.label || 'Select period'}
-								</Select.Trigger>
-								<Select.Content>
-									{#each recurringPeriods as period}
-										<Select.Item value={period.value}>{period.label}</Select.Item>
-									{/each}
-								</Select.Content>
-							</Select.Root>
-						</div>
-					{/if}
-				</div>
-
-				<div class="grid grid-cols-2 gap-4">
-					<div class="space-y-2">
-						<Label for="incClient">Client</Label>
-						<Select.Root type="single" value={selectedClient} onValueChange={(v) => { selectedClient = v; if (!v) selectedProject = ''; }}>
-							<Select.Trigger id="incClient">
-								{clients.find((c) => String(c.id) === selectedClient)?.name || 'Select client'}
-							</Select.Trigger>
-							<Select.Content>
-								<Select.Item value="">No client</Select.Item>
-								{#each clients as client}
-									<Select.Item value={String(client.id)}>{client.name}</Select.Item>
-								{/each}
-							</Select.Content>
-						</Select.Root>
-					</div>
-
-					<div class="space-y-2">
-						<Label for="incProject">Project</Label>
-						<Select.Root type="single" value={selectedProject} onValueChange={(v) => { selectedProject = v; }}>
-							<Select.Trigger id="incProject">
-								{filteredProjects.find((p) => String(p.id) === selectedProject)?.name || 'Select project'}
-							</Select.Trigger>
-							<Select.Content>
-								<Select.Item value="">No project</Select.Item>
-								{#each filteredProjects as project}
-									<Select.Item value={String(project.id)}>
-										{project.name}
-										{#if project.client}
-											<span class="text-muted-foreground">({project.client.name})</span>
-										{/if}
-									</Select.Item>
-								{/each}
-							</Select.Content>
-						</Select.Root>
-					</div>
-				</div>
-
-				<div class="space-y-2">
-					<Label for="incNotes">Notes</Label>
-					<Textarea
-						id="incNotes"
-						placeholder="Additional notes..."
-						bind:value={notes}
-						rows={3}
-					/>
+                        <div class="space-y-2">
+                            <Select.Root type="single" value={recurringPeriod} onValueChange={(v) => { if (v) recurringPeriod = v; }}>
+                                <Select.Trigger id="incRecurringPeriod" disabled={!isRecurring} class={!isRecurring ? 'pointer-events-none' : ''}>
+                                    {recurringPeriods.find((r) => r.value === recurringPeriod)?.label || 'Select period'}
+                                </Select.Trigger>
+                                <Select.Content>
+                                    {#each recurringPeriods as period}
+                                        <Select.Item value={period.value}>{period.label}</Select.Item>
+                                    {/each}
+                                </Select.Content>
+                            </Select.Root>
+                        </div>
+                    </div>
 				</div>
 
 				<Dialog.Footer>

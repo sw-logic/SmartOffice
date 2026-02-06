@@ -32,7 +32,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				recurringPeriod: true,
 				vendorId: true,
 				projectId: true,
-				taxDeductible: true,
 				receiptPath: true,
 				notes: true,
 				deletedAt: true
@@ -108,7 +107,6 @@ export const actions: Actions = {
 		const recurringPeriod = formData.get('recurringPeriod') as string;
 		const vendorId = formData.get('vendorId') as string;
 		const projectId = formData.get('projectId') as string;
-		const taxDeductible = formData.get('taxDeductible') === 'true';
 		const notes = formData.get('notes') as string;
 
 		// Validation
@@ -149,7 +147,6 @@ export const actions: Actions = {
 					recurringPeriod,
 					vendorId,
 					projectId,
-					taxDeductible,
 					notes
 				}
 			});
@@ -170,7 +167,6 @@ export const actions: Actions = {
 				recurringPeriod: true,
 				vendorId: true,
 				projectId: true,
-				taxDeductible: true,
 				notes: true
 			}
 		});
@@ -190,7 +186,6 @@ export const actions: Actions = {
 				recurringPeriod: isRecurring ? recurringPeriod : null,
 				vendorId: vendorId ? parseInt(vendorId) : null,
 				projectId: projectId ? parseInt(projectId) : null,
-				taxDeductible,
 				notes: notes?.trim() || null
 			}
 		});

@@ -31,7 +31,7 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 
 	const parsedAmount = parseFloat(body.amount);
 	const parsedTax = parseFloat(body.tax);
-	const taxValue = parsedAmount + parsedAmount * (parsedTax / 100);
+	const taxValue = parsedAmount * (parsedTax / 100);
 
 	const expense = await prisma.expense.create({
 		data: {
@@ -48,7 +48,6 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 			recurringPeriod: body.isRecurring ? body.recurringPeriod : null,
 			vendorId: body.vendorId ? parseInt(body.vendorId) : null,
 			projectId: body.projectId ? parseInt(body.projectId) : null,
-			taxDeductible: body.taxDeductible ?? false,
 			notes: body.notes?.trim() || null,
 			createdById: locals.user!.id
 		}

@@ -16,13 +16,10 @@
 		Search,
 		ArrowUpDown,
 		Trash2,
-		Eye,
 		Pencil,
-		MoreHorizontal,
 		RefreshCw,
 		TrendingDown,
-		Receipt,
-		CheckCircle
+		Receipt
 	} from 'lucide-svelte';
 
 	let { data } = $props();
@@ -263,6 +260,7 @@
 					<Table.Head>Vendor</Table.Head>
 					<Table.Head>Category</Table.Head>
 					<Table.Head>Status</Table.Head>
+					<Table.Head>Recurring</Table.Head>
 					<Table.Head class="text-right">
 						<Button variant="ghost" class="-mr-4" onclick={() => toggleSort('amount')}>
 							Amount
@@ -271,16 +269,12 @@
 					</Table.Head>
 					<Table.Head class="text-right">Tax %</Table.Head>
 					<Table.Head class="text-right">Tax Value</Table.Head>
-					<Table.Head class="text-center">Tax Ded.</Table.Head>
 					<Table.Head class="w-[80px]">Actions</Table.Head>
 				</Table.Row>
 			</Table.Header>
 			<Table.Body>
 				{#each data.expenses as expense}
-					<Table.Row
-						class="cursor-pointer hover:bg-muted/50"
-						onclick={() => goto(`/finances/expenses/${expense.id}`)}
-					>
+					<Table.Row>
 						<Table.Cell>
 							<div>
 								<div>{formatDate(expense.date)}</div>
@@ -292,20 +286,12 @@
 						<Table.Cell>
 							<div>
 								<div class="font-medium">{expense.description}</div>
-								<div class="flex items-center gap-2 mt-1">
-									{#if expense.isRecurring}
-										<Badge variant="outline">
-											<RefreshCw class="mr-1 h-3 w-3" />
-											{recurringLabels[expense.recurringPeriod || ''] || expense.recurringPeriod}
-										</Badge>
-									{/if}
-									{#if expense.receiptPath}
-										<Badge variant="outline">
-											<Receipt class="mr-1 h-3 w-3" />
-											Receipt
-										</Badge>
-									{/if}
-								</div>
+								{#if expense.receiptPath}
+									<Badge variant="outline" class="mt-1">
+										<Receipt class="mr-1 h-3 w-3" />
+										Receipt
+									</Badge>
+								{/if}
 							</div>
 						</Table.Cell>
 						<Table.Cell>
@@ -345,6 +331,16 @@
 								</DropdownMenu.Content>
 							</DropdownMenu.Root>
 						</Table.Cell>
+						<Table.Cell>
+							{#if expense.isRecurring}
+								<Badge variant="outline">
+									<RefreshCw class="mr-1 h-3 w-3" />
+									{recurringLabels[expense.recurringPeriod || ''] || expense.recurringPeriod}
+								</Badge>
+							{:else}
+								<span class="text-muted-foreground">-</span>
+							{/if}
+						</Table.Cell>
 						<Table.Cell class="text-right font-medium text-red-600">
 							{formatCurrency(Number(expense.amount), expense.currency)}
 						</Table.Cell>
@@ -354,42 +350,25 @@
 						<Table.Cell class="text-right">
 							{formatCurrency(expense.tax_value, expense.currency)}
 						</Table.Cell>
-						<Table.Cell class="text-center">
-							{#if expense.taxDeductible}
-								<CheckCircle class="h-4 w-4 text-green-600 mx-auto" />
-							{:else}
-								<span class="text-muted-foreground">-</span>
-							{/if}
-						</Table.Cell>
 						<Table.Cell>
-							<DropdownMenu.Root>
-								<DropdownMenu.Trigger>
-									<Button variant="ghost" size="icon">
-										<MoreHorizontal class="h-4 w-4" />
-									</Button>
-								</DropdownMenu.Trigger>
-								<DropdownMenu.Content align="end">
-									<a href="/finances/expenses/{expense.id}" class="block">
-										<DropdownMenu.Item>
-											<Eye class="mr-2 h-4 w-4" />
-											View
-										</DropdownMenu.Item>
-									</a>
-									<DropdownMenu.Item onclick={() => openEditModal(expense.id)}>
-										<Pencil class="mr-2 h-4 w-4" />
-										Edit
-									</DropdownMenu.Item>
-									<DropdownMenu.Separator />
-									<DropdownMenu.Item
-										class="text-destructive"
-										onclick={() =>
-											openDeleteDialog({ id: expense.id, description: expense.description })}
-									>
-										<Trash2 class="mr-2 h-4 w-4" />
-										Delete
-									</DropdownMenu.Item>
-								</DropdownMenu.Content>
-							</DropdownMenu.Root>
+							<div class="flex items-center gap-1">
+								<Button
+									variant="ghost"
+									size="icon"
+									onclick={() => openEditModal(expense.id)}
+									title="Edit expense"
+								>
+									<Pencil class="h-4 w-4" />
+								</Button>
+								<Button
+									variant="ghost"
+									size="icon"
+									onclick={() => openDeleteDialog({ id: expense.id, description: expense.description })}
+									title="Delete expense"
+								>
+									<Trash2 class="h-4 w-4" />
+								</Button>
+							</div>
 						</Table.Cell>
 					</Table.Row>
 				{:else}
@@ -403,7 +382,7 @@
 				<!-- Summary Row -->
 				{#if data.expenses.length > 0}
 					<Table.Row class="bg-muted/50 font-medium">
-						<Table.Cell colspan={5} class="text-right">
+						<Table.Cell colspan={6} class="text-right">
 							<div class="flex items-center justify-end gap-2">
 								<TrendingDown class="h-4 w-4 text-red-600" />
 								Summary ({data.summary.count} records)
@@ -415,9 +394,6 @@
 						<Table.Cell class="text-right">-</Table.Cell>
 						<Table.Cell class="text-right">
 							{formatCurrency(data.summary.totalTaxValue)}
-						</Table.Cell>
-						<Table.Cell class="text-center text-green-600 text-sm">
-							{formatCurrency(data.summary.taxDeductibleAmount)}
 						</Table.Cell>
 						<Table.Cell></Table.Cell>
 					</Table.Row>

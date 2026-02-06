@@ -86,7 +86,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			dueDate: true,
 			isRecurring: true,
 			recurringPeriod: true,
-			taxDeductible: true,
 			receiptPath: true,
 			notes: true,
 			vendor: {
@@ -115,15 +114,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			tax_value: true
 		},
 		_count: true
-	});
-
-	// Calculate tax deductible totals
-	const taxDeductibleWhere = { ...where, taxDeductible: true };
-	const taxDeductibleData = await prisma.expense.aggregate({
-		where: taxDeductibleWhere,
-		_sum: {
-			amount: true
-		}
 	});
 
 	// Get vendors for filter dropdown
@@ -183,9 +173,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		summary: {
 			totalAmount: summaryData._sum.amount ? Number(summaryData._sum.amount) : 0,
 			totalTaxValue: summaryData._sum.tax_value ? Number(summaryData._sum.tax_value) : 0,
-			taxDeductibleAmount: taxDeductibleData._sum.amount
-				? Number(taxDeductibleData._sum.amount)
-				: 0,
 			count: summaryData._count
 		},
 		totalCount,

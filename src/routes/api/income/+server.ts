@@ -31,7 +31,7 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 
 	const parsedAmount = parseFloat(body.amount);
 	const parsedTax = parseFloat(body.tax);
-	const taxValue = parsedAmount + parsedAmount * (parsedTax / 100);
+	const taxValue = parsedAmount * (parsedTax / 100);
 
 	const income = await prisma.income.create({
 		data: {

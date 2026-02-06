@@ -116,7 +116,7 @@ export const actions: Actions = {
 			data: {
 				amount: parsedAmount,
 				tax: parsedTax,
-				tax_value: Math.round((parsedAmount + parsedAmount * (parsedTax / 100)) * 100) / 100,
+				tax_value: Math.round(parsedAmount * (parsedTax / 100) * 100) / 100,
 				currency,
 				date: new Date(date),
 				description: description.trim(),

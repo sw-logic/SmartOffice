@@ -12,9 +12,7 @@
 		Briefcase,
 		RefreshCw,
 		AlertTriangle,
-		Receipt,
-		CheckCircle,
-		XCircle
+		Receipt
 	} from 'lucide-svelte';
 
 	let { data } = $props();
@@ -151,18 +149,6 @@
 				</div>
 
 				<div class="grid grid-cols-2 gap-6">
-					<div>
-						<div class="text-sm text-muted-foreground">Tax Deductible</div>
-						<div class="flex items-center gap-2 mt-1">
-							{#if data.expense.taxDeductible}
-								<CheckCircle class="h-4 w-4 text-green-600" />
-								<span>Yes</span>
-							{:else}
-								<XCircle class="h-4 w-4 text-muted-foreground" />
-								<span>No</span>
-							{/if}
-						</div>
-					</div>
 					{#if data.expense.receiptPath}
 						<div>
 							<div class="text-sm text-muted-foreground flex items-center gap-2">

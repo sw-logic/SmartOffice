@@ -16,9 +16,7 @@
 		Search,
 		ArrowUpDown,
 		Trash2,
-		Eye,
 		Pencil,
-		MoreHorizontal,
 		RefreshCw,
 		TrendingUp
 	} from 'lucide-svelte';
@@ -257,6 +255,7 @@
 					<Table.Head>Client</Table.Head>
 					<Table.Head>Category</Table.Head>
 					<Table.Head>Status</Table.Head>
+					<Table.Head>Recurring</Table.Head>
 					<Table.Head class="text-right">
 						<Button variant="ghost" class="-mr-4" onclick={() => toggleSort('amount')}>
 							Amount
@@ -270,10 +269,7 @@
 			</Table.Header>
 			<Table.Body>
 				{#each data.incomes as income}
-					<Table.Row
-						class="cursor-pointer hover:bg-muted/50"
-						onclick={() => goto(`/finances/income/${income.id}`)}
-					>
+					<Table.Row>
 						<Table.Cell>
 							<div>
 								<div>{formatDate(income.date)}</div>
@@ -287,12 +283,6 @@
 								<div class="font-medium">{income.description}</div>
 								{#if income.invoiceReference}
 									<div class="text-xs text-muted-foreground">Ref: {income.invoiceReference}</div>
-								{/if}
-								{#if income.isRecurring}
-									<Badge variant="outline" class="mt-1">
-										<RefreshCw class="mr-1 h-3 w-3" />
-										{recurringLabels[income.recurringPeriod || ''] || income.recurringPeriod}
-									</Badge>
 								{/if}
 							</div>
 						</Table.Cell>
@@ -333,6 +323,16 @@
 								</DropdownMenu.Content>
 							</DropdownMenu.Root>
 						</Table.Cell>
+						<Table.Cell>
+							{#if income.isRecurring}
+								<Badge variant="outline">
+									<RefreshCw class="mr-1 h-3 w-3" />
+									{recurringLabels[income.recurringPeriod || ''] || income.recurringPeriod}
+								</Badge>
+							{:else}
+								<span class="text-muted-foreground">-</span>
+							{/if}
+						</Table.Cell>
 						<Table.Cell class="text-right font-medium text-green-600">
 							{formatCurrency(Number(income.amount), income.currency)}
 						</Table.Cell>
@@ -343,38 +343,29 @@
 							{formatCurrency(income.tax_value, income.currency)}
 						</Table.Cell>
 						<Table.Cell>
-							<DropdownMenu.Root>
-								<DropdownMenu.Trigger>
-									<Button variant="ghost" size="icon">
-										<MoreHorizontal class="h-4 w-4" />
-									</Button>
-								</DropdownMenu.Trigger>
-								<DropdownMenu.Content align="end">
-									<a href="/finances/income/{income.id}" class="block">
-										<DropdownMenu.Item>
-											<Eye class="mr-2 h-4 w-4" />
-											View
-										</DropdownMenu.Item>
-									</a>
-									<DropdownMenu.Item onclick={() => openEditModal(income.id)}>
-										<Pencil class="mr-2 h-4 w-4" />
-										Edit
-									</DropdownMenu.Item>
-									<DropdownMenu.Separator />
-									<DropdownMenu.Item
-										class="text-destructive"
-										onclick={() => openDeleteDialog({ id: income.id, description: income.description })}
-									>
-										<Trash2 class="mr-2 h-4 w-4" />
-										Delete
-									</DropdownMenu.Item>
-								</DropdownMenu.Content>
-							</DropdownMenu.Root>
+							<div class="flex items-center gap-1">
+								<Button
+									variant="ghost"
+									size="icon"
+									onclick={() => openEditModal(income.id)}
+									title="Edit income"
+								>
+									<Pencil class="h-4 w-4" />
+								</Button>
+								<Button
+									variant="ghost"
+									size="icon"
+									onclick={() => openDeleteDialog({ id: income.id, description: income.description })}
+									title="Delete income"
+								>
+									<Trash2 class="h-4 w-4" />
+								</Button>
+							</div>
 						</Table.Cell>
 					</Table.Row>
 				{:else}
 					<Table.Row>
-						<Table.Cell colspan={9} class="text-center py-8">
+						<Table.Cell colspan={10} class="text-center py-8">
 							<div class="text-muted-foreground">No income records found for this period</div>
 						</Table.Cell>
 					</Table.Row>
@@ -383,7 +374,7 @@
 				<!-- Summary Row -->
 				{#if data.incomes.length > 0}
 					<Table.Row class="bg-muted/50 font-medium">
-						<Table.Cell colspan={5} class="text-right">
+						<Table.Cell colspan={6} class="text-right">
 							<div class="flex items-center justify-end gap-2">
 								<TrendingUp class="h-4 w-4 text-green-600" />
 								Summary ({data.summary.count} records)

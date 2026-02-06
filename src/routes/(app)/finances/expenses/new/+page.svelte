@@ -24,7 +24,6 @@
 	let selectedProject = $state(form?.values?.projectId || '');
 	let selectedRecurringPeriod = $state(form?.values?.recurringPeriod || '');
 	let isRecurring = $state(form?.values?.isRecurring || false);
-	let taxDeductible = $state(form?.values?.taxDeductible ?? true);
 
 	// Today's date for default
 	const today = new Date().toISOString().split('T')[0];
@@ -168,16 +167,7 @@
 					</div>
 				</div>
 
-				<div class="flex items-center space-x-2">
-					<Checkbox
-						id="taxDeductible"
-						checked={taxDeductible}
-						onCheckedChange={(checked) => (taxDeductible = checked === true)}
-					/>
-					<Label for="taxDeductible" class="cursor-pointer">Tax deductible expense</Label>
-				</div>
-				<input type="hidden" name="taxDeductible" value={taxDeductible.toString()} />
-			</Card.Content>
+				</Card.Content>
 		</Card.Root>
 
 		<Card.Root class="max-w-2xl">
