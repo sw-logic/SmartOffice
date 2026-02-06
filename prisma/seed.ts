@@ -50,6 +50,27 @@ async function main() {
 		{ module: 'projects', action: 'update', description: 'Update projects' },
 		{ module: 'projects', action: 'delete', description: 'Delete projects' },
 		{ module: 'projects', action: 'tasks', description: 'Manage project tasks' },
+		{ module: 'projects', action: 'kanban', description: 'Manage kanban boards' },
+		{ module: 'projects', action: 'milestones', description: 'Manage project milestones' },
+		{ module: 'projects', action: 'budget', description: 'View project budget and estimates' },
+
+		// Tasks
+		{ module: 'tasks', action: 'read', description: 'View tasks' },
+		{ module: 'tasks', action: 'create', description: 'Create tasks' },
+		{ module: 'tasks', action: 'update', description: 'Update tasks' },
+		{ module: 'tasks', action: 'delete', description: 'Delete tasks' },
+
+		// Time Records
+		{ module: 'time_records', action: 'read', description: 'View time records' },
+		{ module: 'time_records', action: 'create', description: 'Create time records' },
+		{ module: 'time_records', action: 'update', description: 'Update time records' },
+		{ module: 'time_records', action: 'delete', description: 'Delete time records' },
+
+		// Notes
+		{ module: 'notes', action: 'read', description: 'View notes' },
+		{ module: 'notes', action: 'create', description: 'Create notes' },
+		{ module: 'notes', action: 'update', description: 'Update notes' },
+		{ module: 'notes', action: 'delete', description: 'Delete notes' },
 
 		// Finances - Income
 		{ module: 'finances.income', action: 'read', description: 'View income' },
@@ -167,102 +188,77 @@ async function main() {
 		});
 	}
 
+	// Helper: split permission string into module + action
+	// Handles dotted modules like "finances.income.read" -> module="finances.income", action="read"
+	function splitPerm(permStr: string): { module: string; action: string } {
+		const lastDot = permStr.lastIndexOf('.');
+		return { module: permStr.substring(0, lastDot), action: permStr.substring(lastDot + 1) };
+	}
+
+	// Helper: assign permissions to a group
+	async function assignGroupPermissions(groupId: number, permStrings: string[]) {
+		for (const permStr of permStrings) {
+			const { module, action } = splitPerm(permStr);
+			const perm = await prisma.permission.findUnique({
+				where: { module_action: { module, action } }
+			});
+			if (perm) {
+				await prisma.groupPermission.upsert({
+					where: {
+						userGroupId_permissionId: {
+							userGroupId: groupId,
+							permissionId: perm.id
+						}
+					},
+					update: {},
+					create: {
+						userGroupId: groupId,
+						permissionId: perm.id
+					}
+				});
+			}
+		}
+	}
+
 	// Assign permissions to Manager group
-	const managerPermissions = [
+	await assignGroupPermissions(managerGroup.id, [
 		'dashboard.read',
 		'clients.read', 'clients.create', 'clients.update', 'clients.contacts',
 		'vendors.read', 'vendors.create', 'vendors.update',
 		'employees.read',
 		'projects.read', 'projects.create', 'projects.update', 'projects.tasks',
+		'projects.kanban', 'projects.milestones',
 		'finances.income.read', 'finances.expenses.read', 'finances.payments.read',
 		'offers.read', 'offers.create', 'offers.update', 'offers.send',
 		'pricelists.read',
-		'settings.read'
-	];
-
-	for (const permStr of managerPermissions) {
-		const [module, action] = permStr.split('.');
-		const perm = await prisma.permission.findUnique({
-			where: { module_action: { module, action } }
-		});
-		if (perm) {
-			await prisma.groupPermission.upsert({
-				where: {
-					userGroupId_permissionId: {
-						userGroupId: managerGroup.id,
-						permissionId: perm.id
-					}
-				},
-				update: {},
-				create: {
-					userGroupId: managerGroup.id,
-					permissionId: perm.id
-				}
-			});
-		}
-	}
+		'settings.read',
+		'tasks.read', 'tasks.create', 'tasks.update', 'tasks.delete',
+		'time_records.read', 'time_records.create',
+		'notes.read', 'notes.create'
+	]);
 
 	// Assign permissions to Accountant group
-	const accountantPermissions = [
+	await assignGroupPermissions(accountantGroup.id, [
 		'dashboard.read', 'dashboard.finances',
 		'clients.read', 'vendors.read', 'projects.read',
+		'projects.budget',
 		'finances.income.read', 'finances.income.create', 'finances.income.update', 'finances.income.delete', 'finances.income.export',
 		'finances.expenses.read', 'finances.expenses.create', 'finances.expenses.update', 'finances.expenses.delete', 'finances.expenses.export',
 		'finances.payments.read', 'finances.payments.create', 'finances.payments.update', 'finances.payments.delete', 'finances.payments.reconcile',
-		'offers.read', 'pricelists.read'
-	];
-
-	for (const permStr of accountantPermissions) {
-		const [module, action] = permStr.split('.');
-		const perm = await prisma.permission.findUnique({
-			where: { module_action: { module, action } }
-		});
-		if (perm) {
-			await prisma.groupPermission.upsert({
-				where: {
-					userGroupId_permissionId: {
-						userGroupId: accountantGroup.id,
-						permissionId: perm.id
-					}
-				},
-				update: {},
-				create: {
-					userGroupId: accountantGroup.id,
-					permissionId: perm.id
-				}
-			});
-		}
-	}
+		'offers.read', 'pricelists.read',
+		'time_records.read'
+	]);
 
 	// Assign permissions to Employee group
-	const employeePermissions = [
+	await assignGroupPermissions(employeeGroup.id, [
 		'dashboard.read',
 		'clients.read',
-		'projects.read',
-		'offers.read'
-	];
-
-	for (const permStr of employeePermissions) {
-		const [module, action] = permStr.split('.');
-		const perm = await prisma.permission.findUnique({
-			where: { module_action: { module, action } }
-		});
-		if (perm) {
-			await prisma.groupPermission.upsert({
-				where: {
-					userGroupId_permissionId: {
-						userGroupId: employeeGroup.id,
-						permissionId: perm.id
-					}
-				},
-				update: {},
-				create: {
-					userGroupId: employeeGroup.id,
-					permissionId: perm.id
-				}
-			});
-		}
-	}
+		'projects.read', 'projects.tasks',
+		'offers.read',
+		'tasks.read', 'tasks.create', 'tasks.update',
+		'time_records.read', 'time_records.create', 'time_records.update',
+		'notes.read', 'notes.create'
+	]);
 
 	// Create a default company
 	console.log('Creating default company...');
@@ -271,7 +267,7 @@ async function main() {
 		update: {},
 		create: {
 			name: 'My Company',
-			currency: 'USD',
+			currency: 'HUF',
 			fiscalYearStart: 1
 		}
 	});
@@ -339,7 +335,7 @@ async function main() {
 			industry: 'Technology',
 			status: 'active',
 			paymentTerms: 30,
-			currency: 'USD',
+			currency: 'HUF',
 			notes: 'Key enterprise client',
 			companyId: company.id,
 			createdById: adminUser.id
@@ -389,7 +385,7 @@ async function main() {
 			category: 'supplier',
 			status: 'active',
 			paymentTerms: 45,
-			currency: 'USD',
+			currency: 'HUF',
 			notes: 'Primary hardware supplier'
 		}
 	});
@@ -426,8 +422,9 @@ async function main() {
 		{ firstName: 'Eva', lastName: 'Evans', email: 'eva@mycompany.com', department: 'Finance', jobTitle: 'Accountant', salary: 70000 }
 	];
 
+	const createdEmployees = [];
 	for (const emp of employees) {
-		await prisma.person.create({
+		const person = await prisma.person.create({
 			data: {
 				firstName: emp.firstName,
 				lastName: emp.lastName,
@@ -442,7 +439,9 @@ async function main() {
 				employmentType: 'full-time'
 			}
 		});
+		createdEmployees.push(person);
 	}
+	const [alice, bob] = createdEmployees;
 
 	// Create 10 income records for January 2026
 	console.log('Creating income records...');
@@ -464,7 +463,7 @@ async function main() {
 			data: {
 				date: new Date(income.date),
 				amount: income.amount,
-				currency: 'USD',
+				currency: 'HUF',
 				description: income.description,
 				category: income.category,
 				clientId: client.id,
@@ -493,7 +492,7 @@ async function main() {
 			data: {
 				date: new Date(expense.date),
 				amount: expense.amount,
-				currency: 'USD',
+				currency: 'HUF',
 				description: expense.description,
 				category: expense.category,
 				vendorId: vendor.id,
@@ -516,16 +515,10 @@ async function main() {
 			group: 'Generic',
 			isSystem: true,
 			values: [
-				{ value: 'USD', label: 'US Dollar', sortOrder: 1, isDefault: true, metadata: { symbol: '$', code: 'USD' } },
+				{ value: 'HUF', label: 'Hungarian Forint', sortOrder: 1, isDefault: true, metadata: { symbol: 'HUF', code: 'HUF' } },
+				{ value: 'USD', label: 'US Dollar', sortOrder: 1, metadata: { symbol: '$', code: 'USD' } },
 				{ value: 'EUR', label: 'Euro', sortOrder: 2, metadata: { symbol: '€', code: 'EUR' } },
 				{ value: 'GBP', label: 'British Pound', sortOrder: 3, metadata: { symbol: '£', code: 'GBP' } },
-				{ value: 'JPY', label: 'Japanese Yen', sortOrder: 4, metadata: { symbol: '¥', code: 'JPY' } },
-				{ value: 'CHF', label: 'Swiss Franc', sortOrder: 5, metadata: { symbol: 'CHF', code: 'CHF' } },
-				{ value: 'CAD', label: 'Canadian Dollar', sortOrder: 6, metadata: { symbol: 'C$', code: 'CAD' } },
-				{ value: 'AUD', label: 'Australian Dollar', sortOrder: 7, metadata: { symbol: 'A$', code: 'AUD' } },
-				{ value: 'CNY', label: 'Chinese Yuan', sortOrder: 8, metadata: { symbol: '¥', code: 'CNY' } },
-				{ value: 'INR', label: 'Indian Rupee', sortOrder: 9, metadata: { symbol: '₹', code: 'INR' } },
-				{ value: 'HRK', label: 'Croatian Kuna', sortOrder: 10, metadata: { symbol: 'kn', code: 'HRK' } }
 			]
 		},
 		{
@@ -754,7 +747,8 @@ async function main() {
 				{ value: 'active', label: 'Active', sortOrder: 2 },
 				{ value: 'on_hold', label: 'On Hold', sortOrder: 3 },
 				{ value: 'completed', label: 'Completed', sortOrder: 4 },
-				{ value: 'cancelled', label: 'Cancelled', sortOrder: 5 }
+				{ value: 'cancelled', label: 'Cancelled', sortOrder: 5 },
+				{ value: 'archived', label: 'Archived', sortOrder: 6 }
 			]
 		},
 		{
@@ -823,6 +817,121 @@ async function main() {
 				{ value: 'training', label: 'Training', sortOrder: 11 },
 				{ value: 'other', label: 'Other', sortOrder: 99 }
 			]
+		},
+		{
+			code: 'task_type',
+			name: 'Task Types',
+			description: 'Types of tasks',
+			group: 'Projects',
+			isSystem: false,
+			values: [
+				{ value: 'bug', label: 'Bug', sortOrder: 1 },
+				{ value: 'feature', label: 'Feature', sortOrder: 2, isDefault: true },
+				{ value: 'task', label: 'Task', sortOrder: 3 },
+				{ value: 'improvement', label: 'Improvement', sortOrder: 4 },
+				{ value: 'research', label: 'Research', sortOrder: 5 },
+				{ value: 'documentation', label: 'Documentation', sortOrder: 6 }
+			]
+		},
+		{
+			code: 'task_category',
+			name: 'Task Categories',
+			description: 'Categories for tasks',
+			group: 'Projects',
+			isSystem: false,
+			values: [
+				{ value: 'frontend', label: 'Frontend', sortOrder: 1 },
+				{ value: 'backend', label: 'Backend', sortOrder: 2, isDefault: true },
+				{ value: 'design', label: 'Design', sortOrder: 3 },
+				{ value: 'testing', label: 'Testing', sortOrder: 4 },
+				{ value: 'devops', label: 'DevOps', sortOrder: 5 },
+				{ value: 'other', label: 'Other', sortOrder: 99 }
+			]
+		},
+		{
+			code: 'time_record_type',
+			name: 'Time Record Types',
+			description: 'Types of time records',
+			group: 'Projects',
+			isSystem: false,
+			values: [
+				{ value: 'development', label: 'Development', sortOrder: 1, isDefault: true },
+				{ value: 'design', label: 'Design', sortOrder: 2 },
+				{ value: 'meeting', label: 'Meeting', sortOrder: 3 },
+				{ value: 'review', label: 'Review', sortOrder: 4 },
+				{ value: 'testing', label: 'Testing', sortOrder: 5 },
+				{ value: 'documentation', label: 'Documentation', sortOrder: 6 },
+				{ value: 'support', label: 'Support', sortOrder: 7 },
+				{ value: 'other', label: 'Other', sortOrder: 99 }
+			]
+		},
+		{
+			code: 'time_record_category',
+			name: 'Time Record Categories',
+			description: 'Billing categories for time records',
+			group: 'Projects',
+			isSystem: false,
+			values: [
+				{ value: 'billable', label: 'Billable', sortOrder: 1, isDefault: true },
+				{ value: 'non_billable', label: 'Non-billable', sortOrder: 2 },
+				{ value: 'overtime', label: 'Overtime', sortOrder: 3 },
+				{ value: 'internal', label: 'Internal', sortOrder: 4 }
+			]
+		},
+		{
+			code: 'note_priority',
+			name: 'Note Priorities',
+			description: 'Priority levels for notes',
+			group: 'Generic',
+			isSystem: true,
+			values: [
+				{ value: 'low', label: 'Low', sortOrder: 1 },
+				{ value: 'normal', label: 'Normal', sortOrder: 2, isDefault: true },
+				{ value: 'high', label: 'High', sortOrder: 3 },
+				{ value: 'urgent', label: 'Urgent', sortOrder: 4 }
+			]
+		},
+		{
+			code: 'project_tags',
+			name: 'Project Tags',
+			description: 'Tags for projects',
+			group: 'Projects',
+			isSystem: false,
+			values: [
+				{ value: 'high_priority', label: 'High Priority', sortOrder: 1, color: '#EF4444' },
+				{ value: 'flagship', label: 'Flagship', sortOrder: 2, color: '#8B5CF6' },
+				{ value: 'internal', label: 'Internal', sortOrder: 3, color: '#3B82F6' },
+				{ value: 'client_facing', label: 'Client Facing', sortOrder: 4, color: '#10B981' },
+				{ value: 'maintenance', label: 'Maintenance', sortOrder: 5, color: '#F59E0B' }
+			]
+		},
+		{
+			code: 'client_tags',
+			name: 'Client Tags',
+			description: 'Tags for clients',
+			group: 'Clients',
+			isSystem: false,
+			values: [
+				{ value: 'vip', label: 'VIP', sortOrder: 1, color: '#EF4444' },
+				{ value: 'enterprise', label: 'Enterprise', sortOrder: 2, color: '#8B5CF6' },
+				{ value: 'startup', label: 'Startup', sortOrder: 3, color: '#3B82F6' },
+				{ value: 'recurring', label: 'Recurring', sortOrder: 4, color: '#10B981' },
+				{ value: 'prospect', label: 'Prospect', sortOrder: 5, color: '#F59E0B' }
+			]
+		},
+		{
+			code: 'task_tags',
+			name: 'Task Tags',
+			description: 'Tags for tasks',
+			group: 'Projects',
+			isSystem: false,
+			values: [
+				{ value: 'blocker', label: 'Blocker', sortOrder: 1, color: '#EF4444' },
+				{ value: 'quick_win', label: 'Quick Win', sortOrder: 2, color: '#10B981' },
+				{ value: 'tech_debt', label: 'Tech Debt', sortOrder: 3, color: '#F59E0B' },
+				{ value: 'needs_review', label: 'Needs Review', sortOrder: 4, color: '#3B82F6' },
+				{ value: 'wont_fix', label: "Won't Fix", sortOrder: 5, color: '#6B7280' }
+			]
 		}
 	];
 
@@ -857,6 +966,7 @@ async function main() {
 					label: value.label,
 					sortOrder: value.sortOrder,
 					isDefault: value.isDefault || false,
+					color: value.color || null,
 					metadata: value.metadata || null
 				},
 				create: {
@@ -866,8 +976,286 @@ async function main() {
 					sortOrder: value.sortOrder,
 					isDefault: value.isDefault || false,
 					isActive: true,
+					color: value.color || null,
 					metadata: value.metadata || null
 				}
+			});
+		}
+	}
+
+	// ============================================================================
+	// SAMPLE PROJECT DATA
+	// ============================================================================
+	console.log('Creating sample project data...');
+
+	// Create project
+	const project = await prisma.project.upsert({
+		where: { id: 1 },
+		update: {},
+		create: {
+			name: 'Website Redesign',
+			description: '# Website Redesign\n\nComplete redesign of the Acme Corp corporate website.\n\n## Goals\n- Modern responsive design\n- Improved performance\n- Better SEO\n- CMS integration',
+			companyId: company.id,
+			clientId: client.id,
+			status: 'active',
+			priority: 'high',
+			startDate: new Date('2026-01-15'),
+			endDate: new Date('2026-06-30'),
+			budgetEstimate: 50000,
+			estimatedHours: 800,
+			projectManagerId: alice.id,
+			createdById: adminUser.id
+		}
+	});
+
+	// Assign employees to project
+	console.log('Assigning employees to project...');
+	for (const person of [alice, bob]) {
+		await prisma.projectEmployee.upsert({
+			where: {
+				projectId_personId: {
+					projectId: project.id,
+					personId: person.id
+				}
+			},
+			update: {},
+			create: {
+				projectId: project.id,
+				personId: person.id,
+				role: person.id === alice.id ? 'Lead Developer' : 'Developer'
+			}
+		});
+	}
+
+	// Create milestones
+	console.log('Creating milestones...');
+	const milestone1 = await prisma.milestone.create({
+		data: {
+			projectId: project.id,
+			name: 'Design Phase Complete',
+			description: 'All wireframes and mockups approved by client.',
+			date: new Date('2026-03-01'),
+			order: 1
+		}
+	});
+
+	const milestone2 = await prisma.milestone.create({
+		data: {
+			projectId: project.id,
+			name: 'Launch',
+			description: 'Production deployment of the new website.',
+			date: new Date('2026-06-30'),
+			order: 2
+		}
+	});
+
+	// Create kanban board
+	console.log('Creating kanban board...');
+	const kanbanBoard = await prisma.kanbanBoard.create({
+		data: {
+			projectId: project.id,
+			name: 'Main Board',
+			description: 'Primary kanban board for website redesign'
+		}
+	});
+
+	// Add board members
+	for (const person of [alice, bob]) {
+		await prisma.kanbanBoardMember.create({
+			data: {
+				kanbanBoardId: kanbanBoard.id,
+				personId: person.id,
+				role: 'member'
+			}
+		});
+	}
+
+	// Create columns
+	const columnNames = ['Backlog', 'To Do', 'In Progress', 'Review', 'Done'];
+	const columns: Record<string, { id: number }> = {};
+	for (let i = 0; i < columnNames.length; i++) {
+		const col = await prisma.kanbanColumn.create({
+			data: {
+				kanbanBoardId: kanbanBoard.id,
+				name: columnNames[i],
+				order: i
+			}
+		});
+		columns[columnNames[i]] = col;
+	}
+
+	// Create swimlanes
+	const swimlaneNames = ['Bugs', 'New Requests', 'Tasks', 'Ideas'];
+	const swimlanes: Record<string, { id: number }> = {};
+	for (let i = 0; i < swimlaneNames.length; i++) {
+		const sl = await prisma.kanbanSwimlane.create({
+			data: {
+				kanbanBoardId: kanbanBoard.id,
+				name: swimlaneNames[i],
+				order: i
+			}
+		});
+		swimlanes[swimlaneNames[i]] = sl;
+	}
+
+	// Create tasks
+	console.log('Creating tasks...');
+	const taskData = [
+		{
+			name: 'Fix navigation menu on mobile',
+			description: 'The hamburger menu does not open on iOS Safari.\n\n## Steps to reproduce\n1. Open site on iPhone\n2. Tap hamburger icon\n3. Nothing happens',
+			type: 'bug', category: 'frontend', status: 'in_progress', priority: 'high',
+			column: 'In Progress', swimlane: 'Bugs',
+			assignedToId: alice.id, estimatedTime: 4, order: 0
+		},
+		{
+			name: 'Design new homepage layout',
+			description: 'Create wireframe and high-fidelity mockup for the new homepage.',
+			type: 'feature', category: 'design', status: 'review', priority: 'high',
+			column: 'Review', swimlane: 'New Requests',
+			assignedToId: bob.id, estimatedTime: 16, order: 0
+		},
+		{
+			name: 'Set up CI/CD pipeline',
+			description: 'Configure automated testing and deployment pipeline using GitHub Actions.',
+			type: 'task', category: 'devops', status: 'todo', priority: 'medium',
+			column: 'To Do', swimlane: 'Tasks',
+			assignedToId: null, estimatedTime: 8, order: 0
+		},
+		{
+			name: 'Implement contact form',
+			description: 'Build the contact form with validation and email notification.',
+			type: 'feature', category: 'backend', status: 'todo', priority: 'medium',
+			column: 'To Do', swimlane: 'New Requests',
+			assignedToId: alice.id, estimatedTime: 12, order: 1
+		},
+		{
+			name: 'Research analytics integration',
+			description: 'Evaluate Google Analytics 4 vs Plausible for privacy-friendly analytics.',
+			type: 'research', category: 'other', status: 'backlog', priority: 'low',
+			column: 'Backlog', swimlane: 'Ideas',
+			assignedToId: null, estimatedTime: 6, order: 0
+		},
+		{
+			name: 'Write API documentation',
+			description: 'Document all REST API endpoints with request/response examples.',
+			type: 'documentation', category: 'backend', status: 'backlog', priority: 'low',
+			column: 'Backlog', swimlane: 'Tasks',
+			assignedToId: bob.id, estimatedTime: 10, order: 1
+		}
+	];
+
+	const createdTasks = [];
+	for (const t of taskData) {
+		const task = await prisma.task.create({
+			data: {
+				name: t.name,
+				description: t.description,
+				type: t.type,
+				category: t.category,
+				status: t.status,
+				priority: t.priority,
+				projectId: project.id,
+				kanbanBoardId: kanbanBoard.id,
+				columnId: columns[t.column].id,
+				swimlaneId: swimlanes[t.swimlane].id,
+				assignedToId: t.assignedToId,
+				estimatedTime: t.estimatedTime,
+				order: t.order,
+				createdById: adminUser.id
+			}
+		});
+		createdTasks.push(task);
+	}
+
+	// Create time records
+	console.log('Creating time records...');
+	const timeRecordData = [
+		{ taskIndex: 0, date: '2026-01-20', hours: 2.5, description: 'Investigated iOS Safari bug, found CSS issue', type: 'development', category: 'billable' },
+		{ taskIndex: 0, date: '2026-01-21', hours: 1.5, description: 'Applied fix and tested across devices', type: 'development', category: 'billable' },
+		{ taskIndex: 1, date: '2026-01-18', hours: 4, description: 'Initial wireframe sketches for homepage', type: 'design', category: 'billable' },
+		{ taskIndex: 1, date: '2026-01-22', hours: 6, description: 'High-fidelity mockup in Figma', type: 'design', category: 'billable' }
+	];
+
+	for (const tr of timeRecordData) {
+		await prisma.timeRecord.create({
+			data: {
+				taskId: createdTasks[tr.taskIndex].id,
+				date: new Date(tr.date),
+				hours: tr.hours,
+				description: tr.description,
+				type: tr.type,
+				category: tr.category,
+				createdById: adminUser.id
+			}
+		});
+	}
+
+	// Create notes
+	console.log('Creating notes...');
+	await prisma.note.create({
+		data: {
+			entityType: 'Project',
+			entityId: String(project.id),
+			content: '## Kickoff Meeting Notes\n\nClient wants a modern, clean design. Key requirements:\n- Mobile-first approach\n- Fast page load times (< 2s)\n- Integration with their existing CRM',
+			authorId: adminUser.id,
+			priority: 'high',
+			color: '#3B82F6'
+		}
+	});
+
+	await prisma.note.create({
+		data: {
+			entityType: 'Client',
+			entityId: String(client.id),
+			content: '## Account Notes\n\nAcme Corp is our largest enterprise client. Primary contact is John Smith (CEO).\nPrefers communication via email. Billing handled through Sarah Johnson (CFO).',
+			authorId: adminUser.id,
+			priority: 'normal',
+			color: '#10B981'
+		}
+	});
+
+	await prisma.note.create({
+		data: {
+			entityType: 'Task',
+			entityId: String(createdTasks[0].id),
+			content: 'This bug only affects iOS 16+. The CSS `dvh` unit is not supported in older Safari versions. Consider using a fallback.',
+			authorId: adminUser.id,
+			priority: 'normal'
+		}
+	});
+
+	// Create entity tags
+	console.log('Creating entity tags...');
+	const projectTagType = await prisma.enumType.findUnique({ where: { code: 'project_tags' }, include: { values: true } });
+	const clientTagType = await prisma.enumType.findUnique({ where: { code: 'client_tags' }, include: { values: true } });
+
+	if (projectTagType) {
+		const flagshipTag = projectTagType.values.find(v => v.value === 'flagship');
+		const highPriorityTag = projectTagType.values.find(v => v.value === 'high_priority');
+		if (flagshipTag) {
+			await prisma.entityTag.create({
+				data: { entityType: 'Project', entityId: String(project.id), enumValueId: flagshipTag.id }
+			});
+		}
+		if (highPriorityTag) {
+			await prisma.entityTag.create({
+				data: { entityType: 'Project', entityId: String(project.id), enumValueId: highPriorityTag.id }
+			});
+		}
+	}
+
+	if (clientTagType) {
+		const enterpriseTag = clientTagType.values.find(v => v.value === 'enterprise');
+		const vipTag = clientTagType.values.find(v => v.value === 'vip');
+		if (enterpriseTag) {
+			await prisma.entityTag.create({
+				data: { entityType: 'Client', entityId: String(client.id), enumValueId: enterpriseTag.id }
+			});
+		}
+		if (vipTag) {
+			await prisma.entityTag.create({
+				data: { entityType: 'Client', entityId: String(client.id), enumValueId: vipTag.id }
 			});
 		}
 	}
@@ -884,6 +1272,12 @@ async function main() {
 	console.log('  - 5 Employees');
 	console.log('  - 10 Income records (January 2026)');
 	console.log('  - 10 Expense records (January 2026)');
+	console.log('  - 1 Project (Website Redesign) with 2 milestones');
+	console.log('  - 1 Kanban Board with 5 columns and 4 swimlanes');
+	console.log('  - 6 Tasks across kanban board');
+	console.log('  - 4 Time Records');
+	console.log('  - 3 Notes (on project, client, and task)');
+	console.log('  - 4 Entity Tags (on project and client)');
 }
 
 main()

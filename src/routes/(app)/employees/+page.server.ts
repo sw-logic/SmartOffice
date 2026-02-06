@@ -36,7 +36,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	} else if (status && status !== 'all') {
 		where.deletedAt = null;
 		where.employeeStatus = status;
-	} else if (!isAdmin) {
+	} else if (isAdmin) {
+		// Admin viewing all records — explicitly mark deletedAt as handled
+		// so the soft-delete extension doesn't auto-filter
+		where.deletedAt = undefined;
+	} else {
 		where.deletedAt = null;
 	}
 

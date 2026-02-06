@@ -35,7 +35,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	if (status === 'deleted' && isAdmin) {
 		where.deletedAt = { not: null };
 	} else if (status === 'all' && isAdmin) {
-		// No filter on deletedAt or status
+		// Show all records including deleted — explicitly mark deletedAt as handled
+		// so the soft-delete extension doesn't auto-filter
+		where.deletedAt = undefined as any;
 	} else if (status === 'active' || status === 'inactive') {
 		where.deletedAt = null;
 		where.status = status;

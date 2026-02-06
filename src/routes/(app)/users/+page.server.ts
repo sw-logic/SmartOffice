@@ -24,7 +24,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	} else if (status === 'deleted' && isAdmin) {
 		deletedAtFilter = { deletedAt: { not: null } };
 	} else if (status === 'all' && isAdmin) {
-		deletedAtFilter = {}; // No filter on deletedAt
+		// Show all records including deleted — explicitly mark deletedAt as handled
+		// so the soft-delete extension doesn't auto-filter
+		deletedAtFilter = { deletedAt: undefined } as any;
 	} else {
 		// Non-admins can only see active users
 		deletedAtFilter = { deletedAt: null };

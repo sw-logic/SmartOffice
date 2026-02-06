@@ -35,6 +35,14 @@ model User {
   createdClients  Client[]   @relation("CreatedBy")
   createdProjects Project[]  @relation("CreatedBy")
   createdOffers   Offer[]    @relation("CreatedBy")
+  createdTasks    Task[]     @relation("TaskCreatedBy")
+  timeRecords     TimeRecord[]
+
+  // Notes authored by this user
+  authoredNotes Note[]
+
+  // Kanban board preferences
+  boardPreferences UserBoardPreference[]
 
   // Person profile (if user is linked to a person record)
   person Person?
@@ -257,8 +265,10 @@ model Person {
   emergencyContact String?
 
   // Relations
-  managedProjects  Project[]         @relation("ProjectManager")
-  assignedProjects ProjectEmployee[]
+  managedProjects          Project[]           @relation("ProjectManager")
+  assignedProjects         ProjectEmployee[]
+  assignedTasks            Task[]              @relation("TaskAssignee")
+  kanbanBoardMemberships   KanbanBoardMember[]
 
   deletedAt DateTime?
   createdAt DateTime  @default(now())
@@ -388,14 +398,15 @@ model Project {
   clientId Int
   client   Client @relation(fields: [clientId], references: [id])
 
-  status   String @default("planning") // "planning", "active", "on_hold", "completed", "cancelled"
+  status   String @default("planning") // "planning", "active", "on_hold", "completed", "cancelled", "archived"
   priority String @default("medium") // "low", "medium", "high"
 
   startDate DateTime?
   endDate   DateTime?
 
-  // Budget
+  // Budget & Estimates (visible only for admin and accountant users)
   budgetEstimate Decimal? @db.Decimal(10, 2)
+  estimatedHours Decimal? @db.Decimal(10, 2)
 
   // Calculated fields (via relations)
   // actualCost = sum of related expenses
@@ -407,11 +418,10 @@ model Project {
 
   assignedEmployees ProjectEmployee[]
   tasks             Task[]
+  kanbanBoards      KanbanBoard[]
+  milestones        Milestone[]
   income            Income[]
   expenses          Expense[]
-
-  tags  String[] // Array of tags
-  notes String?
 
   createdById String
   createdBy   User   @relation("CreatedBy", fields: [createdById], references: [id])
@@ -439,30 +449,255 @@ model ProjectEmployee {
 }
 
 model Task {
-  id        Int     @id @default(autoincrement())
+  id Int @id @default(autoincrement())
+
+  name        String
+  description String? @db.Text // Markdown format
+
+  type     String? // Managed via enums: "bug", "feature", "task", "improvement", etc.
+  category String? // Managed via enums
+  status   String  @default("todo") // "backlog", "todo", "in_progress", "review", "done"
+  priority String  @default("medium") // "low", "medium", "high", "urgent"
+
+  // Project (required - every task belongs to a project)
   projectId Int
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  title       String
-  description String?
-  status      String  @default("todo") // "backlog", "todo", "in_progress", "review", "client_review" "done"
-  priority    String  @default("medium")
+  // Kanban board placement (optional - task may not be on a board yet)
+  kanbanBoardId Int?
+  kanbanBoard   KanbanBoard? @relation(fields: [kanbanBoardId], references: [id])
 
-  assignedTo String? // Employee ID
-  reviewers  String[] // Employee ID
-  followers  String[] // Employee ID
+  columnId   Int?
+  column     KanbanColumn? @relation(fields: [columnId], references: [id])
 
-  dueDate DateTime?
+  swimlaneId Int?
+  swimlane   KanbanSwimlane? @relation(fields: [swimlaneId], references: [id])
 
-  order  Int // For kanban column ordering
-  column String @default("todo") // Kanban column
+  order Int @default(0) // Ordering within column/swimlane
+
+  // People
+  assignedToId Int?
+  assignedTo   Person? @relation("TaskAssignee", fields: [assignedToId], references: [id])
+
+  reviewerIds Int[] // Person IDs
+  followerIds Int[] // Person IDs
+
+  createdById String
+  createdBy   User   @relation("TaskCreatedBy", fields: [createdById], references: [id])
+
+  // Time tracking
+  dueDate       DateTime?
+  estimatedTime Decimal? @db.Decimal(10, 2) // Hours
+  // spentTime is calculated as SUM of related timeRecords
+  timeRecords TimeRecord[]
+
+  notes String? @db.Text
 
   deletedAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
   @@index([projectId])
+  @@index([kanbanBoardId])
   @@index([status])
+  @@index([assignedToId])
+  @@index([columnId])
+  @@index([swimlaneId])
+}
+
+// ============================================================================
+// TIME RECORDS
+// ============================================================================
+
+model TimeRecord {
+  id Int @id @default(autoincrement())
+
+  taskId Int
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  date        DateTime // Selectable date (when the work was done)
+  hours       Decimal  @db.Decimal(10, 2) // Duration in hours (e.g. 1.5, 3.0)
+  description String?
+
+  type     String? // Managed via enums (e.g. "development", "design", "meeting")
+  category String? // Managed via enums (e.g. "billable", "non-billable", "overtime")
+
+  // Creator (editable by creator, admins, and project manager)
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([taskId])
+  @@index([createdById])
+  @@index([date])
+}
+
+// ============================================================================
+// MILESTONES
+// ============================================================================
+
+model Milestone {
+  id        Int     @id @default(autoincrement())
+  projectId Int
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String? @db.Text
+  date        DateTime
+  order       Int      @default(0)
+
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([projectId])
+}
+
+// ============================================================================
+// KANBAN BOARDS
+// ============================================================================
+
+model KanbanBoard {
+  id        Int     @id @default(autoincrement())
+  projectId Int
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+
+  // Relations
+  members     KanbanBoardMember[]
+  columns     KanbanColumn[]
+  swimlanes   KanbanSwimlane[]
+  tasks       Task[]
+  preferences UserBoardPreference[]
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([projectId])
+}
+
+model KanbanBoardMember {
+  kanbanBoardId Int
+  personId      Int
+
+  kanbanBoard KanbanBoard @relation(fields: [kanbanBoardId], references: [id], onDelete: Cascade)
+  person      Person      @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  role       String   @default("member") // "member", "viewer"
+  assignedAt DateTime @default(now())
+
+  @@id([kanbanBoardId, personId])
+}
+
+model KanbanColumn {
+  id            Int         @id @default(autoincrement())
+  kanbanBoardId Int
+  kanbanBoard   KanbanBoard @relation(fields: [kanbanBoardId], references: [id], onDelete: Cascade)
+
+  name  String
+  order Int    @default(0)
+  color String? // Hex color for visual distinction
+
+  tasks Task[]
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([kanbanBoardId])
+}
+
+model KanbanSwimlane {
+  id            Int         @id @default(autoincrement())
+  kanbanBoardId Int
+  kanbanBoard   KanbanBoard @relation(fields: [kanbanBoardId], references: [id], onDelete: Cascade)
+
+  name  String
+  order Int    @default(0)
+  color String? // Hex color for visual distinction
+
+  tasks Task[]
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([kanbanBoardId])
+}
+
+model UserBoardPreference {
+  id     Int    @id @default(autoincrement())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  kanbanBoardId Int
+  kanbanBoard   KanbanBoard @relation(fields: [kanbanBoardId], references: [id], onDelete: Cascade)
+
+  collapsedColumns   Json? // Array of column IDs: [1, 3, 5]
+  collapsedSwimlanes Json? // Array of swimlane IDs: [2, 4]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, kanbanBoardId])
+}
+
+// ============================================================================
+// NOTES (polymorphic - attachable to any entity)
+// ============================================================================
+
+model Note {
+  id Int @id @default(autoincrement())
+
+  // Polymorphic relation
+  entityType String // "Client", "Project", "Task", "Vendor", "Income", "Expense", etc.
+  entityId   String // ID of the parent entity (String for flexibility with cuid/int IDs)
+
+  content String @db.Text // Markdown format
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+
+  priority String  @default("normal") // "low", "normal", "high", "urgent"
+  color    String? // Hex color for visual categorization
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([entityType, entityId])
+  @@index([authorId])
+}
+
+// ============================================================================
+// TAGS (polymorphic - attachable to any entity, backed by EnumValue)
+// ============================================================================
+
+model EntityTag {
+  id Int @id @default(autoincrement())
+
+  // Polymorphic relation
+  entityType String // "Client", "Project", "Task", "Vendor", etc.
+  entityId   String // ID of the parent entity
+
+  // Tag definition from EnumValue (e.g., enum type "project_tags", "client_tags")
+  enumValueId Int
+  enumValue   EnumValue @relation(fields: [enumValueId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([entityType, entityId, enumValueId])
+  @@index([entityType, entityId])
+  @@index([enumValueId])
 }
 
 // ============================================================================
@@ -756,7 +991,11 @@ model EnumValue {
   isDefault Boolean @default(false)
   isActive  Boolean @default(true)
 
-  metadata Json? // Extensible: { "symbol": "$" } for currencies
+  color    String? // Hex color (used for tags, categories, etc.)
+  metadata Json?   // Extensible: { "symbol": "$" } for currencies
+
+  // Relations
+  entityTags EntityTag[]
 
   deletedAt DateTime?
   createdAt DateTime  @default(now())
