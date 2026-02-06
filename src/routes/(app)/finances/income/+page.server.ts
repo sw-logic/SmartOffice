@@ -3,6 +3,7 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { fail } from '@sveltejs/kit';
 import { logDelete, logUpdate } from '$lib/server/audit';
+import { getEnumValuesBatch } from '$lib/server/enums';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'finances.income', 'read');
@@ -76,6 +77,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		select: {
 			id: true,
 			amount: true,
+			tax: true,
+			tax_value: true,
 			currency: true,
 			date: true,
 			description: true,
@@ -85,7 +88,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			isRecurring: true,
 			recurringPeriod: true,
 			invoiceReference: true,
-			taxRate: true,
 			notes: true,
 			client: {
 				select: {
@@ -109,29 +111,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const summaryData = await prisma.income.aggregate({
 		where,
 		_sum: {
-			amount: true
+			amount: true,
+			tax_value: true
 		},
 		_count: true
 	});
-
-	// Calculate tax totals (need to do this manually since tax is calculated per item)
-	const incomesForTax = await prisma.income.findMany({
-		where,
-		select: {
-			amount: true,
-			taxRate: true
-		}
-	});
-
-	let totalTaxAmount = 0;
-	let totalNetAmount = 0;
-	for (const income of incomesForTax) {
-		const amount = Number(income.amount);
-		const taxRate = income.taxRate ? Number(income.taxRate) : 0;
-		const taxAmount = amount * (taxRate / 100);
-		totalTaxAmount += taxAmount;
-		totalNetAmount += amount - taxAmount;
-	}
 
 	// Get clients for filter dropdown
 	const clients = await prisma.client.findMany({
@@ -155,17 +139,36 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const serializedIncomes = incomes.map(inc => ({
 		...inc,
 		amount: Number(inc.amount),
-		taxRate: inc.taxRate ? Number(inc.taxRate) : null
+		tax: Number(inc.tax),
+		tax_value: Number(inc.tax_value)
 	}));
+
+	// Load data needed for the form modal
+	const [projects, enums] = await Promise.all([
+		prisma.project.findMany({
+			where: { deletedAt: null, status: { in: ['planning', 'active'] } },
+			select: {
+				id: true,
+				name: true,
+				client: { select: { id: true, name: true } }
+			},
+			orderBy: { name: 'asc' }
+		}),
+		getEnumValuesBatch(['income_category', 'currency', 'income_status', 'recurring_period'])
+	]);
 
 	return {
 		incomes: serializedIncomes,
 		clients,
 		categories,
+		projects,
+		incomeCategories: enums.income_category,
+		currencies: enums.currency,
+		incomeStatuses: enums.income_status,
+		recurringPeriods: enums.recurring_period,
 		summary: {
 			totalAmount: summaryData._sum.amount ? Number(summaryData._sum.amount) : 0,
-			totalTaxAmount,
-			totalNetAmount,
+			totalTaxValue: summaryData._sum.tax_value ? Number(summaryData._sum.tax_value) : 0,
 			count: summaryData._count
 		},
 		totalCount,

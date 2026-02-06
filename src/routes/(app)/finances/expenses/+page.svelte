@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -10,6 +10,7 @@
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import DateRangeSelector from '$lib/components/shared/DateRangeSelector.svelte';
+	import ExpenseFormModal from '$lib/components/shared/ExpenseFormModal.svelte';
 	import {
 		Plus,
 		Search,
@@ -29,6 +30,18 @@
 	let searchInput = $state(data.filters.search);
 	let deleteDialogOpen = $state(false);
 	let selectedExpense = $state<{ id: number; description: string } | null>(null);
+	let modalOpen = $state(false);
+	let editExpenseId = $state<number | null>(null);
+
+	function openCreateModal() {
+		editExpenseId = null;
+		modalOpen = true;
+	}
+
+	function openEditModal(id: number) {
+		editExpenseId = id;
+		modalOpen = true;
+	}
 
 	const statusOptions = [
 		{ value: 'paid', label: 'Paid' },
@@ -140,7 +153,7 @@
 			<h1 class="text-3xl font-bold tracking-tight">Expenses</h1>
 			<p class="text-muted-foreground">Track and manage your expenses</p>
 		</div>
-		<Button href="/finances/expenses/new">
+		<Button onclick={openCreateModal}>
 			<Plus class="mr-2 h-4 w-4" />
 			Add Expense
 		</Button>
@@ -256,6 +269,8 @@
 							<ArrowUpDown class="ml-2 h-4 w-4" />
 						</Button>
 					</Table.Head>
+					<Table.Head class="text-right">Tax %</Table.Head>
+					<Table.Head class="text-right">Tax Value</Table.Head>
 					<Table.Head class="text-center">Tax Ded.</Table.Head>
 					<Table.Head class="w-[80px]">Actions</Table.Head>
 				</Table.Row>
@@ -333,6 +348,12 @@
 						<Table.Cell class="text-right font-medium text-red-600">
 							{formatCurrency(Number(expense.amount), expense.currency)}
 						</Table.Cell>
+						<Table.Cell class="text-right">
+							{expense.tax}%
+						</Table.Cell>
+						<Table.Cell class="text-right">
+							{formatCurrency(expense.tax_value, expense.currency)}
+						</Table.Cell>
 						<Table.Cell class="text-center">
 							{#if expense.taxDeductible}
 								<CheckCircle class="h-4 w-4 text-green-600 mx-auto" />
@@ -354,12 +375,10 @@
 											View
 										</DropdownMenu.Item>
 									</a>
-									<a href="/finances/expenses/{expense.id}/edit" class="block">
-										<DropdownMenu.Item>
-											<Pencil class="mr-2 h-4 w-4" />
-											Edit
-										</DropdownMenu.Item>
-									</a>
+									<DropdownMenu.Item onclick={() => openEditModal(expense.id)}>
+										<Pencil class="mr-2 h-4 w-4" />
+										Edit
+									</DropdownMenu.Item>
 									<DropdownMenu.Separator />
 									<DropdownMenu.Item
 										class="text-destructive"
@@ -375,7 +394,7 @@
 					</Table.Row>
 				{:else}
 					<Table.Row>
-						<Table.Cell colspan={8} class="text-center py-8">
+						<Table.Cell colspan={10} class="text-center py-8">
 							<div class="text-muted-foreground">No expense records found for this period</div>
 						</Table.Cell>
 					</Table.Row>
@@ -392,6 +411,10 @@
 						</Table.Cell>
 						<Table.Cell class="text-right text-red-600">
 							{formatCurrency(data.summary.totalAmount)}
+						</Table.Cell>
+						<Table.Cell class="text-right">-</Table.Cell>
+						<Table.Cell class="text-right">
+							{formatCurrency(data.summary.totalTaxValue)}
 						</Table.Cell>
 						<Table.Cell class="text-center text-green-600 text-sm">
 							{formatCurrency(data.summary.taxDeductibleAmount)}
@@ -433,6 +456,19 @@
 		</div>
 	{/if}
 </div>
+
+<!-- Expense Form Modal -->
+<ExpenseFormModal
+	bind:open={modalOpen}
+	expenseId={editExpenseId}
+	vendors={data.vendors}
+	projects={data.projects}
+	categories={data.expenseCategories}
+	currencies={data.currencies}
+	statuses={data.expenseStatuses}
+	recurringPeriods={data.recurringPeriods}
+	onSaved={() => invalidateAll()}
+/>
 
 <!-- Delete Confirmation Dialog -->
 <AlertDialog.Root bind:open={deleteDialogOpen}>

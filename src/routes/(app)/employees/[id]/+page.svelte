@@ -8,6 +8,7 @@
 	import * as Select from '$lib/components/ui/select';
 	import * as Alert from '$lib/components/ui/alert';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
+	import * as Avatar from '$lib/components/ui/avatar';
 	import {
 		ArrowLeft,
 		Pencil,
@@ -122,6 +123,9 @@
 			<Button variant="ghost" size="icon" href="/employees">
 				<ArrowLeft class="h-4 w-4" />
 			</Button>
+			<Avatar.Root class="size-14 text-lg">
+				<Avatar.Fallback>{data.employee.firstName[0]}{data.employee.lastName[0]}</Avatar.Fallback>
+			</Avatar.Root>
 			<div>
 				<h1 class="text-3xl font-bold tracking-tight">
 					{data.employee.firstName}

@@ -7,6 +7,7 @@
 	import * as Table from '$lib/components/ui/table';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as Select from '$lib/components/ui/select';
+	import * as Avatar from '$lib/components/ui/avatar';
 	import {
 		Plus,
 		Search,
@@ -308,19 +309,24 @@
 							onclick={() => goto(`/vendors/${vendor.id}`)}
 						>
 							<Table.Cell>
-								<div class="flex flex-col">
-									<span class="font-medium">
-										{vendor.name}
-										{#if isVendorDeleted(vendor)}
-											<span class="text-muted-foreground text-xs ml-2">(deleted)</span>
-										{/if}
-									</span>
-									{#if vendor.companyName}
-										<span class="text-sm text-muted-foreground flex items-center gap-1">
-											<Building2 class="h-3 w-3" />
-											{vendor.companyName}
+								<div class="flex items-center gap-3">
+									<Avatar.Root>
+										<Avatar.Fallback class="text-xs">{vendor.name.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()}</Avatar.Fallback>
+									</Avatar.Root>
+									<div class="flex flex-col">
+										<span class="font-medium">
+											{vendor.name}
+											{#if isVendorDeleted(vendor)}
+												<span class="text-muted-foreground text-xs ml-2">(deleted)</span>
+											{/if}
 										</span>
-									{/if}
+										{#if vendor.companyName}
+											<span class="text-sm text-muted-foreground flex items-center gap-1">
+												<Building2 class="h-3 w-3" />
+												{vendor.companyName}
+											</span>
+										{/if}
+									</div>
 								</div>
 							</Table.Cell>
 							<Table.Cell>

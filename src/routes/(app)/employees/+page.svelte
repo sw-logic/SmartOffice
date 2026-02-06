@@ -8,6 +8,7 @@
 	import * as Select from '$lib/components/ui/select';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Badge } from '$lib/components/ui/badge';
+	import * as Avatar from '$lib/components/ui/avatar';
 	import {
 		Plus,
 		Search,
@@ -241,7 +242,10 @@
 						onclick={() => goto(`/employees/${employee.id}`)}
 					>
 						<Table.Cell>
-							<div class="flex items-center gap-2">
+							<div class="flex items-center gap-3">
+								<Avatar.Root>
+									<Avatar.Fallback class="text-xs">{employee.firstName[0]}{employee.lastName[0]}</Avatar.Fallback>
+								</Avatar.Root>
 								<div>
 									<div class="font-medium">
 										{employee.firstName}

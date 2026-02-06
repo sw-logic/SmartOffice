@@ -30,12 +30,14 @@
 	let editValue = $state('');
 	let editLabel = $state('');
 	let editDescription = $state('');
+	let editColor = $state('');
 
 	// New value state
 	let showNewRow = $state(false);
 	let newValue = $state('');
 	let newLabel = $state('');
 	let newDescription = $state('');
+	let newColor = $state('');
 
 	// Dialog state
 	let deleteDialogOpen = $state(false);
@@ -59,11 +61,13 @@
 		value: string;
 		label: string;
 		description: string | null;
+		color: string | null;
 	}) {
 		editingId = item.id;
 		editValue = item.value;
 		editLabel = item.label;
 		editDescription = item.description || '';
+		editColor = item.color || '';
 	}
 
 	function cancelEdit() {
@@ -71,6 +75,7 @@
 		editValue = '';
 		editLabel = '';
 		editDescription = '';
+		editColor = '';
 	}
 
 	async function saveEdit() {
@@ -82,6 +87,7 @@
 		formData.append('value', editValue);
 		formData.append('label', editLabel);
 		formData.append('description', editDescription);
+		formData.append('color', editColor);
 		formData.append('isActive', 'true');
 
 		const response = await fetch('?/update', { method: 'POST', body: formData });
@@ -108,6 +114,7 @@
 		formData.append('value', newValue.trim());
 		formData.append('label', newLabel.trim());
 		formData.append('description', newDescription.trim());
+		formData.append('color', newColor.trim());
 
 		const response = await fetch('?/create', { method: 'POST', body: formData });
 		const result = await response.json();
@@ -118,6 +125,7 @@
 			newValue = '';
 			newLabel = '';
 			newDescription = '';
+			newColor = '';
 			invalidateAll();
 		} else {
 			toast.error(result.data?.error || 'Failed to create value');
@@ -135,6 +143,7 @@
 		formData.append('value', item.value);
 		formData.append('label', item.label);
 		formData.append('description', item.description || '');
+		formData.append('color', item.color || '');
 		formData.append('isActive', String(!currentValue));
 
 		const response = await fetch('?/update', { method: 'POST', body: formData });
@@ -305,6 +314,7 @@
 					<Table.Head class="w-[180px]">Value</Table.Head>
 					<Table.Head class="w-[200px]">Label</Table.Head>
 					<Table.Head>Description</Table.Head>
+					<Table.Head class="w-[80px] text-center">Color</Table.Head>
 					<Table.Head class="w-[80px] text-center">Default</Table.Head>
 					<Table.Head class="w-[80px] text-center">Active</Table.Head>
 					{#if data.isAdmin}
@@ -347,6 +357,26 @@
 								<Input bind:value={editDescription} class="h-8" placeholder="Description" />
 							</td>
 							<td class="p-2 align-middle text-center w-[80px]">
+								<div class="flex items-center justify-center gap-1">
+									<input
+										type="color"
+										value={editColor || '#000000'}
+										oninput={(e) => editColor = e.currentTarget.value}
+										class="h-7 w-7 rounded cursor-pointer border-0 p-0 bg-transparent"
+									/>
+									{#if editColor}
+										<button
+											type="button"
+											class="text-muted-foreground hover:text-foreground"
+											onclick={() => editColor = ''}
+											title="Remove color"
+										>
+											<X class="h-3 w-3" />
+										</button>
+									{/if}
+								</div>
+							</td>
+							<td class="p-2 align-middle text-center w-[80px]">
 								{#if item.isDefault}
 									<Star class="h-4 w-4 text-yellow-500 mx-auto fill-yellow-500" />
 								{/if}
@@ -379,6 +409,17 @@
 							</td>
 							<td class="p-2 align-middle font-medium w-[200px]">{item.label}</td>
 							<td class="p-2 align-middle text-muted-foreground">{item.description || '-'}</td>
+							<td class="p-2 align-middle text-center w-[80px]">
+								{#if item.color}
+									<span
+										class="inline-block h-5 w-5 rounded-full border"
+										style="background-color: {item.color}"
+										title={item.color}
+									></span>
+								{:else}
+									<span class="text-muted-foreground text-xs">-</span>
+								{/if}
+							</td>
 							<td class="p-2 align-middle text-center w-[80px]">
 								{#if item.isDefault}
 									<Star class="h-4 w-4 text-yellow-500 mx-auto fill-yellow-500" />
@@ -451,6 +492,26 @@
 						<td class="p-2 align-middle">
 							<Input bind:value={newDescription} class="h-8" placeholder="Description (optional)" />
 						</td>
+						<td class="p-2 align-middle text-center w-[80px]">
+							<div class="flex items-center justify-center gap-1">
+								<input
+									type="color"
+									value={newColor || '#000000'}
+									oninput={(e) => newColor = e.currentTarget.value}
+									class="h-7 w-7 rounded cursor-pointer border-0 p-0 bg-transparent"
+								/>
+								{#if newColor}
+									<button
+										type="button"
+										class="text-muted-foreground hover:text-foreground"
+										onclick={() => newColor = ''}
+										title="Remove color"
+									>
+										<X class="h-3 w-3" />
+									</button>
+								{/if}
+							</div>
+						</td>
 						<td class="p-2 align-middle w-[80px]"></td>
 						<td class="p-2 align-middle w-[80px]"></td>
 						{#if data.isAdmin}
@@ -475,6 +536,7 @@
 										newValue = '';
 										newLabel = '';
 										newDescription = '';
+										newColor = '';
 									}}
 									title="Cancel"
 								>
@@ -487,7 +549,7 @@
 
 				{#if draggableItems.length === 0 && !showNewRow}
 					<tr>
-						<td colspan={data.isAdmin ? 8 : 7} class="h-24 text-center p-4">
+						<td colspan={data.isAdmin ? 9 : 8} class="h-24 text-center p-4">
 							No values found. Click "Add Value" to create one.
 						</td>
 					</tr>
@@ -497,7 +559,7 @@
 			{#if data.isAdmin && deletedValues.length > 0}
 				<tbody class="[&_tr:last-child]:border-0">
 					<tr class="bg-muted/30">
-						<td colspan={data.isAdmin ? 8 : 7} class="p-2 text-sm font-medium text-muted-foreground">
+						<td colspan={data.isAdmin ? 9 : 8} class="p-2 text-sm font-medium text-muted-foreground">
 							Deleted Values ({deletedValues.length})
 						</td>
 					</tr>
@@ -509,6 +571,17 @@
 							</td>
 							<td class="p-2 align-middle font-medium w-[200px]">{item.label}</td>
 							<td class="p-2 align-middle text-muted-foreground">{item.description || '-'}</td>
+							<td class="p-2 align-middle text-center w-[80px]">
+								{#if item.color}
+									<span
+										class="inline-block h-5 w-5 rounded-full border"
+										style="background-color: {item.color}"
+										title={item.color}
+									></span>
+								{:else}
+									<span class="text-muted-foreground text-xs">-</span>
+								{/if}
+							</td>
 							<td class="p-2 align-middle text-center w-[80px]">
 								{#if item.isDefault}
 									<Star class="h-4 w-4 text-yellow-500 mx-auto fill-yellow-500" />

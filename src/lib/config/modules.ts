@@ -14,7 +14,10 @@ import {
 	Package,
 	Shield,
 	UsersRound,
-	List
+	List,
+	Kanban,
+	ClipboardList,
+	FolderOpen
 } from 'lucide-svelte';
 import type { ComponentType } from 'svelte';
 
@@ -67,14 +70,40 @@ export const modules: Module[] = [
 		icon: Briefcase,
 		route: '/projects',
 		permissions: ['projects.read'],
-		description: 'Manage projects and tasks'
+		description: 'Project management',
+		subModules: [
+			{
+				id: 'projects.list',
+				name: 'Projects',
+				icon: FolderOpen,
+				route: '/projects',
+				permissions: ['projects.read'],
+				description: 'Manage projects'
+			},
+			{
+				id: 'projects.boards',
+				name: 'Boards',
+				icon: Kanban,
+				route: '/projects/boards',
+				permissions: ['projects.read'],
+				description: 'Kanban boards'
+			},
+			{
+				id: 'projects.tasks',
+				name: 'Tasks',
+				icon: ClipboardList,
+				route: '/projects/tasks',
+				permissions: ['projects.read'],
+				description: 'Task management'
+			}
+		]
 	},
 	{
 		id: 'finances',
 		name: 'Finances',
 		icon: DollarSign,
 		route: '/finances',
-		permissions: ['finances.income.read', 'finances.expenses.read', 'finances.payments.read'],
+		permissions: ['finances.income.read', 'finances.expenses.read', 'finances.payments.read', 'offers.read', 'pricelists.read'],
 		description: 'Financial management',
 		subModules: [
 			{
@@ -100,24 +129,24 @@ export const modules: Module[] = [
 				route: '/finances/payments',
 				permissions: ['finances.payments.read'],
 				description: 'Track payments'
+			},
+			{
+				id: 'finances.offers',
+				name: 'Offers',
+				icon: FileText,
+				route: '/offers',
+				permissions: ['offers.read'],
+				description: 'Create and manage offers'
+			},
+			{
+				id: 'finances.pricelists',
+				name: 'Price Lists',
+				icon: ListChecks,
+				route: '/pricelists',
+				permissions: ['pricelists.read'],
+				description: 'Manage product/service pricing'
 			}
 		]
-	},
-	{
-		id: 'offers',
-		name: 'Offers',
-		icon: FileText,
-		route: '/offers',
-		permissions: ['offers.read'],
-		description: 'Create and manage offers'
-	},
-	{
-		id: 'pricelists',
-		name: 'Price Lists',
-		icon: ListChecks,
-		route: '/pricelists',
-		permissions: ['pricelists.read'],
-		description: 'Manage product/service pricing'
 	},
 	{
 		id: 'users',

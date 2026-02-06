@@ -3,6 +3,7 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { fail } from '@sveltejs/kit';
 import { logDelete, logUpdate } from '$lib/server/audit';
+import { getEnumValuesBatch } from '$lib/server/enums';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'finances.expenses', 'read');
@@ -75,6 +76,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		select: {
 			id: true,
 			amount: true,
+			tax: true,
+			tax_value: true,
 			currency: true,
 			date: true,
 			description: true,
@@ -108,7 +111,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const summaryData = await prisma.expense.aggregate({
 		where,
 		_sum: {
-			amount: true
+			amount: true,
+			tax_value: true
 		},
 		_count: true
 	});
@@ -148,15 +152,37 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// Convert Decimal fields to numbers for serialization
 	const serializedExpenses = expenses.map(exp => ({
 		...exp,
-		amount: Number(exp.amount)
+		amount: Number(exp.amount),
+		tax: Number(exp.tax),
+		tax_value: Number(exp.tax_value)
 	}));
+
+	// Load data needed for the form modal
+	const [projects, enums] = await Promise.all([
+		prisma.project.findMany({
+			where: { deletedAt: null, status: { in: ['planning', 'active'] } },
+			select: {
+				id: true,
+				name: true,
+				client: { select: { id: true, name: true } }
+			},
+			orderBy: { name: 'asc' }
+		}),
+		getEnumValuesBatch(['expense_category', 'currency', 'expense_status', 'recurring_period'])
+	]);
 
 	return {
 		expenses: serializedExpenses,
 		vendors,
 		categories,
+		projects,
+		expenseCategories: enums.expense_category,
+		currencies: enums.currency,
+		expenseStatuses: enums.expense_status,
+		recurringPeriods: enums.recurring_period,
 		summary: {
 			totalAmount: summaryData._sum.amount ? Number(summaryData._sum.amount) : 0,
+			totalTaxValue: summaryData._sum.tax_value ? Number(summaryData._sum.tax_value) : 0,
 			taxDeductibleAmount: taxDeductibleData._sum.amount
 				? Number(taxDeductibleData._sum.amount)
 				: 0,

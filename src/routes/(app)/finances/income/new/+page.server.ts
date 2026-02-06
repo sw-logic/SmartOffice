@@ -110,9 +110,13 @@ export const actions: Actions = {
 		}
 
 		// Create income
+		const parsedAmount = parseFloat(amount);
+		const parsedTax = taxRate ? parseFloat(taxRate) : 0;
 		const income = await prisma.income.create({
 			data: {
-				amount: parseFloat(amount),
+				amount: parsedAmount,
+				tax: parsedTax,
+				tax_value: Math.round((parsedAmount + parsedAmount * (parsedTax / 100)) * 100) / 100,
 				currency,
 				date: new Date(date),
 				description: description.trim(),

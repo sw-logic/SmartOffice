@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -10,6 +10,7 @@
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import DateRangeSelector from '$lib/components/shared/DateRangeSelector.svelte';
+	import IncomeFormModal from '$lib/components/shared/IncomeFormModal.svelte';
 	import {
 		Plus,
 		Search,
@@ -27,6 +28,18 @@
 	let searchInput = $state(data.filters.search);
 	let deleteDialogOpen = $state(false);
 	let selectedIncome = $state<{ id: number; description: string } | null>(null);
+	let modalOpen = $state(false);
+	let editIncomeId = $state<number | null>(null);
+
+	function openCreateModal() {
+		editIncomeId = null;
+		modalOpen = true;
+	}
+
+	function openEditModal(id: number) {
+		editIncomeId = id;
+		modalOpen = true;
+	}
 
 	const statusOptions = [
 		{ value: 'paid', label: 'Paid' },
@@ -126,10 +139,6 @@
 		return new Date(date).toLocaleDateString();
 	}
 
-	function calculateTax(amount: number, taxRate: number | null): number {
-		if (!taxRate) return 0;
-		return amount * (taxRate / 100);
-	}
 </script>
 
 <div class="space-y-6">
@@ -138,7 +147,7 @@
 			<h1 class="text-3xl font-bold tracking-tight">Income</h1>
 			<p class="text-muted-foreground">Track and manage your income</p>
 		</div>
-		<Button href="/finances/income/new">
+		<Button onclick={openCreateModal}>
 			<Plus class="mr-2 h-4 w-4" />
 			Add Income
 		</Button>
@@ -254,8 +263,8 @@
 							<ArrowUpDown class="ml-2 h-4 w-4" />
 						</Button>
 					</Table.Head>
-					<Table.Head class="text-right">Tax Rate</Table.Head>
-					<Table.Head class="text-right">Tax</Table.Head>
+					<Table.Head class="text-right">Tax %</Table.Head>
+					<Table.Head class="text-right">Tax Value</Table.Head>
 					<Table.Head class="w-[80px]">Actions</Table.Head>
 				</Table.Row>
 			</Table.Header>
@@ -328,15 +337,10 @@
 							{formatCurrency(Number(income.amount), income.currency)}
 						</Table.Cell>
 						<Table.Cell class="text-right">
-							{income.taxRate ? `${Number(income.taxRate)}%` : '-'}
+							{income.tax}%
 						</Table.Cell>
 						<Table.Cell class="text-right">
-							{income.taxRate
-								? formatCurrency(
-										calculateTax(Number(income.amount), Number(income.taxRate)),
-										income.currency
-									)
-								: '-'}
+							{formatCurrency(income.tax_value, income.currency)}
 						</Table.Cell>
 						<Table.Cell>
 							<DropdownMenu.Root>
@@ -352,12 +356,10 @@
 											View
 										</DropdownMenu.Item>
 									</a>
-									<a href="/finances/income/{income.id}/edit" class="block">
-										<DropdownMenu.Item>
-											<Pencil class="mr-2 h-4 w-4" />
-											Edit
-										</DropdownMenu.Item>
-									</a>
+									<DropdownMenu.Item onclick={() => openEditModal(income.id)}>
+										<Pencil class="mr-2 h-4 w-4" />
+										Edit
+									</DropdownMenu.Item>
 									<DropdownMenu.Separator />
 									<DropdownMenu.Item
 										class="text-destructive"
@@ -392,7 +394,7 @@
 						</Table.Cell>
 						<Table.Cell class="text-right">-</Table.Cell>
 						<Table.Cell class="text-right">
-							{formatCurrency(data.summary.totalTaxAmount)}
+							{formatCurrency(data.summary.totalTaxValue)}
 						</Table.Cell>
 						<Table.Cell></Table.Cell>
 					</Table.Row>
@@ -431,6 +433,19 @@
 		</div>
 	{/if}
 </div>
+
+<!-- Income Form Modal -->
+<IncomeFormModal
+	bind:open={modalOpen}
+	incomeId={editIncomeId}
+	clients={data.clients}
+	projects={data.projects}
+	categories={data.incomeCategories}
+	currencies={data.currencies}
+	statuses={data.incomeStatuses}
+	recurringPeriods={data.recurringPeriods}
+	onSaved={() => invalidateAll()}
+/>
 
 <!-- Delete Confirmation Dialog -->
 <AlertDialog.Root bind:open={deleteDialogOpen}>

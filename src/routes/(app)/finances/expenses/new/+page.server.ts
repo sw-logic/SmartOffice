@@ -104,9 +104,12 @@ export const actions: Actions = {
 		}
 
 		// Create expense
+		const parsedAmount = parseFloat(amount);
 		const expense = await prisma.expense.create({
 			data: {
-				amount: parseFloat(amount),
+				amount: parsedAmount,
+				tax: 0,
+				tax_value: parsedAmount,
 				currency,
 				date: new Date(date),
 				description: description.trim(),

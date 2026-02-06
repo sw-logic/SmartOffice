@@ -191,6 +191,51 @@ Reference implementations:
 - Admin can change the order of the columns and swimlanes
 - Kanban boards have many tasks
 
+### Kanban Board layout
+
+- Board always use the full with of the container element
+- Board columns split the width equally (grid or flex layout) with 1px gap
+- Board columns are collapsible. If a column collapses, all the other columns share the plus space equally
+- Board columns has a sticky header with column title
+- Board columns has the same with across swimlanes
+- Board columns has a min-width of 200px
+- Swimlanes are collapsible grid/flex rows with a full-with header
+
+```
+<kanban>
+    <kanban-sticky-header>
+        <kanban-column>
+            <kanban-column-title>
+        </kanban-column>
+        <kanban-column>
+            <kanban-column-title>
+        </kanban-column>
+        <kanban-column>
+            <kanban-column-title>
+        </kanban-column>
+    </kanban-header>
+    <kanban-swimlane>
+        <kanban-swimlane-header>
+        <kanban-row>
+            <kanban-column>
+                <kanban-task>
+                <kanban-task>
+                <kanban-task>
+            </kanban-column>
+                <kanban-task>
+            <kanban-column>
+            </kanban-column>
+            <kanban-column>
+                <kanban-task>
+            </kanban-column>
+        <kanban-row>
+    </kanban-swimlane>
+    <kanban-swimlane>
+    ...
+    </kanban-swimlane>
+</kanban>
+```
+
 ### Tasks
 
 - Tasks have name, description, type, category, state, column position, swimlane position, creator, creation date, due date, assignee,

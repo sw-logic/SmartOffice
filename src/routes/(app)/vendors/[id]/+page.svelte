@@ -7,7 +7,9 @@
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import ContactFormModal from '$lib/components/shared/ContactFormModal.svelte';
+	import Metric from '$lib/components/shared/Metric.svelte';
 	import { toast } from 'svelte-sonner';
+	import * as Avatar from '$lib/components/ui/avatar';
 	import {
 		ArrowLeft,
 		Pencil,
@@ -309,20 +311,9 @@
 				<Card.Title>Overview</Card.Title>
 			</Card.Header>
 			<Card.Content class="space-y-4">
-				<div class="flex items-center justify-between">
-					<div class="flex items-center gap-2 text-muted-foreground">
-						<Receipt class="h-4 w-4" />
-						<span>Expenses</span>
-					</div>
-					<span class="font-semibold">{data.vendor._count.expenses}</span>
-				</div>
-
-				<div class="flex items-center justify-between">
-					<div class="flex items-center gap-2 text-muted-foreground">
-						<Users class="h-4 w-4" />
-						<span>Contacts</span>
-					</div>
-					<span class="font-semibold">{data.vendor._count.contacts}</span>
+				<div class="flex justify-around">
+					<Metric icon={Receipt} title="Expenses" value={data.vendor._count.expenses} />
+					<Metric icon={Users} title="Contacts" value={data.vendor._count.contacts} />
 				</div>
 
 				<div class="flex items-center justify-between pt-4 border-t">
@@ -395,15 +386,20 @@
 						<div class="space-y-4">
 							{#each data.vendor.contacts as contact}
 								<div class="flex items-center justify-between p-3 rounded-lg border">
-									<div class="flex-1">
-										<div class="flex items-center gap-2">
-											<p class="font-medium">
-												{contact.firstName} {contact.lastName}
-											</p>
+									<div class="flex items-center gap-3 flex-1">
+										<Avatar.Root>
+											<Avatar.Fallback class="text-xs">{contact.firstName[0]}{contact.lastName[0]}</Avatar.Fallback>
+										</Avatar.Root>
+										<div>
+											<div class="flex items-center gap-2">
+												<p class="font-medium">
+													{contact.firstName} {contact.lastName}
+												</p>
+											</div>
+											{#if contact.position}
+												<p class="text-sm text-muted-foreground">{contact.position}</p>
+											{/if}
 										</div>
-										{#if contact.position}
-											<p class="text-sm text-muted-foreground">{contact.position}</p>
-										{/if}
 									</div>
 									<div class="flex items-center gap-4">
 										<div class="text-sm text-right">

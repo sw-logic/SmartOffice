@@ -40,6 +40,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			sortOrder: v.sortOrder,
 			isDefault: v.isDefault,
 			isActive: v.isActive,
+			color: v.color,
 			metadata: v.metadata as Record<string, unknown> | null,
 			deletedAt: v.deletedAt,
 			createdAt: v.createdAt
@@ -56,6 +57,7 @@ export const actions: Actions = {
 		const value = (formData.get('value') as string)?.trim();
 		const label = (formData.get('label') as string)?.trim();
 		const description = (formData.get('description') as string)?.trim() || null;
+		const color = (formData.get('color') as string)?.trim() || null;
 
 		if (!value || !label) {
 			return fail(400, { error: 'Value and label are required' });
@@ -95,6 +97,7 @@ export const actions: Actions = {
 				value,
 				label,
 				description,
+				color,
 				sortOrder: (maxOrder._max.sortOrder ?? 0) + 1,
 				isDefault: false,
 				isActive: true
@@ -120,6 +123,7 @@ export const actions: Actions = {
 		const value = (formData.get('value') as string)?.trim();
 		const label = (formData.get('label') as string)?.trim();
 		const description = (formData.get('description') as string)?.trim() || null;
+		const color = (formData.get('color') as string)?.trim() || null;
 		const isActive = formData.get('isActive') === 'true';
 
 		if (!id || !value || !label) {
@@ -161,6 +165,7 @@ export const actions: Actions = {
 				value,
 				label,
 				description,
+				color,
 				isActive
 			}
 		});

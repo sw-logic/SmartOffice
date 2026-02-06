@@ -7,6 +7,7 @@
 	import * as Table from '$lib/components/ui/table';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as Select from '$lib/components/ui/select';
+	import * as Avatar from '$lib/components/ui/avatar';
 	import {
 		Plus,
 		Search,
@@ -253,11 +254,18 @@
 				{:else}
 					{#each data.users as user}
 						<Table.Row class={isUserDeleted(user) ? 'opacity-60' : ''}>
-							<Table.Cell class="font-medium">
-								{user.name}
-								{#if isUserDeleted(user)}
-									<span class="text-muted-foreground text-xs ml-2">(deleted)</span>
-								{/if}
+							<Table.Cell>
+								<div class="flex items-center gap-3">
+									<Avatar.Root>
+										<Avatar.Fallback class="text-xs">{user.name.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()}</Avatar.Fallback>
+									</Avatar.Root>
+									<span class="font-medium">
+										{user.name}
+										{#if isUserDeleted(user)}
+											<span class="text-muted-foreground text-xs ml-2">(deleted)</span>
+										{/if}
+									</span>
+								</div>
 							</Table.Cell>
 							<Table.Cell>{user.email}</Table.Cell>
 							<Table.Cell>

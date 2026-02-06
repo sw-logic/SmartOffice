@@ -7,7 +7,9 @@
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import ContactFormModal from '$lib/components/shared/ContactFormModal.svelte';
+	import Metric from '$lib/components/shared/Metric.svelte';
 	import { toast } from 'svelte-sonner';
+	import * as Avatar from '$lib/components/ui/avatar';
 	import {
 		ArrowLeft,
 		Pencil,
@@ -326,28 +328,10 @@
 				<Card.Title>Overview</Card.Title>
 			</Card.Header>
 			<Card.Content class="space-y-4">
-				<div class="flex items-center justify-between">
-					<div class="flex items-center gap-2 text-muted-foreground">
-						<Briefcase class="h-4 w-4" />
-						<span>Projects</span>
-					</div>
-					<span class="font-semibold">{data.client._count.projects}</span>
-				</div>
-
-				<div class="flex items-center justify-between">
-					<div class="flex items-center gap-2 text-muted-foreground">
-						<Users class="h-4 w-4" />
-						<span>Contacts</span>
-					</div>
-					<span class="font-semibold">{data.client._count.contacts}</span>
-				</div>
-
-				<div class="flex items-center justify-between">
-					<div class="flex items-center gap-2 text-muted-foreground">
-						<FileText class="h-4 w-4" />
-						<span>Offers</span>
-					</div>
-					<span class="font-semibold">{data.client._count.offers}</span>
+				<div class="flex justify-around">
+					<Metric icon={Briefcase} title="Projects" value={data.client._count.projects} />
+					<Metric icon={Users} title="Contacts" value={data.client._count.contacts} />
+					<Metric icon={FileText} title="Offers" value={data.client._count.offers} />
 				</div>
 
 				<div class="flex items-center justify-between pt-4 border-t">
@@ -429,18 +413,23 @@
 						<div class="space-y-4">
 							{#each data.client.contacts as contact}
 								<div class="flex items-center justify-between p-3 rounded-lg border">
-									<div class="flex-1">
-										<div class="flex items-center gap-2">
-											<p class="font-medium">
-												{contact.firstName} {contact.lastName}
-											</p>
-											{#if contact.isPrimaryContact}
-												<Badge variant="secondary">Primary</Badge>
+									<div class="flex items-center gap-3 flex-1">
+										<Avatar.Root>
+											<Avatar.Fallback class="text-xs">{contact.firstName[0]}{contact.lastName[0]}</Avatar.Fallback>
+										</Avatar.Root>
+										<div>
+											<div class="flex items-center gap-2">
+												<p class="font-medium">
+													{contact.firstName} {contact.lastName}
+												</p>
+												{#if contact.isPrimaryContact}
+													<Badge variant="secondary">Primary</Badge>
+												{/if}
+											</div>
+											{#if contact.position}
+												<p class="text-sm text-muted-foreground">{contact.position}</p>
 											{/if}
 										</div>
-										{#if contact.position}
-											<p class="text-sm text-muted-foreground">{contact.position}</p>
-										{/if}
 									</div>
 									<div class="flex items-center gap-4">
 										<div class="text-sm text-right">
