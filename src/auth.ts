@@ -54,8 +54,31 @@ export const { handle, signIn, signOut } = SvelteKitAuth({
 					);
 
 					if (!isValid) {
+						// Audit: failed login (valid email, wrong password)
+						try {
+							await prisma.auditLog.create({
+								data: {
+									userId: user.id,
+									action: 'login_failed',
+									module: 'auth',
+									newValues: { email: user.email, reason: 'invalid_password' }
+								}
+							});
+						} catch { /* audit logging should not break auth */ }
 						return null;
 					}
+
+					// Audit: successful login
+					try {
+						await prisma.auditLog.create({
+							data: {
+								userId: user.id,
+								action: 'login',
+								module: 'auth',
+								newValues: { email: user.email }
+							}
+						});
+					} catch { /* audit logging should not break auth */ }
 
 					// Return user object - must have id
 					return {

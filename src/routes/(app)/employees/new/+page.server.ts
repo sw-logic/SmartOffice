@@ -3,23 +3,14 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { fail, redirect } from '@sveltejs/kit';
 import { logCreate } from '$lib/server/audit';
-import { getEnumValuesBatch } from '$lib/server/enums';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	await requirePermission(locals, 'employees', 'create');
 
 	// Check if user can manage salary
-	const canManageSalary = locals.user
-		? await checkPermission(locals.user.id, 'employees', 'salary')
-		: false;
-
-	// Get enum values from database
-	const enums = await getEnumValuesBatch(['department', 'employment_type', 'employee_status']);
+	const canManageSalary = checkPermission(locals, 'employees', 'salary');
 
 	return {
-		departments: enums.department,
-		employmentTypes: enums.employment_type,
-		statuses: enums.employee_status,
 		canManageSalary
 	};
 };
@@ -28,9 +19,7 @@ export const actions: Actions = {
 	default: async ({ locals, request }) => {
 		await requirePermission(locals, 'employees', 'create');
 
-		const canManageSalary = locals.user
-			? await checkPermission(locals.user.id, 'employees', 'salary')
-			: false;
+		const canManageSalary = checkPermission(locals, 'employees', 'salary');
 
 		const formData = await request.formData();
 

@@ -3,20 +3,45 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { fail } from '@sveltejs/kit';
 import { logDelete, logUpdate } from '$lib/server/audit';
-import { getEnumValuesBatch } from '$lib/server/enums';
+import { promoteProjectedRecords } from '$lib/server/recurring';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'finances.income', 'read');
 
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+	const isAdmin = checkPermission(locals, '*', '*');
 
-	// Get date range parameters (default to current month)
+	// Promote projected records whose date has arrived
+	await promoteProjectedRecords();
+
+	// Parse year/period parameters (same pattern as dashboard)
 	const now = new Date();
-	const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-	const defaultEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+	const year = parseInt(url.searchParams.get('year') || String(now.getFullYear()));
+	const period = url.searchParams.get('period') || String(now.getMonth() + 1);
 
-	const startDate = url.searchParams.get('startDate') || defaultStart;
-	const endDate = url.searchParams.get('endDate') || defaultEnd;
+	// Calculate date range based on period
+	let startDate: Date;
+	let endDate: Date;
+
+	if (period === 'q1') {
+		startDate = new Date(year, 0, 1);
+		endDate = new Date(year, 3, 0, 23, 59, 59, 999);
+	} else if (period === 'q2') {
+		startDate = new Date(year, 3, 1);
+		endDate = new Date(year, 6, 0, 23, 59, 59, 999);
+	} else if (period === 'q3') {
+		startDate = new Date(year, 6, 1);
+		endDate = new Date(year, 9, 0, 23, 59, 59, 999);
+	} else if (period === 'q4') {
+		startDate = new Date(year, 9, 1);
+		endDate = new Date(year, 12, 0, 23, 59, 59, 999);
+	} else if (period === 'year') {
+		startDate = new Date(year, 0, 1);
+		endDate = new Date(year, 12, 0, 23, 59, 59, 999);
+	} else {
+		const month = parseInt(period) || (now.getMonth() + 1);
+		startDate = new Date(year, month - 1, 1);
+		endDate = new Date(year, month, 0, 23, 59, 59, 999);
+	}
 
 	// Other filters
 	const search = url.searchParams.get('search') || '';
@@ -33,8 +58,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const where: any = {
 		deletedAt: null,
 		date: {
-			gte: new Date(startDate),
-			lte: new Date(endDate + 'T23:59:59.999Z')
+			gte: startDate,
+			lte: endDate
 		}
 	};
 
@@ -85,8 +110,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			category: true,
 			status: true,
 			dueDate: true,
+			paymentTermDays: true,
 			isRecurring: true,
 			recurringPeriod: true,
+			recurringEndDate: true,
+			parentId: true,
 			invoiceReference: true,
 			notes: true,
 			client: {
@@ -120,7 +148,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// Get clients for filter dropdown
 	const clients = await prisma.client.findMany({
 		where: { deletedAt: null },
-		select: { id: true, name: true },
+		select: { id: true, name: true, paymentTerms: true },
 		orderBy: { name: 'asc' }
 	});
 
@@ -144,28 +172,54 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	}));
 
 	// Load data needed for the form modal
-	const [projects, enums] = await Promise.all([
-		prisma.project.findMany({
-			where: { deletedAt: null, status: { in: ['planning', 'active'] } },
-			select: {
-				id: true,
-				name: true,
-				client: { select: { id: true, name: true } }
-			},
-			orderBy: { name: 'asc' }
-		}),
-		getEnumValuesBatch(['income_category', 'currency', 'income_status', 'recurring_period'])
-	]);
+	const projects = await prisma.project.findMany({
+		where: { deletedAt: null, status: { in: ['planning', 'active'] } },
+		select: {
+			id: true,
+			name: true,
+			client: { select: { id: true, name: true } }
+		},
+		orderBy: { name: 'asc' }
+	});
+
+	// Cumulative YTD balance (only for month periods)
+	const monthNum = parseInt(period);
+	const isMonthPeriod = monthNum >= 1 && monthNum <= 12;
+	let cumulativeBalance: { income: number; expenses: number; balance: number } | null = null;
+
+	if (isMonthPeriod) {
+		const ytdStart = new Date(year, 0, 1);
+		const ytdEnd = new Date(year, monthNum, 0, 23, 59, 59, 999);
+		const ytdDateFilter = { gte: ytdStart, lte: ytdEnd };
+
+		const [ytdIncome, ytdExpenses] = await Promise.all([
+			prisma.income.aggregate({
+				where: { date: ytdDateFilter, deletedAt: null },
+				_sum: { amount: true }
+			}),
+			prisma.expense.aggregate({
+				where: { date: ytdDateFilter, deletedAt: null },
+				_sum: { amount: true }
+			})
+		]);
+
+		const cumIncome = ytdIncome._sum.amount ? Number(ytdIncome._sum.amount) : 0;
+		const cumExpenses = ytdExpenses._sum.amount ? Number(ytdExpenses._sum.amount) : 0;
+		cumulativeBalance = {
+			income: cumIncome,
+			expenses: cumExpenses,
+			balance: cumIncome - cumExpenses
+		};
+	}
 
 	return {
 		incomes: serializedIncomes,
 		clients,
 		categories,
 		projects,
-		incomeCategories: enums.income_category,
-		currencies: enums.currency,
-		incomeStatuses: enums.income_status,
-		recurringPeriods: enums.recurring_period,
+		year,
+		period,
+		cumulativeBalance,
 		summary: {
 			totalAmount: summaryData._sum.amount ? Number(summaryData._sum.amount) : 0,
 			totalTaxValue: summaryData._sum.tax_value ? Number(summaryData._sum.tax_value) : 0,
@@ -176,8 +230,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		pageSize,
 		totalPages: Math.ceil(totalCount / pageSize),
 		filters: {
-			startDate,
-			endDate,
 			search,
 			status,
 			category,
@@ -212,7 +264,9 @@ export const actions: Actions = {
 				amount: true,
 				description: true,
 				category: true,
-				date: true
+				date: true,
+				isRecurring: true,
+				parentId: true
 			}
 		});
 
@@ -220,10 +274,24 @@ export const actions: Actions = {
 			return fail(404, { error: 'Income not found' });
 		}
 
+		const now = new Date();
+
 		await prisma.income.update({
 			where: { id },
-			data: { deletedAt: new Date() }
+			data: { deletedAt: now }
 		});
+
+		// If this is a recurring parent, also delete all projected children
+		if (income.isRecurring && !income.parentId) {
+			await prisma.income.updateMany({
+				where: {
+					parentId: id,
+					status: 'projected',
+					deletedAt: null
+				},
+				data: { deletedAt: now }
+			});
+		}
 
 		await logDelete(locals.user!.id, 'finances.income', String(id), 'Income', {
 			amount: income.amount,
@@ -233,6 +301,77 @@ export const actions: Actions = {
 		});
 
 		return { success: true };
+	},
+
+	bulkDelete: async ({ locals, request }) => {
+		await requirePermission(locals, 'finances.income', 'delete');
+
+		const formData = await request.formData();
+		const idsStr = formData.get('ids') as string;
+
+		if (!idsStr) {
+			return fail(400, { error: 'Income IDs are required' });
+		}
+
+		const ids = idsStr.split(',').map(Number).filter(id => !isNaN(id));
+		if (ids.length === 0) {
+			return fail(400, { error: 'No valid income IDs provided' });
+		}
+
+		const incomes = await prisma.income.findMany({
+			where: {
+				id: { in: ids },
+				deletedAt: null
+			},
+			select: {
+				id: true,
+				amount: true,
+				description: true,
+				category: true,
+				date: true,
+				isRecurring: true,
+				parentId: true
+			}
+		});
+
+		if (incomes.length === 0) {
+			return fail(404, { error: 'No income records found' });
+		}
+
+		const now = new Date();
+
+		// Soft delete all selected incomes
+		await prisma.income.updateMany({
+			where: { id: { in: incomes.map(i => i.id) } },
+			data: { deletedAt: now }
+		});
+
+		// For recurring parents, also delete projected children
+		const recurringParentIds = incomes
+			.filter(i => i.isRecurring && !i.parentId)
+			.map(i => i.id);
+
+		if (recurringParentIds.length > 0) {
+			await prisma.income.updateMany({
+				where: {
+					parentId: { in: recurringParentIds },
+					status: 'projected',
+					deletedAt: null
+				},
+				data: { deletedAt: now }
+			});
+		}
+
+		for (const income of incomes) {
+			await logDelete(locals.user!.id, 'finances.income', String(income.id), 'Income', {
+				amount: income.amount,
+				description: income.description,
+				category: income.category,
+				date: income.date
+			});
+		}
+
+		return { success: true, count: incomes.length };
 	},
 
 	updateStatus: async ({ locals, request }) => {

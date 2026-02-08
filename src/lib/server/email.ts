@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
+import { formatDate } from '$lib/utils/date';
 
 // Create transporter based on environment variables
 function createTransporter(): Transporter {
@@ -108,7 +109,7 @@ export async function sendOfferEmail(
     <div class="content">
       <p>Dear ${clientName},</p>
       <p>Please find attached our offer <strong>${offerNumber}</strong>.</p>
-      <p>This offer is valid until <strong>${validUntil.toLocaleDateString()}</strong>.</p>
+      <p>This offer is valid until <strong>${formatDate(validUntil)}</strong>.</p>
       <p>If you have any questions or would like to discuss this offer, please don't hesitate to contact us.</p>
       <p>Thank you for your interest in our services.</p>
       <p>Best regards,<br>Your Company Team</p>

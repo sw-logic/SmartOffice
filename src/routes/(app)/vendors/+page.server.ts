@@ -8,7 +8,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'vendors', 'read');
 
 	// Check if user is admin (can see deleted vendors)
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+	const isAdmin = checkPermission(locals, '*', '*');
 
 	const search = url.searchParams.get('search') || '';
 	const sortBy = url.searchParams.get('sortBy') || 'name';
@@ -160,7 +160,7 @@ export const actions: Actions = {
 		await requirePermission(locals, 'vendors', 'update');
 
 		// Only admins can restore vendors
-		const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+		const isAdmin = checkPermission(locals, '*', '*');
 		if (!isAdmin) {
 			return fail(403, { error: 'Only administrators can restore deleted vendors' });
 		}

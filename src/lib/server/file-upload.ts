@@ -1,9 +1,21 @@
 import { writeFile, mkdir, unlink, readFile, access } from 'fs/promises';
-import { join, extname } from 'path';
+import { join, extname, resolve } from 'path';
 import { randomUUID } from 'crypto';
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/var/uploads';
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '10485760'); // 10MB default
+
+/**
+ * Resolve a relative path within UPLOAD_DIR and validate it doesn't escape via directory traversal.
+ * Throws if the resolved path is outside the upload directory.
+ */
+function resolveSecurePath(relativePath: string): string {
+	const fullPath = resolve(UPLOAD_DIR, relativePath);
+	if (!fullPath.startsWith(resolve(UPLOAD_DIR))) {
+		throw new Error('Invalid path: directory traversal detected');
+	}
+	return fullPath;
+}
 
 const ALLOWED_MIME_TYPES: Record<string, string[]> = {
 	image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
@@ -96,7 +108,7 @@ export async function saveFile(
  */
 export async function deleteFile(relativePath: string): Promise<boolean> {
 	try {
-		const fullPath = join(UPLOAD_DIR, relativePath);
+		const fullPath = resolveSecurePath(relativePath);
 		await unlink(fullPath);
 		return true;
 	} catch (error) {
@@ -112,7 +124,7 @@ export async function deleteFile(relativePath: string): Promise<boolean> {
  */
 export async function fileExists(relativePath: string): Promise<boolean> {
 	try {
-		const fullPath = join(UPLOAD_DIR, relativePath);
+		const fullPath = resolveSecurePath(relativePath);
 		await access(fullPath);
 		return true;
 	} catch {
@@ -127,7 +139,7 @@ export async function fileExists(relativePath: string): Promise<boolean> {
  */
 export async function getFile(relativePath: string): Promise<Buffer | null> {
 	try {
-		const fullPath = join(UPLOAD_DIR, relativePath);
+		const fullPath = resolveSecurePath(relativePath);
 		return await readFile(fullPath);
 	} catch {
 		return null;
@@ -140,7 +152,7 @@ export async function getFile(relativePath: string): Promise<Buffer | null> {
  * @returns Full filesystem path
  */
 export function getFullPath(relativePath: string): string {
-	return join(UPLOAD_DIR, relativePath);
+	return resolveSecurePath(relativePath);
 }
 
 /**

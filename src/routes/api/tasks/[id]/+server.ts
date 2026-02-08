@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { prisma } from '$lib/server/prisma';
-import { requirePermission } from '$lib/server/access-control';
+import { requirePermission, canAccessProject } from '$lib/server/access-control';
 import { logUpdate, logDelete } from '$lib/server/audit';
 
 export const GET: RequestHandler = async ({ locals, params }) => {
@@ -61,10 +61,15 @@ export const GET: RequestHandler = async ({ locals, params }) => {
 				select: {
 					id: true,
 					date: true,
-					hours: true,
+					minutes: true,
 					description: true,
 					type: true,
 					category: true,
+					billable: true,
+					personId: true,
+					person: {
+						select: { id: true, firstName: true, lastName: true }
+					},
 					createdById: true,
 					createdBy: {
 						select: { id: true, name: true }
@@ -77,6 +82,11 @@ export const GET: RequestHandler = async ({ locals, params }) => {
 
 	if (!task) {
 		return json({ error: 'Task not found' }, { status: 404 });
+	}
+
+	// Row-level access: verify user can access this task's project
+	if (!(await canAccessProject(locals, task.project.id))) {
+		return json({ error: 'Forbidden' }, { status: 403 });
 	}
 
 	// Load notes (polymorphic)
@@ -125,18 +135,11 @@ export const GET: RequestHandler = async ({ locals, params }) => {
 		.map(id => personsMap.get(id))
 		.filter(Boolean);
 
-	// Calculate spent time
-	const spentTime = task.timeRecords.reduce(
-		(sum, tr) => sum + Number(tr.hours),
-		0
-	);
-
 	return json({
 		task: {
 			...task,
 			reviewers,
-			followers,
-			spentTime
+			followers
 		},
 		notes,
 		tags
@@ -177,6 +180,11 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 		return json({ error: 'Task not found' }, { status: 404 });
 	}
 
+	// Row-level access: verify user can access this task's project
+	if (!(await canAccessProject(locals, existing.projectId))) {
+		return json({ error: 'Forbidden' }, { status: 403 });
+	}
+
 	const body = await request.json();
 	const data: Record<string, unknown> = {};
 	const oldValues: Record<string, unknown> = {};
@@ -201,7 +209,7 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 		oldValues.dueDate = existing.dueDate;
 	}
 	if ('estimatedTime' in body) {
-		data.estimatedTime = body.estimatedTime !== null && body.estimatedTime !== '' ? Number(body.estimatedTime) : null;
+		data.estimatedTime = body.estimatedTime !== null && body.estimatedTime !== '' ? Math.round(Number(body.estimatedTime)) : null;
 		oldValues.estimatedTime = existing.estimatedTime;
 	}
 
@@ -237,11 +245,16 @@ export const DELETE: RequestHandler = async ({ locals, params }) => {
 
 	const task = await prisma.task.findUnique({
 		where: { id },
-		select: { id: true, name: true }
+		select: { id: true, name: true, projectId: true }
 	});
 
 	if (!task) {
 		return json({ error: 'Task not found' }, { status: 404 });
+	}
+
+	// Row-level access: verify user can access this task's project
+	if (!(await canAccessProject(locals, task.projectId))) {
+		return json({ error: 'Forbidden' }, { status: 403 });
 	}
 
 	await prisma.task.update({

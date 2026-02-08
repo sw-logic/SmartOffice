@@ -8,7 +8,7 @@ import { clearEnumCache } from '$lib/server/enums';
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'settings', 'enums');
 
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+	const isAdmin = checkPermission(locals, '*', '*');
 
 	const enumType = await prisma.enumType.findUnique({
 		where: { code: params.code, deletedAt: null },
@@ -309,7 +309,7 @@ export const actions: Actions = {
 	restore: async ({ locals, request, params }) => {
 		await requirePermission(locals, 'settings', 'enums');
 
-		const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+		const isAdmin = checkPermission(locals, '*', '*');
 		if (!isAdmin) {
 			return fail(403, { error: 'Only administrators can restore deleted values' });
 		}

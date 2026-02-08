@@ -5,7 +5,7 @@ import { requirePermission, checkPermission } from '$lib/server/access-control';
 export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'settings', 'enums');
 
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+	const isAdmin = checkPermission(locals, '*', '*');
 
 	const search = url.searchParams.get('search') || '';
 	const sortBy = url.searchParams.get('sortBy') || 'name';

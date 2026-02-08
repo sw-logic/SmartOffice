@@ -22,19 +22,22 @@
 	interface Props {
 		open: boolean;
 		expenseId?: number | null;
+		isProjectedOccurrence?: boolean;
 		defaults?: ExpenseDefaults;
-		vendors: Array<{ id: number; name: string }>;
+		vendors: Array<{ id: number; name: string; paymentTerms: number }>;
 		projects: Array<{ id: number; name: string; client?: { id: number; name: string } | null }>;
 		categories: EnumOption[];
 		currencies: EnumOption[];
 		statuses: EnumOption[];
 		recurringPeriods: EnumOption[];
+		paymentTerms: EnumOption[];
 		onSaved?: () => void;
 	}
 
 	let {
 		open = $bindable(),
 		expenseId = null,
+		isProjectedOccurrence = false,
 		defaults,
 		vendors,
 		projects,
@@ -42,12 +45,14 @@
 		currencies,
 		statuses,
 		recurringPeriods,
+		paymentTerms,
 		onSaved
 	}: Props = $props();
 
 	let loading = $state(false);
 	let saving = $state(false);
 	let error = $state<string | null>(null);
+	let parentId = $state<number | null>(null);
 
 	// Form fields
 	let amount = $state('');
@@ -56,16 +61,28 @@
 	let category = $state('');
 	let status = $state('');
 	let date = $state('');
-	let dueDate = $state('');
+	let paymentTermDays = $state('');
 	let tax = $state('');
+
+	const calculatedDueDate = $derived(() => {
+		if (date && paymentTermDays) {
+			const d = new Date(date);
+			d.setDate(d.getDate() + parseInt(paymentTermDays));
+			return d.toISOString().split('T')[0];
+		}
+		return '';
+	});
 	let isRecurring = $state(false);
 	let recurringPeriod = $state('');
+	let recurringEndDate = $state('');
 	let selectedVendor = $state('');
 	let selectedProject = $state('');
 	let notes = $state('');
 
 	const isEditMode = $derived(expenseId != null);
-	const title = $derived(isEditMode ? 'Edit Expense' : 'New Expense');
+	const title = $derived(
+		isProjectedOccurrence ? 'Edit Projected Occurrence' : isEditMode ? 'Edit Expense' : 'New Expense'
+	);
 
 	const defaultCurrency = $derived(currencies.find((c) => c.isDefault)?.value || currencies[0]?.value || 'USD');
 	const defaultStatus = $derived(statuses.find((s) => s.isDefault)?.value || statuses[0]?.value || 'pending');
@@ -77,13 +94,15 @@
 		category = '';
 		status = defaultStatus;
 		date = new Date().toISOString().split('T')[0];
-		dueDate = '';
+		paymentTermDays = '';
 		tax = '0';
 		isRecurring = false;
 		recurringPeriod = '';
+		recurringEndDate = '';
 		selectedVendor = defaults?.vendorId ? String(defaults.vendorId) : '';
 		selectedProject = defaults?.projectId ? String(defaults.projectId) : '';
 		notes = '';
+		parentId = null;
 		error = null;
 	}
 
@@ -103,13 +122,15 @@
 			category = expense.category || '';
 			status = expense.status || defaultStatus;
 			date = expense.date ? new Date(expense.date).toISOString().split('T')[0] : '';
-			dueDate = expense.dueDate ? new Date(expense.dueDate).toISOString().split('T')[0] : '';
+			paymentTermDays = expense.paymentTermDays ? String(expense.paymentTermDays) : '';
 			tax = expense.tax != null ? String(expense.tax) : '0';
 			isRecurring = expense.isRecurring || false;
 			recurringPeriod = expense.recurringPeriod || '';
+			recurringEndDate = expense.recurringEndDate ? new Date(expense.recurringEndDate).toISOString().split('T')[0] : '';
 			selectedVendor = expense.vendorId ? String(expense.vendorId) : '';
 			selectedProject = expense.projectId ? String(expense.projectId) : '';
 			notes = expense.notes || '';
+			parentId = expense.parentId || null;
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load expense';
 		} finally {
@@ -139,10 +160,11 @@
 			category,
 			status,
 			date,
-			dueDate: dueDate || null,
+			paymentTermDays: paymentTermDays || null,
 			tax,
 			isRecurring,
 			recurringPeriod: isRecurring ? recurringPeriod : null,
+			recurringEndDate: isRecurring && recurringEndDate ? recurringEndDate : null,
 			vendorId: selectedVendor || null,
 			projectId: selectedProject || null,
 			notes: notes || null
@@ -185,7 +207,9 @@
 		<Dialog.Header>
 			<Dialog.Title>{title}</Dialog.Title>
 			<Dialog.Description>
-				{isEditMode ? 'Update this expense record.' : 'Record a new expense entry.'}
+				{isProjectedOccurrence
+					? 'Edit this projected occurrence. Changes apply only to this occurrence.'
+					: isEditMode ? 'Update this expense record.' : 'Record a new expense entry.'}
 			</Dialog.Description>
 		</Dialog.Header>
 
@@ -195,6 +219,27 @@
 			</div>
 		{:else}
 			<form onsubmit={handleSubmit} class="space-y-4">
+				{#if isProjectedOccurrence && parentId}
+					<div class="rounded-md border border-dashed border-blue-300 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 p-3 text-sm">
+						<div class="flex items-center justify-between">
+							<span class="text-blue-700 dark:text-blue-300 font-medium">Projected occurrence</span>
+							<Button
+								type="button"
+								variant="link"
+								size="sm"
+								class="text-blue-600 dark:text-blue-400 h-auto p-0"
+								onclick={() => {
+									expenseId = parentId;
+									isProjectedOccurrence = false;
+									loadExpense(parentId!);
+								}}
+							>
+								View original record
+							</Button>
+						</div>
+					</div>
+				{/if}
+
 				{#if error}
 					<div class="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
 						{error}
@@ -285,7 +330,7 @@
 				<div class="grid grid-cols-3 gap-4">
 					<div class="space-y-2">
 						<Label for="expVendor">Vendor</Label>
-						<Select.Root type="single" value={selectedVendor} onValueChange={(v) => { selectedVendor = v; }}>
+						<Select.Root type="single" value={selectedVendor} onValueChange={(v) => { selectedVendor = v; if (v && !paymentTermDays) { const vn = vendors.find(x => String(x.id) === v); if (vn) paymentTermDays = String(vn.paymentTerms); } }}>
 							<Select.Trigger id="expVendor" class="w-full">
 								{vendors.find((v) => String(v.id) === selectedVendor)?.name || 'Select vendor'}
 							</Select.Trigger>
@@ -340,38 +385,80 @@
 					</div>
 
 					<div class="space-y-2">
-						<Label for="expDueDate">Due Date</Label>
-						<Input id="expDueDate" class="w-full" type="date" bind:value={dueDate} />
+						<Label for="expPaymentTerms">Payment Terms</Label>
+						<Select.Root type="single" value={paymentTermDays} onValueChange={(v) => { paymentTermDays = v; }}>
+							<Select.Trigger id="expPaymentTerms" class="w-full">
+								{paymentTerms.find((pt) => pt.value === paymentTermDays)?.label || 'Select terms'}
+							</Select.Trigger>
+							<Select.Content>
+								<Select.Item value="">No terms</Select.Item>
+								{#each paymentTerms as pt}
+									<Select.Item value={pt.value}>{pt.label}</Select.Item>
+								{/each}
+							</Select.Content>
+						</Select.Root>
+						{#if calculatedDueDate()}
+							<p class="text-xs text-muted-foreground">Due: {calculatedDueDate()}</p>
+						{/if}
 					</div>
 				</div>
 
+				{#if !isProjectedOccurrence}
 				<hr>
 
-				<div class="grid grid-cols-2 gap-8">
-					<div class="grid grid-cols-2 gap-4 items-end">
-						<div class="flex items-center space-x-2 pb-3">
-							<Checkbox
-								id="expIsRecurring"
-								checked={isRecurring}
-								onCheckedChange={(checked) => (isRecurring = checked === true)}
-							/>
-							<Label for="expIsRecurring" class="cursor-pointer">Recurring expense</Label>
-						</div>
+				<div class="space-y-3">
+					<div class="grid grid-cols-2 gap-8">
+						<div class="grid grid-cols-2 gap-4 items-end">
+							<div class="flex items-center space-x-2 pb-3">
+								<Checkbox
+									id="expIsRecurring"
+									checked={isRecurring}
+									onCheckedChange={(checked) => {
+										isRecurring = checked === true;
+										if (!isRecurring) {
+											recurringPeriod = '';
+											recurringEndDate = '';
+										}
+									}}
+								/>
+								<Label for="expIsRecurring" class="cursor-pointer">Recurring expense</Label>
+							</div>
 
-						<div class="space-y-2">
-							<Select.Root type="single" value={recurringPeriod} onValueChange={(v) => { if (v) recurringPeriod = v; }}>
-								<Select.Trigger id="expRecurringPeriod" disabled={!isRecurring} class={!isRecurring ? 'pointer-events-none' : ''}>
-									{recurringPeriods.find((r) => r.value === recurringPeriod)?.label || 'Select period'}
-								</Select.Trigger>
-								<Select.Content>
-									{#each recurringPeriods as period}
-										<Select.Item value={period.value}>{period.label}</Select.Item>
-									{/each}
-								</Select.Content>
-							</Select.Root>
+							<div class="space-y-2">
+								<Select.Root type="single" value={recurringPeriod} onValueChange={(v) => { if (v) recurringPeriod = v; }}>
+									<Select.Trigger id="expRecurringPeriod" disabled={!isRecurring} class={!isRecurring ? 'pointer-events-none' : ''}>
+										{recurringPeriods.find((r) => r.value === recurringPeriod)?.label || 'Select period'}
+									</Select.Trigger>
+									<Select.Content>
+										{#each recurringPeriods as period}
+											<Select.Item value={period.value}>{period.label}</Select.Item>
+										{/each}
+									</Select.Content>
+								</Select.Root>
+							</div>
 						</div>
 					</div>
+
+					{#if isRecurring}
+						<div class="grid grid-cols-2 gap-8">
+							<div class="space-y-2">
+								<Label for="expRecurringEndDate">Generate until</Label>
+								<Input id="expRecurringEndDate" class="w-full" type="date" bind:value={recurringEndDate} />
+							</div>
+							<div class="flex items-end gap-2 pb-0.5">
+								<Button type="button" variant="outline" size="sm" onclick={() => {
+									const y = new Date().getFullYear();
+									recurringEndDate = `${y}-12-31`;
+								}}>End of Year</Button>
+								<Button type="button" variant="outline" size="sm" onclick={() => {
+									const y = new Date().getFullYear() + 1;
+									recurringEndDate = `${y}-12-31`;
+								}}>End of Next Year</Button>
+							</div>
+						</div>
+					{/if}
 				</div>
+			{/if}
 
 				<Dialog.Footer>
 					<Button type="button" variant="outline" onclick={() => handleOpenChange(false)} disabled={saving}>

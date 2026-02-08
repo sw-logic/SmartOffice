@@ -8,6 +8,7 @@
 	import * as Select from '$lib/components/ui/select';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Badge } from '$lib/components/ui/badge';
+	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Avatar from '$lib/components/ui/avatar';
 	import {
 		Plus,
@@ -20,13 +21,49 @@
 		User,
 		Briefcase
 	} from 'lucide-svelte';
+	import { formatDate } from '$lib/utils/date';
 
 	let { data } = $props();
 
 	let searchInput = $state(data.filters.search);
 	let deleteDialogOpen = $state(false);
 	let restoreDialogOpen = $state(false);
-	let selectedEmployee = $state<{ id: number; firstName: string; lastName: string } | null>(null);
+	let bulkDeleteDialogOpen = $state(false);
+	let selectedEmployee = $state<{ id: number; firstName: string; lastName: string; hasUser: boolean } | null>(null);
+	let selectedIds = $state<Set<number>>(new Set());
+	let deactivateUser = $state(false);
+	let deactivateUsers = $state(false);
+
+	// Employees that can be selected (not deleted)
+	const selectableEmployees = $derived(data.employees.filter(e => !e.deletedAt));
+
+	const allSelected = $derived(
+		selectableEmployees.length > 0 && selectableEmployees.every(e => selectedIds.has(e.id))
+	);
+
+	const someSelected = $derived(selectedIds.size > 0);
+
+	const selectedWithUsers = $derived(
+		data.employees.filter(e => selectedIds.has(e.id) && e.user)
+	);
+
+	function toggleSelectAll() {
+		if (allSelected) {
+			selectedIds = new Set();
+		} else {
+			selectedIds = new Set(selectableEmployees.map(e => e.id));
+		}
+	}
+
+	function toggleSelect(id: number) {
+		const next = new Set(selectedIds);
+		if (next.has(id)) {
+			next.delete(id);
+		} else {
+			next.add(id);
+		}
+		selectedIds = next;
+	}
 
 	const employmentTypes = [
 		{ value: 'full-time', label: 'Full-time' },
@@ -70,12 +107,13 @@
 		goto(`?${params.toString()}`);
 	}
 
-	function openDeleteDialog(employee: { id: number; firstName: string; lastName: string }) {
+	function openDeleteDialog(employee: { id: number; firstName: string; lastName: string; hasUser: boolean }) {
 		selectedEmployee = employee;
+		deactivateUser = false;
 		deleteDialogOpen = true;
 	}
 
-	function openRestoreDialog(employee: { id: number; firstName: string; lastName: string }) {
+	function openRestoreDialog(employee: { id: number; firstName: string; lastName: string; hasUser: boolean }) {
 		selectedEmployee = employee;
 		restoreDialogOpen = true;
 	}
@@ -118,10 +156,6 @@
 		}).format(amount);
 	}
 
-	function formatDate(date: Date | string | null): string {
-		if (!date) return '-';
-		return new Date(date).toLocaleDateString();
-	}
 </script>
 
 <div class="space-y-6">
@@ -130,10 +164,18 @@
 			<h1 class="text-3xl font-bold tracking-tight">Employees</h1>
 			<p class="text-muted-foreground">Manage your company employees</p>
 		</div>
-		<Button href="/employees/new">
-			<Plus class="mr-2 h-4 w-4" />
-			Add Employee
-		</Button>
+		<div class="flex items-center gap-2">
+			{#if someSelected}
+				<Button variant="destructive" onclick={() => { deactivateUsers = false; bulkDeleteDialogOpen = true; }}>
+					<Trash2 class="mr-2 h-4 w-4" />
+					Delete ({selectedIds.size})
+				</Button>
+			{/if}
+			<Button href="/employees/new">
+				<Plus class="mr-2 h-4 w-4" />
+				Add Employee
+			</Button>
+		</div>
 	</div>
 
 	<!-- Filters -->
@@ -212,6 +254,12 @@
 		<Table.Root>
 			<Table.Header>
 				<Table.Row>
+					<Table.Head class="w-[40px]">
+						<Checkbox
+							checked={allSelected}
+							onCheckedChange={() => toggleSelectAll()}
+						/>
+					</Table.Head>
 					<Table.Head>
 						<Button variant="ghost" class="-ml-4" onclick={() => toggleSort('lastName')}>
 							Name
@@ -241,6 +289,14 @@
 						class="cursor-pointer hover:bg-muted/50 {employee.deletedAt ? 'opacity-60' : ''}"
 						onclick={() => goto(`/employees/${employee.id}`)}
 					>
+						<Table.Cell onclick={(e) => e.stopPropagation()}>
+							{#if !employee.deletedAt}
+								<Checkbox
+									checked={selectedIds.has(employee.id)}
+									onCheckedChange={() => toggleSelect(employee.id)}
+								/>
+							{/if}
+						</Table.Cell>
 						<Table.Cell>
 							<div class="flex items-center gap-3">
 								<Avatar.Root>
@@ -306,7 +362,7 @@
 							</div>
 						</Table.Cell>
 						<Table.Cell>
-							<div class="flex items-center gap-1">
+							<div class="flex items-center gap-1" onclick={(e) => e.stopPropagation()}>
 								<Button variant="ghost" size="icon" href="/employees/{employee.id}">
 									<Eye class="h-4 w-4" />
 								</Button>
@@ -321,7 +377,8 @@
 											openDeleteDialog({
 												id: employee.id,
 												firstName: employee.firstName,
-												lastName: employee.lastName
+												lastName: employee.lastName,
+												hasUser: !!employee.user
 											})}
 									>
 										<Trash2 class="h-4 w-4" />
@@ -334,7 +391,8 @@
 											openRestoreDialog({
 												id: employee.id,
 												firstName: employee.firstName,
-												lastName: employee.lastName
+												lastName: employee.lastName,
+												hasUser: !!employee.user
 											})}
 									>
 										<RotateCcw class="h-4 w-4" />
@@ -345,7 +403,7 @@
 					</Table.Row>
 				{:else}
 					<Table.Row>
-						<Table.Cell colspan={data.canViewSalary ? 9 : 8} class="text-center py-8">
+						<Table.Cell colspan={data.canViewSalary ? 10 : 9} class="text-center py-8">
 							<div class="text-muted-foreground">No employees found</div>
 						</Table.Cell>
 					</Table.Row>
@@ -395,6 +453,18 @@
 				{selectedEmployee?.lastName}? This action can be undone by an administrator.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
+		{#if selectedEmployee?.hasUser}
+			<div class="flex items-center space-x-2 py-2">
+				<Checkbox
+					id="deactivateUser"
+					checked={deactivateUser}
+					onCheckedChange={(checked) => (deactivateUser = checked === true)}
+				/>
+				<label for="deactivateUser" class="text-sm cursor-pointer">
+					Also deactivate the linked user account
+				</label>
+			</div>
+		{/if}
 		<AlertDialog.Footer>
 			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
 			<form
@@ -409,7 +479,50 @@
 				}}
 			>
 				<input type="hidden" name="id" value={selectedEmployee?.id} />
+				<input type="hidden" name="deactivateUser" value={deactivateUser.toString()} />
 				<Button type="submit" variant="destructive">Delete</Button>
+			</form>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
+
+<!-- Bulk Delete Confirmation Dialog -->
+<AlertDialog.Root bind:open={bulkDeleteDialogOpen}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Delete {selectedIds.size} Employees</AlertDialog.Title>
+			<AlertDialog.Description>
+				Are you sure you want to delete {selectedIds.size} employees? This action can be undone by an administrator.
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		{#if selectedWithUsers.length > 0}
+			<div class="flex items-center space-x-2 py-2">
+				<Checkbox
+					id="deactivateUsers"
+					checked={deactivateUsers}
+					onCheckedChange={(checked) => (deactivateUsers = checked === true)}
+				/>
+				<label for="deactivateUsers" class="text-sm cursor-pointer">
+					Also deactivate {selectedWithUsers.length} linked user account{selectedWithUsers.length > 1 ? 's' : ''}
+				</label>
+			</div>
+		{/if}
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<form
+				method="POST"
+				action="?/bulkDelete"
+				use:enhance={() => {
+					return async ({ update }) => {
+						await update();
+						bulkDeleteDialogOpen = false;
+						selectedIds = new Set();
+					};
+				}}
+			>
+				<input type="hidden" name="ids" value={Array.from(selectedIds).join(',')} />
+				<input type="hidden" name="deactivateUsers" value={deactivateUsers.toString()} />
+				<Button type="submit" variant="destructive">Delete {selectedIds.size} Employees</Button>
 			</form>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>

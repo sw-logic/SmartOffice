@@ -3,19 +3,18 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { fail } from '@sveltejs/kit';
 import { logDelete, logAction } from '$lib/server/audit';
-import { getEnumValuesBatch } from '$lib/server/enums';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'projects', 'read');
 
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+	const isAdmin = checkPermission(locals, '*', '*');
 
 	// URL params
 	const search = url.searchParams.get('search') || '';
 	const sortBy = url.searchParams.get('sortBy') || 'name';
 	const sortOrder = (url.searchParams.get('sortOrder') || 'asc') as 'asc' | 'desc';
 	const page = parseInt(url.searchParams.get('page') || '1');
-	const limit = parseInt(url.searchParams.get('limit') || '20');
+	const limit = parseInt(url.searchParams.get('limit') || '25');
 	const status = url.searchParams.get('status') || 'active';
 
 	// Group & filter params
@@ -110,6 +109,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				category: true,
 				dueDate: true,
 				estimatedTime: true,
+				spentTime: true,
 				deletedAt: true,
 				createdAt: true,
 				project: {
@@ -135,22 +135,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		prisma.task.count({ where })
 	]);
 
-	// Get spent time per task
-	const taskIds = tasks.map(t => t.id);
-	const spentTimeData = taskIds.length > 0
-		? await prisma.timeRecord.groupBy({
-				by: ['taskId'],
-				where: { taskId: { in: taskIds }, deletedAt: null },
-				_sum: { hours: true }
-			})
-		: [];
-
-	const spentTimeMap = new Map(
-		spentTimeData.map(r => [r.taskId, Number(r._sum.hours) || 0])
-	);
-
 	// Load filter dropdown data
-	const [projects, clients, boards, employees, enums] = await Promise.all([
+	const [projects, clients, boards, employees] = await Promise.all([
 		prisma.project.findMany({
 			select: {
 				id: true,
@@ -189,11 +175,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			where: { personType: 'company_employee', employeeStatus: 'active' },
 			select: { id: true, firstName: true, lastName: true },
 			orderBy: { firstName: 'asc' }
-		}),
-		getEnumValuesBatch([
-			'task_type', 'task_category',
-			'time_record_type', 'time_record_category'
-		])
+		})
 	]);
 
 	// Load task_tags enum values with IDs (needed for EntityTag)
@@ -211,8 +193,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	return {
 		tasks: tasks.map(task => ({
 			...task,
-			estimatedTime: task.estimatedTime ? Number(task.estimatedTime) : null,
-			spentTime: spentTimeMap.get(task.id) || 0,
 			timeRecordCount: task._count.timeRecords
 		})),
 		pagination: {
@@ -242,10 +222,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		clients,
 		boards,
 		employees,
-		taskTypes: enums['task_type'] || [],
-		taskCategories: enums['task_category'] || [],
-		timeRecordTypes: enums['time_record_type'] || [],
-		timeRecordCategories: enums['time_record_category'] || [],
 		availableTags: taskTagsEnumType?.values || [],
 		taskStatuses: [
 			{ value: 'backlog', label: 'Backlog' },
@@ -300,10 +276,51 @@ export const actions: Actions = {
 		return { success: true };
 	},
 
+	bulkDelete: async ({ locals, request }) => {
+		await requirePermission(locals, 'projects', 'delete');
+
+		const formData = await request.formData();
+		const idsStr = formData.get('ids') as string;
+
+		if (!idsStr) {
+			return fail(400, { error: 'Task IDs are required' });
+		}
+
+		const ids = idsStr.split(',').map(Number).filter(id => !isNaN(id));
+		if (ids.length === 0) {
+			return fail(400, { error: 'No valid task IDs provided' });
+		}
+
+		const tasks = await prisma.task.findMany({
+			where: {
+				id: { in: ids },
+				deletedAt: null
+			},
+			select: { id: true, name: true }
+		});
+
+		if (tasks.length === 0) {
+			return fail(404, { error: 'No tasks found' });
+		}
+
+		await prisma.task.updateMany({
+			where: { id: { in: tasks.map(t => t.id) } },
+			data: { deletedAt: new Date() }
+		});
+
+		for (const task of tasks) {
+			await logDelete(locals.user!.id, 'projects', String(task.id), 'Task', {
+				name: task.name
+			});
+		}
+
+		return { success: true, count: tasks.length };
+	},
+
 	restore: async ({ locals, request }) => {
 		await requirePermission(locals, 'projects', 'update');
 
-		const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+		const isAdmin = checkPermission(locals, '*', '*');
 		if (!isAdmin) {
 			return fail(403, { error: 'Only administrators can restore deleted tasks' });
 		}

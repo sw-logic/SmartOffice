@@ -25,6 +25,7 @@
 		Receipt
 	} from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
+	import { formatDate } from '$lib/utils/date';
 
 	let { data } = $props();
 
@@ -374,10 +375,10 @@
 								</div>
 							</Table.Cell>
 							<Table.Cell>
-								{new Date(vendor.createdAt).toLocaleDateString()}
+								{formatDate(vendor.createdAt)}
 							</Table.Cell>
 							<Table.Cell>
-								<div class="flex items-center gap-1">
+								<div class="flex items-center gap-1" onclick={(e) => e.stopPropagation()}>
 									<Button variant="ghost" size="icon" href="/vendors/{vendor.id}" title="View vendor">
 										<Eye class="h-4 w-4" />
 									</Button>

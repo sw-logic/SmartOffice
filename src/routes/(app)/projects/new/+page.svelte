@@ -3,7 +3,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import { Textarea } from '$lib/components/ui/textarea';
+	import MarkdownEditor from '$lib/components/shared/MarkdownEditor.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import * as Select from '$lib/components/ui/select';
 	import { ArrowLeft } from 'lucide-svelte';
@@ -12,13 +12,14 @@
 
 	let isSubmitting = $state(false);
 
-	const defaultStatus = data.statuses.find((s) => s.isDefault)?.value || 'planning';
-	const defaultPriority = data.priorities.find((p) => p.isDefault)?.value || 'medium';
+	const defaultStatus = data.enums.project_status.find((s) => s.isDefault)?.value || 'planning';
+	const defaultPriority = data.enums.priority.find((p) => p.isDefault)?.value || 'medium';
 
 	let selectedStatus = $state(form?.values?.status || defaultStatus);
 	let selectedPriority = $state(form?.values?.priority || defaultPriority);
 	let selectedClientId = $state(form?.values?.clientId || data.preselectedClientId || '');
 	let selectedProjectManagerId = $state(form?.values?.projectManagerId || '');
+	let description = $state(form?.values?.description || '');
 </script>
 
 <div class="space-y-6">
@@ -65,13 +66,11 @@
 
 				<div class="space-y-2">
 					<Label for="description">Description</Label>
-					<Textarea
-						id="description"
-						name="description"
+					<MarkdownEditor
+						bind:value={description}
 						placeholder="Project description..."
-						rows={4}
-						value={form?.values?.description || ''}
 					/>
+					<input type="hidden" name="description" value={description} />
 				</div>
 
 				<div class="grid grid-cols-2 gap-4">
@@ -118,10 +117,10 @@
 						<Label for="status">Status</Label>
 						<Select.Root type="single" bind:value={selectedStatus} name="status">
 							<Select.Trigger>
-								{data.statuses.find((s) => s.value === selectedStatus)?.label || 'Select status'}
+								{data.enums.project_status.find((s) => s.value === selectedStatus)?.label || 'Select status'}
 							</Select.Trigger>
 							<Select.Content>
-								{#each data.statuses as status}
+								{#each data.enums.project_status as status}
 									<Select.Item value={status.value}>{status.label}</Select.Item>
 								{/each}
 							</Select.Content>
@@ -133,10 +132,10 @@
 						<Label for="priority">Priority</Label>
 						<Select.Root type="single" bind:value={selectedPriority} name="priority">
 							<Select.Trigger>
-								{data.priorities.find((p) => p.value === selectedPriority)?.label || 'Select priority'}
+								{data.enums.priority.find((p) => p.value === selectedPriority)?.label || 'Select priority'}
 							</Select.Trigger>
 							<Select.Content>
-								{#each data.priorities as priority}
+								{#each data.enums.priority as priority}
 									<Select.Item value={priority.value}>{priority.label}</Select.Item>
 								{/each}
 							</Select.Content>

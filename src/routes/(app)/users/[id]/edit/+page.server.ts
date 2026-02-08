@@ -9,7 +9,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'settings', 'users');
 
 	// Check if current user is admin (can edit deleted users)
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+	const isAdmin = checkPermission(locals, '*', '*');
 
 	// First find the user without deletedAt filter
 	const user = await prisma.user.findUnique({

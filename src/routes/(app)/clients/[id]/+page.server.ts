@@ -14,7 +14,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	}
 
 	// Check if user is admin (can view deleted clients)
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+	const isAdmin = checkPermission(locals, '*', '*');
 
 	const client = await prisma.client.findUnique({
 		where: { id: clientId },

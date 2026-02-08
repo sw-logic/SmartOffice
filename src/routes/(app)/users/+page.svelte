@@ -21,6 +21,7 @@
 		RotateCcw
 	} from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
+	import { formatDate } from '$lib/utils/date';
 
 	let { data } = $props();
 
@@ -288,7 +289,7 @@
 								</Table.Cell>
 							{/if}
 							<Table.Cell>
-								{new Date(user.createdAt).toLocaleDateString()}
+								{formatDate(user.createdAt)}
 							</Table.Cell>
 							<Table.Cell>
 								<div class="flex items-center gap-1">

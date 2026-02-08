@@ -28,6 +28,7 @@
 		Plus,
 		Trash2
 	} from 'lucide-svelte';
+	import { formatDate } from '$lib/utils/date';
 
 	let { data } = $props();
 
@@ -189,9 +190,6 @@
 		}).format(num);
 	}
 
-	function formatDate(date: string | Date): string {
-		return new Date(date).toLocaleDateString();
-	}
 </script>
 
 <div class="space-y-6">
@@ -239,7 +237,7 @@
 
 	<div class="grid gap-6 md:grid-cols-3">
 		<!-- Main Info Card -->
-		<Card.Root class="md:col-span-2">
+		<Card.Root>
 			<Card.Header>
 				<Card.Title>Client Information</Card.Title>
 			</Card.Header>
@@ -367,7 +365,7 @@
 					{/if}
 				</div>
 
-				<div class="pt-4 border-t text-sm text-muted-foreground">
+				<!-- div class="pt-4 border-t text-sm text-muted-foreground">
 					<div class="flex items-center gap-1">
 						<Calendar class="h-3 w-3" />
 						Created {formatDate(data.client.createdAt)}
@@ -375,7 +373,7 @@
 					<div class="mt-1">
 						by {data.client.createdBy.name}
 					</div>
-				</div>
+				</div -->
 			</Card.Content>
 		</Card.Root>
 	</div>

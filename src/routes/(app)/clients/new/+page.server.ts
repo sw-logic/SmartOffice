@@ -3,19 +3,11 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
 import { fail, redirect } from '@sveltejs/kit';
 import { logCreate } from '$lib/server/audit';
-import { getEnumValuesBatch } from '$lib/server/enums';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	await requirePermission(locals, 'clients', 'create');
 
-	// Get enum values from database
-	const enums = await getEnumValuesBatch(['client_industry', 'currency', 'entity_status']);
-
-	return {
-		industries: enums.client_industry,
-		currencies: enums.currency,
-		statuses: enums.entity_status
-	};
+	return {};
 };
 
 export const actions: Actions = {

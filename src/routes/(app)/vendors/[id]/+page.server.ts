@@ -14,7 +14,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	}
 
 	// Check if user is admin (can view deleted vendors)
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+	const isAdmin = checkPermission(locals, '*', '*');
 
 	const vendor = await prisma.vendor.findUnique({
 		where: { id: vendorId },

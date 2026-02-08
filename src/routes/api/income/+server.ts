@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
 import { logCreate } from '$lib/server/audit';
+import { generateIncomeOccurrences } from '$lib/server/recurring';
 
 export const POST: RequestHandler = async ({ locals, request }) => {
 	await requirePermission(locals, 'finances.income', 'create');
@@ -43,9 +44,11 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 			description: body.description.trim(),
 			category: body.category,
 			status: body.status || 'pending',
-			dueDate: body.dueDate ? new Date(body.dueDate) : null,
+			paymentTermDays: body.paymentTermDays ? parseInt(body.paymentTermDays) : null,
+			dueDate: body.paymentTermDays ? new Date(new Date(body.date).getTime() + parseInt(body.paymentTermDays) * 86400000) : null,
 			isRecurring: body.isRecurring || false,
 			recurringPeriod: body.isRecurring ? body.recurringPeriod : null,
+			recurringEndDate: body.isRecurring && body.recurringEndDate ? new Date(body.recurringEndDate) : null,
 			clientId: body.clientId ? parseInt(body.clientId) : null,
 			projectId: body.projectId ? parseInt(body.projectId) : null,
 			invoiceReference: body.invoiceReference?.trim() || null,
@@ -63,5 +66,11 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 		status: income.status
 	});
 
-	return json({ income }, { status: 201 });
+	// Generate projected occurrences if recurring with end date
+	let projectedCount = 0;
+	if (body.isRecurring && body.recurringEndDate) {
+		projectedCount = await generateIncomeOccurrences(income.id, locals.user!.id);
+	}
+
+	return json({ income, projectedCount }, { status: 201 });
 };

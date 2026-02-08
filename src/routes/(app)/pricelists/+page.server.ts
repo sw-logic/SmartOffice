@@ -7,7 +7,7 @@ import { logDelete, logUpdate } from '$lib/server/audit';
 export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'pricelists', 'read');
 
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+	const isAdmin = checkPermission(locals, '*', '*');
 
 	// Get query parameters
 	const search = url.searchParams.get('search') || '';
@@ -191,7 +191,7 @@ export const actions: Actions = {
 	restore: async ({ locals, request }) => {
 		await requirePermission(locals, 'pricelists', 'update');
 
-		const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+		const isAdmin = checkPermission(locals, '*', '*');
 		if (!isAdmin) {
 			return fail(403, { error: 'Only administrators can restore deleted items' });
 		}

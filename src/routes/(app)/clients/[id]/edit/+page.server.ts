@@ -3,45 +3,41 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { fail, redirect, error } from '@sveltejs/kit';
 import { logUpdate } from '$lib/server/audit';
-import { getEnumValuesBatch } from '$lib/server/enums';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'clients', 'update');
 
 	// Check if current user is admin (can edit deleted clients)
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+	const isAdmin = checkPermission(locals, '*', '*');
 
 	const clientId = parseInt(params.id);
 	if (isNaN(clientId)) {
 		error(400, 'Invalid client ID');
 	}
 
-	const [client, enums] = await Promise.all([
-		prisma.client.findUnique({
-			where: { id: clientId },
-			select: {
-				id: true,
-				name: true,
-				companyName: true,
-				email: true,
-				phone: true,
-				website: true,
-				street: true,
-				city: true,
-				postalCode: true,
-				country: true,
-				taxId: true,
-				vatNumber: true,
-				industry: true,
-				status: true,
-				paymentTerms: true,
-				currency: true,
-				notes: true,
-				deletedAt: true
-			}
-		}),
-		getEnumValuesBatch(['client_industry', 'currency', 'entity_status'])
-	]);
+	const client = await prisma.client.findUnique({
+		where: { id: clientId },
+		select: {
+			id: true,
+			name: true,
+			companyName: true,
+			email: true,
+			phone: true,
+			website: true,
+			street: true,
+			city: true,
+			postalCode: true,
+			country: true,
+			taxId: true,
+			vatNumber: true,
+			industry: true,
+			status: true,
+			paymentTerms: true,
+			currency: true,
+			notes: true,
+			deletedAt: true
+		}
+	});
 
 	if (!client) {
 		error(404, 'Client not found');
@@ -57,9 +53,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			...client,
 			isDeleted: client.deletedAt !== null
 		},
-		industries: enums.client_industry,
-		currencies: enums.currency,
-		statuses: enums.entity_status,
 		isAdmin
 	};
 };

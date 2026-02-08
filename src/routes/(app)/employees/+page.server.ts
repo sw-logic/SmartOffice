@@ -8,12 +8,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'employees', 'read');
 
 	// Check if user can view salary info
-	const canViewSalary = locals.user
-		? await checkPermission(locals.user.id, 'employees', 'salary')
-		: false;
+	const canViewSalary = checkPermission(locals, 'employees', 'salary');
 
 	// Check if current user is admin (can view deleted employees)
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+	const isAdmin = checkPermission(locals, '*', '*');
 
 	// Get query parameters
 	const search = url.searchParams.get('search') || '';
@@ -170,6 +168,7 @@ export const actions: Actions = {
 
 		const formData = await request.formData();
 		const idStr = formData.get('id') as string;
+		const deactivateUser = formData.get('deactivateUser') === 'true';
 
 		if (!idStr) {
 			return fail(400, { error: 'Employee ID is required' });
@@ -190,7 +189,8 @@ export const actions: Actions = {
 				firstName: true,
 				lastName: true,
 				email: true,
-				jobTitle: true
+				jobTitle: true,
+				userId: true
 			}
 		});
 
@@ -211,14 +211,100 @@ export const actions: Actions = {
 			jobTitle: employee.jobTitle
 		});
 
+		// Optionally deactivate the linked user account
+		if (deactivateUser && employee.userId) {
+			await prisma.user.update({
+				where: { id: employee.userId },
+				data: { deletedAt: new Date() }
+			});
+
+			await logDelete(locals.user!.id, 'users', employee.userId, 'User', {
+				reason: 'Deactivated with employee deletion',
+				employeeId: id
+			});
+		}
+
 		return { success: true };
+	},
+
+	bulkDelete: async ({ locals, request }) => {
+		await requirePermission(locals, 'employees', 'delete');
+
+		const formData = await request.formData();
+		const idsStr = formData.get('ids') as string;
+		const deactivateUsers = formData.get('deactivateUsers') === 'true';
+
+		if (!idsStr) {
+			return fail(400, { error: 'Employee IDs are required' });
+		}
+
+		const ids = idsStr.split(',').map(Number).filter(id => !isNaN(id));
+		if (ids.length === 0) {
+			return fail(400, { error: 'No valid employee IDs provided' });
+		}
+
+		const employees = await prisma.person.findMany({
+			where: {
+				id: { in: ids },
+				personType: 'company_employee',
+				deletedAt: null
+			},
+			select: {
+				id: true,
+				firstName: true,
+				lastName: true,
+				email: true,
+				jobTitle: true,
+				userId: true
+			}
+		});
+
+		if (employees.length === 0) {
+			return fail(404, { error: 'No employees found' });
+		}
+
+		// Soft delete all employees
+		await prisma.person.updateMany({
+			where: { id: { in: employees.map(e => e.id) } },
+			data: { deletedAt: new Date() }
+		});
+
+		// Log each deletion
+		for (const employee of employees) {
+			await logDelete(locals.user!.id, 'employees', String(employee.id), 'Person', {
+				firstName: employee.firstName,
+				lastName: employee.lastName,
+				email: employee.email,
+				jobTitle: employee.jobTitle
+			});
+		}
+
+		// Optionally deactivate linked user accounts
+		if (deactivateUsers) {
+			const userIds = employees.map(e => e.userId).filter((id): id is string => id !== null);
+			if (userIds.length > 0) {
+				await prisma.user.updateMany({
+					where: { id: { in: userIds } },
+					data: { deletedAt: new Date() }
+				});
+
+				for (const employee of employees.filter(e => e.userId)) {
+					await logDelete(locals.user!.id, 'users', employee.userId!, 'User', {
+						reason: 'Deactivated with bulk employee deletion',
+						employeeId: employee.id
+					});
+				}
+			}
+		}
+
+		return { success: true, count: employees.length };
 	},
 
 	restore: async ({ locals, request }) => {
 		await requirePermission(locals, 'employees', 'update');
 
 		// Only admins can restore
-		const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+		const isAdmin = checkPermission(locals, '*', '*');
 		if (!isAdmin) {
 			return fail(403, { error: 'Only administrators can restore deleted employees' });
 		}

@@ -22,6 +22,7 @@
 		Shield
 	} from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
+	import { formatDate } from '$lib/utils/date';
 
 	let { data } = $props();
 
@@ -288,7 +289,7 @@
 								</Table.Cell>
 							{/if}
 							<Table.Cell>
-								{new Date(group.createdAt).toLocaleDateString()}
+								{formatDate(group.createdAt)}
 							</Table.Cell>
 							<Table.Cell>
 								<div class="flex items-center gap-1">

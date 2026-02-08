@@ -1,18 +1,22 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
-	import * as Select from '$lib/components/ui/select';
 	import * as Table from '$lib/components/ui/table';
-	import { Plus } from 'lucide-svelte';
+	import TimeRecordFormModal from './TimeRecordFormModal.svelte';
+	import { Plus, Pencil } from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
+	import { formatDate } from '$lib/utils/date';
+    import { Badge } from "$components/ui/badge";
 
-	interface TimeRecord {
+    interface TimeRecord {
 		id: number;
 		date: string | Date;
-		hours: number | string;
+		minutes: number;
 		description: string | null;
 		type: string | null;
 		category: string | null;
+		billable: boolean;
+		personId: number | null;
+		person: { id: number; firstName: string; lastName: string } | null;
 		createdById: string;
 		createdBy: { id: string; name: string };
 		createdAt: string | Date;
@@ -23,124 +27,91 @@
 		label: string;
 	}
 
+	interface PersonOption {
+		id: number;
+		firstName: string;
+		lastName: string;
+	}
+
 	interface Props {
 		taskId: number;
 		timeRecords: TimeRecord[];
 		typeOptions: EnumOption[];
 		categoryOptions: EnumOption[];
+		employees: PersonOption[];
+		currentPersonId: number | null;
 		onTimeRecordsChange: (records: TimeRecord[]) => void;
 	}
 
-	let { taskId, timeRecords, typeOptions, categoryOptions, onTimeRecordsChange }: Props = $props();
+	let { taskId, timeRecords, typeOptions, categoryOptions, employees, currentPersonId, onTimeRecordsChange }: Props = $props();
 
-	let date = $state(new Date().toISOString().slice(0, 10));
-	let hours = $state('');
-	let description = $state('');
-	let type = $state('');
-	let category = $state('');
-	let isSubmitting = $state(false);
+	let modalOpen = $state(false);
+	let editingRecord = $state<{
+		id: number;
+		date: string;
+		minutes: number;
+		description: string | null;
+		type: string | null;
+		category: string | null;
+		billable: boolean;
+		personId: number | null;
+	} | null>(null);
 
-	let totalHours = $derived(
-		timeRecords.reduce((sum, tr) => sum + Number(tr.hours), 0)
+	let totalMinutes = $derived(
+		timeRecords.reduce((sum, tr) => sum + Number(tr.minutes), 0)
 	);
 
-	async function handleSubmit() {
-		if (!date || !hours || Number(hours) <= 0 || isSubmitting) return;
-		isSubmitting = true;
+	function fmtMin(m: number): string {
+		const h = Math.floor(m / 60);
+		const min = m % 60;
+		return `${h}h ${min}m`;
+	}
 
-		try {
-			const res = await fetch(`/api/tasks/${taskId}/time-records`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					date,
-					hours: Number(hours),
-					description: description.trim() || null,
-					type: type || null,
-					category: category || null
-				})
-			});
+	function openCreateModal() {
+		editingRecord = null;
+		modalOpen = true;
+	}
 
-			if (res.ok) {
-				const { timeRecord } = await res.json();
-				onTimeRecordsChange([timeRecord, ...timeRecords]);
-				hours = '';
-				description = '';
-				toast.success('Time record added');
-			} else {
-				const data = await res.json();
-				toast.error(data.error || 'Failed to add time record');
-			}
-		} catch {
-			toast.error('Failed to add time record');
-		} finally {
-			isSubmitting = false;
+	function openEditModal(record: TimeRecord) {
+		editingRecord = {
+			id: record.id,
+			date: new Date(record.date).toISOString().slice(0, 10),
+			minutes: Number(record.minutes),
+			description: record.description,
+			type: record.type,
+			category: record.category,
+			billable: record.billable,
+			personId: record.personId
+		};
+		modalOpen = true;
+	}
+
+	function handleSaved(saved: TimeRecord) {
+		if (editingRecord) {
+			onTimeRecordsChange(timeRecords.map(r => r.id === saved.id ? saved : r));
+			toast.success('Time record updated');
+		} else {
+			onTimeRecordsChange([saved, ...timeRecords]);
+			toast.success('Time record added');
 		}
 	}
 
-	function formatDate(d: string | Date): string {
-		return new Date(d).toLocaleDateString();
+	function handleDeleted(id: number) {
+		onTimeRecordsChange(timeRecords.filter(r => r.id !== id));
+		toast.success('Time record deleted');
 	}
+
 </script>
 
 <div class="space-y-4">
-	<div class="rounded-lg border p-3 space-y-3">
-		<div class="flex flex-wrap gap-2">
-			<Input
-				type="date"
-				bind:value={date}
-				class="w-[140px] h-8 text-sm"
-			/>
-			<Input
-				type="number"
-				step="0.25"
-				min="0"
-				placeholder="Hours"
-				bind:value={hours}
-				class="w-[80px] h-8 text-sm"
-			/>
-			<Input
-				type="text"
-				placeholder="Description"
-				bind:value={description}
-				class="flex-1 min-w-[120px] h-8 text-sm"
-			/>
-		</div>
-		<div class="flex flex-wrap items-center gap-2">
-			{#if typeOptions.length > 0}
-				<Select.Root type="single" value={type} onValueChange={(v) => { if (v) type = v; }}>
-					<Select.Trigger class="w-[130px] h-8 text-xs">
-						{typeOptions.find(o => o.value === type)?.label || 'Type'}
-					</Select.Trigger>
-					<Select.Content>
-						{#each typeOptions as option}
-							<Select.Item value={option.value}>{option.label}</Select.Item>
-						{/each}
-					</Select.Content>
-				</Select.Root>
-			{/if}
-			{#if categoryOptions.length > 0}
-				<Select.Root type="single" value={category} onValueChange={(v) => { if (v) category = v; }}>
-					<Select.Trigger class="w-[130px] h-8 text-xs">
-						{categoryOptions.find(o => o.value === category)?.label || 'Category'}
-					</Select.Trigger>
-					<Select.Content>
-						{#each categoryOptions as option}
-							<Select.Item value={option.value}>{option.label}</Select.Item>
-						{/each}
-					</Select.Content>
-				</Select.Root>
-			{/if}
-			<div class="flex-1"></div>
-			<Button
-				size="sm"
-				onclick={handleSubmit}
-				disabled={!date || !hours || Number(hours) <= 0 || isSubmitting}
-			>
-				<Plus class="mr-1 h-3 w-3" />
-				{isSubmitting ? 'Adding...' : 'Add'}
-			</Button>
-		</div>
+	<div class="flex items-center justify-between">
+		<span class="text-sm text-muted-foreground">
+			Total: <span class="font-medium text-foreground">{fmtMin(totalMinutes)}</span>
+		</span>
+		<Button size="sm" variant="outline" onclick={openCreateModal}>
+			<Plus class="mr-1 h-3 w-3" />
+			Add Time
+		</Button>
 	</div>
 
 	{#if timeRecords.length === 0}
@@ -151,35 +122,70 @@
 				<Table.Header>
 					<Table.Row>
 						<Table.Head>Date</Table.Head>
-						<Table.Head class="text-right">Hours</Table.Head>
-						<Table.Head>Description</Table.Head>
+						<Table.Head class="text-right">Time</Table.Head>
+						<Table.Head>Detail</Table.Head>
 						<Table.Head>Type</Table.Head>
-						<Table.Head>By</Table.Head>
+						<Table.Head class="text-center">Billable</Table.Head>
+						<Table.Head class="w-[40px]"></Table.Head>
 					</Table.Row>
 				</Table.Header>
 				<Table.Body>
 					{#each timeRecords as record (record.id)}
 						<Table.Row>
-							<Table.Cell class="text-sm">{formatDate(record.date)}</Table.Cell>
-							<Table.Cell class="text-sm text-right font-medium">{Number(record.hours).toFixed(2)}</Table.Cell>
-							<Table.Cell class="text-sm">{record.description || '-'}</Table.Cell>
+							<Table.Cell class="text-xs">{formatDate(record.date)}</Table.Cell>
+							<Table.Cell class="text-sm text-left font-medium">{fmtMin(Number(record.minutes))}</Table.Cell>
 							<Table.Cell class="text-sm">
+								{#if record.person}
+									<div>{record.person.firstName} {record.person.lastName}</div>
+								{:else}
+									-
+								{/if}
+                                {#if record.description}
+                                    <div class="text-sm truncate">{record.description}</div>
+                                {:else}
+                                    -
+                                {/if}
+							</Table.Cell>
+							<Table.Cell>
 								{#if record.type}
-									{typeOptions.find(o => o.value === record.type)?.label || record.type}
+									<Badge variant="outline" class="text-[10px]">{typeOptions.find(o => o.value === record.type)?.label || record.type}</Badge>
 								{:else}
 									-
 								{/if}
 							</Table.Cell>
-							<Table.Cell class="text-sm">{record.createdBy.name}</Table.Cell>
+							<Table.Cell class="text-xs text-center">{record.billable ? 'Yes' : 'No'}</Table.Cell>
+							<Table.Cell>
+								<Button
+									size="icon"
+									variant="ghost"
+									class="h-7 w-7"
+									onclick={() => openEditModal(record)}
+								>
+									<Pencil class="h-3.5 w-3.5" />
+								</Button>
+							</Table.Cell>
 						</Table.Row>
 					{/each}
 					<Table.Row class="font-medium bg-muted/50">
 						<Table.Cell>Total</Table.Cell>
-						<Table.Cell class="text-right">{totalHours.toFixed(2)}</Table.Cell>
-						<Table.Cell colspan={3}></Table.Cell>
+						<Table.Cell class="text-left">{fmtMin(totalMinutes)}</Table.Cell>
+						<Table.Cell colspan={5}></Table.Cell>
 					</Table.Row>
 				</Table.Body>
 			</Table.Root>
 		</div>
 	{/if}
 </div>
+
+<TimeRecordFormModal
+	bind:open={modalOpen}
+	onOpenChange={(v) => { modalOpen = v; if (!v) editingRecord = null; }}
+	{taskId}
+	record={editingRecord}
+	{typeOptions}
+	{categoryOptions}
+	{employees}
+	defaultPersonId={currentPersonId}
+	onSaved={handleSaved}
+	onDeleted={handleDeleted}
+/>

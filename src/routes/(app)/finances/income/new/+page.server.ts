@@ -3,16 +3,15 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
 import { fail, redirect } from '@sveltejs/kit';
 import { logCreate } from '$lib/server/audit';
-import { getEnumValuesBatch } from '$lib/server/enums';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	await requirePermission(locals, 'finances.income', 'create');
 
-	const [clients, projects, enums] = await Promise.all([
+	const [clients, projects] = await Promise.all([
 		// Get clients for dropdown
 		prisma.client.findMany({
 			where: { deletedAt: null, status: 'active' },
-			select: { id: true, name: true },
+			select: { id: true, name: true, paymentTerms: true },
 			orderBy: { name: 'asc' }
 		}),
 		// Get projects for dropdown
@@ -24,18 +23,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 				client: { select: { id: true, name: true } }
 			},
 			orderBy: { name: 'asc' }
-		}),
-		// Get enum values
-		getEnumValuesBatch(['income_category', 'currency', 'income_status', 'recurring_period'])
+		})
 	]);
 
 	return {
 		clients,
-		projects,
-		categories: enums.income_category,
-		currencies: enums.currency,
-		statuses: enums.income_status,
-		recurringPeriods: enums.recurring_period
+		projects
 	};
 };
 
@@ -51,7 +44,8 @@ export const actions: Actions = {
 		const description = formData.get('description') as string;
 		const category = formData.get('category') as string;
 		const status = (formData.get('status') as string) || 'pending';
-		const dueDate = formData.get('dueDate') as string;
+		const paymentTermDaysStr = formData.get('paymentTermDays') as string;
+		const paymentTermDays = paymentTermDaysStr ? parseInt(paymentTermDaysStr) : null;
 		const isRecurring = formData.get('isRecurring') === 'true';
 		const recurringPeriod = formData.get('recurringPeriod') as string;
 		const clientId = formData.get('clientId') as string;
@@ -97,7 +91,7 @@ export const actions: Actions = {
 					description,
 					category,
 					status,
-					dueDate,
+					paymentTermDays: paymentTermDaysStr,
 					isRecurring,
 					recurringPeriod,
 					clientId,
@@ -122,7 +116,8 @@ export const actions: Actions = {
 				description: description.trim(),
 				category,
 				status,
-				dueDate: dueDate ? new Date(dueDate) : null,
+				paymentTermDays,
+				dueDate: paymentTermDays && date ? new Date(new Date(date).getTime() + paymentTermDays * 86400000) : null,
 				isRecurring,
 				recurringPeriod: isRecurring ? recurringPeriod : null,
 				clientId: clientId ? parseInt(clientId) : null,

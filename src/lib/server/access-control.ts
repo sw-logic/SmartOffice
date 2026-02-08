@@ -10,21 +10,17 @@ export interface SessionUser {
 
 export interface Locals {
 	user?: SessionUser | null;
+	/** Pre-loaded permission strings for the current user (populated once per request in hooks). */
+	permissions?: Set<string>;
 }
 
+// ── Permission loading (called once per request in hooks.server.ts) ──────────
+
 /**
- * Check if a user has a specific permission
- * @param userId - The user's ID
- * @param module - The module name (e.g., "clients", "finances.income")
- * @param action - The action (e.g., "read", "create", "update", "delete")
- * @returns True if user has the permission
+ * Load all permissions for a user from the database and return them as a Set
+ * of "module.action" strings. Called once per request in the authorization hook.
  */
-export async function checkPermission(
-	userId: string,
-	module: string,
-	action: string
-): Promise<boolean> {
-	// Get all user's groups and their permissions
+export async function loadUserPermissions(userId: string): Promise<Set<string>> {
 	const userWithPermissions = await prisma.user.findUnique({
 		where: { id: userId },
 		include: {
@@ -44,62 +40,107 @@ export async function checkPermission(
 		}
 	});
 
-	if (!userWithPermissions) {
-		return false;
-	}
+	const permSet = new Set<string>();
+	if (!userWithPermissions) return permSet;
 
-	// Check if any of the user's groups have the required permission
-	for (const userGroup of userWithPermissions.userGroups) {
-		for (const groupPermission of userGroup.userGroup.permissions) {
-			const perm = groupPermission.permission;
-			if (perm.module === module && perm.action === action) {
-				return true;
-			}
-			// Check for wildcard permissions (e.g., "clients.*" or "*.*")
-			if (perm.module === '*' && perm.action === '*') {
-				return true;
-			}
-			if (perm.module === module && perm.action === '*') {
-				return true;
-			}
+	for (const ugu of userWithPermissions.userGroups) {
+		for (const gp of ugu.userGroup.permissions) {
+			permSet.add(`${gp.permission.module}.${gp.permission.action}`);
 		}
 	}
 
+	return permSet;
+}
+
+// ── Permission checks (synchronous — read from pre-loaded Set) ───────────────
+
+/**
+ * Check whether the pre-loaded permission set satisfies a module + action.
+ * Handles wildcard matching: `*.*` (global admin) and `module.*`.
+ */
+function matchPermission(permissions: Set<string>, module: string, action: string): boolean {
+	if (permissions.has('*.*')) return true;
+	if (permissions.has(`${module}.*`)) return true;
+	if (permissions.has(`${module}.${action}`)) return true;
 	return false;
 }
 
 /**
- * Require a specific permission, redirect to login if not authenticated or authorized
- * @param locals - The SvelteKit locals object containing user info
- * @param module - The module name
- * @param action - The action
- * @param url - Optional URL for callback redirect
- * @throws Redirect to login if not authenticated or not authorized
+ * Check if the current user has a specific permission.
+ * Reads from the pre-loaded permission Set — no database query.
  */
-export async function requirePermission(
+export function checkPermission(
+	locals: Locals,
+	module: string,
+	action: string
+): boolean {
+	if (!locals.permissions) return false;
+	return matchPermission(locals.permissions, module, action);
+}
+
+/**
+ * Require a specific permission. Throws a redirect if the user is not
+ * authenticated or does not have the permission.
+ */
+export function requirePermission(
 	locals: Locals,
 	module: string,
 	action: string,
 	url?: URL
-): Promise<void> {
+): void {
 	if (!locals.user) {
 		const callbackUrl = url ? `?callbackUrl=${encodeURIComponent(url.pathname)}` : '';
 		redirect(303, `/login${callbackUrl}`);
 	}
 
-	const hasPermission = await checkPermission(locals.user.id, module, action);
-
-	if (!hasPermission) {
-		// Redirect to login with a message indicating access denied
+	if (!checkPermission(locals, module, action)) {
 		const callbackUrl = url ? `?callbackUrl=${encodeURIComponent(url.pathname)}&error=access_denied` : '?error=access_denied';
 		redirect(303, `/login${callbackUrl}`);
 	}
 }
 
 /**
- * Get all permissions for a user
- * @param userId - The user's ID
- * @returns Array of permission objects
+ * Check if the current user is an admin (has wildcard `*.*` permission).
+ */
+export function isAdmin(locals: Locals): boolean {
+	return checkPermission(locals, '*', '*');
+}
+
+/**
+ * Check if user has any of the given permissions.
+ */
+export function hasAnyPermission(
+	locals: Locals,
+	permissions: Array<{ module: string; action: string }>
+): boolean {
+	for (const perm of permissions) {
+		if (checkPermission(locals, perm.module, perm.action)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Check if user has all of the given permissions.
+ */
+export function hasAllPermissions(
+	locals: Locals,
+	permissions: Array<{ module: string; action: string }>
+): boolean {
+	for (const perm of permissions) {
+		if (!checkPermission(locals, perm.module, perm.action)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+// ── Full permission list (for admin UI — still queries DB) ───────────────────
+
+/**
+ * Get all permissions for any user (used by admin pages to display/manage
+ * another user's permissions). This still queries the DB.
  */
 export async function getUserPermissions(userId: string): Promise<Array<{ id: number; module: string; action: string; description: string | null }>> {
 	const userWithPermissions = await prisma.user.findUnique({
@@ -125,7 +166,6 @@ export async function getUserPermissions(userId: string): Promise<Array<{ id: nu
 		return [];
 	}
 
-	// Collect all unique permissions
 	const permissionsMap = new Map<string, { id: number; module: string; action: string; description: string | null }>();
 
 	for (const userGroup of userWithPermissions.userGroups) {
@@ -141,38 +181,62 @@ export async function getUserPermissions(userId: string): Promise<Array<{ id: nu
 	return Array.from(permissionsMap.values());
 }
 
+// ── Row-level access control (still async — needs DB queries) ────────────────
+
 /**
- * Check if user has any of the given permissions
- * @param userId - The user's ID
- * @param permissions - Array of {module, action} to check
- * @returns True if user has any of the permissions
+ * Get the Person record linked to a User account.
+ * Returns null if the user has no associated Person (e.g. system accounts).
  */
-export async function hasAnyPermission(
-	userId: string,
-	permissions: Array<{ module: string; action: string }>
-): Promise<boolean> {
-	for (const perm of permissions) {
-		if (await checkPermission(userId, perm.module, perm.action)) {
-			return true;
-		}
-	}
-	return false;
+export async function getPersonForUser(userId: string): Promise<{ id: number } | null> {
+	return prisma.person.findFirst({
+		where: { userId, deletedAt: null },
+		select: { id: true }
+	});
 }
 
 /**
- * Check if user has all of the given permissions
- * @param userId - The user's ID
- * @param permissions - Array of {module, action} to check
- * @returns True if user has all permissions
+ * Check if the current user can access a specific project.
+ * Access is granted if the user is:
+ *   - An admin (wildcard permission)
+ *   - The project manager
+ *   - An assigned project member (via ProjectEmployee)
  */
-export async function hasAllPermissions(
-	userId: string,
-	permissions: Array<{ module: string; action: string }>
-): Promise<boolean> {
-	for (const perm of permissions) {
-		if (!(await checkPermission(userId, perm.module, perm.action))) {
-			return false;
-		}
-	}
-	return true;
+export async function canAccessProject(locals: Locals, projectId: number): Promise<boolean> {
+	if (isAdmin(locals)) return true;
+
+	if (!locals.user) return false;
+
+	const person = await getPersonForUser(locals.user.id);
+	if (!person) return false;
+
+	const project = await prisma.project.findFirst({
+		where: {
+			id: projectId,
+			deletedAt: null,
+			OR: [
+				{ projectManagerId: person.id },
+				{ assignedEmployees: { some: { personId: person.id } } }
+			]
+		},
+		select: { id: true }
+	});
+
+	return !!project;
+}
+
+/**
+ * Check if the current user is the project manager for a given project.
+ */
+export async function isProjectManager(locals: Locals, projectId: number): Promise<boolean> {
+	if (!locals.user) return false;
+
+	const person = await getPersonForUser(locals.user.id);
+	if (!person) return false;
+
+	const project = await prisma.project.findFirst({
+		where: { id: projectId, projectManagerId: person.id, deletedAt: null },
+		select: { id: true }
+	});
+
+	return !!project;
 }

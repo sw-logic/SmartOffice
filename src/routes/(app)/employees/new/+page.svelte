@@ -13,7 +13,7 @@
 	let isSubmitting = $state(false);
 
 	// Get default status from enums
-	const defaultStatus = data.statuses.find((s) => s.isDefault)?.value || 'active';
+	const defaultStatus = data.enums.employee_status.find((s) => s.isDefault)?.value || 'active';
 
 	let selectedEmploymentType = $state(form?.values?.employmentType || '');
 	let selectedStatus = $state(form?.values?.employeeStatus || defaultStatus);
@@ -196,11 +196,11 @@
 						<Label for="department">Department</Label>
 						<Select.Root type="single" bind:value={selectedDepartment} name="department">
 							<Select.Trigger>
-								{data.departments.find((d) => d.value === selectedDepartment)?.label ||
+								{data.enums.department.find((d) => d.value === selectedDepartment)?.label ||
 									'Select department'}
 							</Select.Trigger>
 							<Select.Content>
-								{#each data.departments as dept}
+								{#each data.enums.department as dept}
 									<Select.Item value={dept.value}>{dept.label}</Select.Item>
 								{/each}
 							</Select.Content>
@@ -214,11 +214,11 @@
 						<Label for="employmentType">Employment Type</Label>
 						<Select.Root type="single" bind:value={selectedEmploymentType} name="employmentType">
 							<Select.Trigger>
-								{data.employmentTypes.find((t) => t.value === selectedEmploymentType)?.label ||
+								{data.enums.employment_type.find((t) => t.value === selectedEmploymentType)?.label ||
 									'Select type'}
 							</Select.Trigger>
 							<Select.Content>
-								{#each data.employmentTypes as type}
+								{#each data.enums.employment_type as type}
 									<Select.Item value={type.value}>{type.label}</Select.Item>
 								{/each}
 							</Select.Content>
@@ -230,10 +230,10 @@
 						<Label for="employeeStatus">Status</Label>
 						<Select.Root type="single" bind:value={selectedStatus} name="employeeStatus">
 							<Select.Trigger>
-								{data.statuses.find((s) => s.value === selectedStatus)?.label || 'Select status'}
+								{data.enums.employee_status.find((s) => s.value === selectedStatus)?.label || 'Select status'}
 							</Select.Trigger>
 							<Select.Content>
-								{#each data.statuses as status}
+								{#each data.enums.employee_status as status}
 									<Select.Item value={status.value}>{status.label}</Select.Item>
 								{/each}
 							</Select.Content>

@@ -43,7 +43,11 @@ const readOperations = new Set([
 // Instantiate Prisma Client with soft-delete extension
 const createPrismaClient = () => {
 	const pool = new Pool({
-		connectionString: process.env.DATABASE_URL
+		connectionString: process.env.DATABASE_URL,
+		max: parseInt(process.env.DB_POOL_MAX || '30'),
+		min: parseInt(process.env.DB_POOL_MIN || '5'),
+		idleTimeoutMillis: 30000,
+		connectionTimeoutMillis: 5000
 	});
 
 	const adapter = new PrismaPg(pool);

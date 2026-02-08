@@ -25,6 +25,7 @@
 		Kanban
 	} from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
+	import { formatDate } from '$lib/utils/date';
 
 	let { data } = $props();
 
@@ -359,7 +360,7 @@
 													</span>
 												</Table.Cell>
 												<Table.Cell>
-													{new Date(board.createdAt).toLocaleDateString()}
+													{formatDate(board.createdAt)}
 												</Table.Cell>
 												<Table.Cell>
 													<div class="flex items-center gap-1">
@@ -470,7 +471,7 @@
 									</span>
 								</Table.Cell>
 								<Table.Cell>
-									{new Date(board.createdAt).toLocaleDateString()}
+									{formatDate(board.createdAt)}
 								</Table.Cell>
 								<Table.Cell>
 									<div class="flex items-center gap-1">

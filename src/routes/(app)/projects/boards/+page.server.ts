@@ -7,7 +7,7 @@ import { logDelete, logAction } from '$lib/server/audit';
 export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'projects', 'read');
 
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+	const isAdmin = checkPermission(locals, '*', '*');
 
 	const search = url.searchParams.get('search') || '';
 	const sortBy = url.searchParams.get('sortBy') || 'name';
@@ -200,7 +200,7 @@ export const actions: Actions = {
 	restore: async ({ locals, request }) => {
 		await requirePermission(locals, 'projects', 'update');
 
-		const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+		const isAdmin = checkPermission(locals, '*', '*');
 		if (!isAdmin) {
 			return fail(403, { error: 'Only administrators can restore deleted boards' });
 		}

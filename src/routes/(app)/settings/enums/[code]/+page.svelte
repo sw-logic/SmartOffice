@@ -19,6 +19,7 @@
 		X,
 		ArrowDownAZ
 	} from 'lucide-svelte';
+	import ColorInput from '$lib/components/shared/ColorInput.svelte';
 	import { toast } from 'svelte-sonner';
 	import { dndzone } from 'svelte-dnd-action';
 	import { flip } from 'svelte/animate';
@@ -314,7 +315,7 @@
 					<Table.Head class="w-[180px]">Value</Table.Head>
 					<Table.Head class="w-[200px]">Label</Table.Head>
 					<Table.Head>Description</Table.Head>
-					<Table.Head class="w-[80px] text-center">Color</Table.Head>
+					<Table.Head class="w-[160px] text-center">Color</Table.Head>
 					<Table.Head class="w-[80px] text-center">Default</Table.Head>
 					<Table.Head class="w-[80px] text-center">Active</Table.Head>
 					{#if data.isAdmin}
@@ -356,25 +357,8 @@
 							<td class="p-2 align-middle">
 								<Input bind:value={editDescription} class="h-8" placeholder="Description" />
 							</td>
-							<td class="p-2 align-middle text-center w-[80px]">
-								<div class="flex items-center justify-center gap-1">
-									<input
-										type="color"
-										value={editColor || '#000000'}
-										oninput={(e) => editColor = e.currentTarget.value}
-										class="h-7 w-7 rounded cursor-pointer border-0 p-0 bg-transparent"
-									/>
-									{#if editColor}
-										<button
-											type="button"
-											class="text-muted-foreground hover:text-foreground"
-											onclick={() => editColor = ''}
-											title="Remove color"
-										>
-											<X class="h-3 w-3" />
-										</button>
-									{/if}
-								</div>
+							<td class="p-2 align-middle w-[160px]">
+								<ColorInput bind:value={editColor} size="sm" />
 							</td>
 							<td class="p-2 align-middle text-center w-[80px]">
 								{#if item.isDefault}
@@ -492,25 +476,8 @@
 						<td class="p-2 align-middle">
 							<Input bind:value={newDescription} class="h-8" placeholder="Description (optional)" />
 						</td>
-						<td class="p-2 align-middle text-center w-[80px]">
-							<div class="flex items-center justify-center gap-1">
-								<input
-									type="color"
-									value={newColor || '#000000'}
-									oninput={(e) => newColor = e.currentTarget.value}
-									class="h-7 w-7 rounded cursor-pointer border-0 p-0 bg-transparent"
-								/>
-								{#if newColor}
-									<button
-										type="button"
-										class="text-muted-foreground hover:text-foreground"
-										onclick={() => newColor = ''}
-										title="Remove color"
-									>
-										<X class="h-3 w-3" />
-									</button>
-								{/if}
-							</div>
+						<td class="p-2 align-middle w-[160px]">
+							<ColorInput bind:value={newColor} size="sm" />
 						</td>
 						<td class="p-2 align-middle w-[80px]"></td>
 						<td class="p-2 align-middle w-[80px]"></td>

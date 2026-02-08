@@ -28,6 +28,7 @@
 		Receipt,
 		Tag
 	} from 'lucide-svelte';
+	import { formatDate } from '$lib/utils/date';
 
 	let { data } = $props();
 
@@ -172,9 +173,6 @@
 		}).format(num);
 	}
 
-	function formatDate(date: string | Date): string {
-		return new Date(date).toLocaleDateString();
-	}
 </script>
 
 <div class="space-y-6">

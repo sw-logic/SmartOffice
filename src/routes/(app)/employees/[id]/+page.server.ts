@@ -1,24 +1,20 @@
 import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
 import { requirePermission, checkPermission } from '$lib/server/access-control';
-import { error, fail } from '@sveltejs/kit';
-import { logUpdate } from '$lib/server/audit';
+import { error, fail, redirect } from '@sveltejs/kit';
+import { logDelete, logUpdate } from '$lib/server/audit';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'employees', 'read');
 
 	// Check if user can view salary info
-	const canViewSalary = locals.user
-		? await checkPermission(locals.user.id, 'employees', 'salary')
-		: false;
+	const canViewSalary = checkPermission(locals, 'employees', 'salary');
 
 	// Check if user can manage permissions
-	const canManagePermissions = locals.user
-		? await checkPermission(locals.user.id, 'employees', 'permissions')
-		: false;
+	const canManagePermissions = checkPermission(locals, 'employees', 'permissions');
 
 	// Check if user is admin (can view deleted employees)
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+	const isAdmin = checkPermission(locals, '*', '*');
 
 	// Parse employee ID
 	const employeeId = parseInt(params.id);
@@ -156,10 +152,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		isDeleted: employee.deletedAt !== null
 	};
 
+	const canDelete = checkPermission(locals, 'employees', 'delete');
+
 	return {
 		employee: serializedEmployee,
 		isAdmin,
 		canViewSalary,
+		canDelete,
 		canManagePermissions,
 		allUserGroups
 	};
@@ -247,6 +246,108 @@ export const actions: Actions = {
 				groupId,
 				groupName: group?.name
 			}
+		);
+
+		return { success: true };
+	},
+
+	delete: async ({ locals, request, params }) => {
+		await requirePermission(locals, 'employees', 'delete');
+
+		const employeeId = parseInt(params.id);
+		if (isNaN(employeeId)) {
+			return fail(400, { error: 'Invalid employee ID' });
+		}
+
+		const formData = await request.formData();
+		const deactivateUser = formData.get('deactivateUser') === 'true';
+
+		const employee = await prisma.person.findFirst({
+			where: {
+				id: employeeId,
+				personType: 'company_employee',
+				deletedAt: null
+			},
+			select: {
+				id: true,
+				firstName: true,
+				lastName: true,
+				email: true,
+				jobTitle: true,
+				userId: true
+			}
+		});
+
+		if (!employee) {
+			return fail(404, { error: 'Employee not found' });
+		}
+
+		// Soft delete the employee
+		await prisma.person.update({
+			where: { id: employeeId },
+			data: { deletedAt: new Date() }
+		});
+
+		await logDelete(locals.user!.id, 'employees', String(employeeId), 'Person', {
+			firstName: employee.firstName,
+			lastName: employee.lastName,
+			email: employee.email,
+			jobTitle: employee.jobTitle
+		});
+
+		// Optionally deactivate the linked user account
+		if (deactivateUser && employee.userId) {
+			await prisma.user.update({
+				where: { id: employee.userId },
+				data: { deletedAt: new Date() }
+			});
+
+			await logDelete(locals.user!.id, 'users', employee.userId, 'User', {
+				reason: 'Deactivated with employee deletion',
+				employeeId: employeeId
+			});
+		}
+
+		redirect(303, '/employees');
+	},
+
+	restore: async ({ locals, params }) => {
+		await requirePermission(locals, 'employees', 'update');
+
+		const isAdmin = checkPermission(locals, '*', '*');
+		if (!isAdmin) {
+			return fail(403, { error: 'Only administrators can restore deleted employees' });
+		}
+
+		const employeeId = parseInt(params.id);
+		if (isNaN(employeeId)) {
+			return fail(400, { error: 'Invalid employee ID' });
+		}
+
+		const employee = await prisma.person.findFirst({
+			where: {
+				id: employeeId,
+				personType: 'company_employee',
+				deletedAt: { not: null }
+			}
+		});
+
+		if (!employee) {
+			return fail(404, { error: 'Deleted employee not found' });
+		}
+
+		await prisma.person.update({
+			where: { id: employeeId },
+			data: { deletedAt: null }
+		});
+
+		await logUpdate(
+			locals.user!.id,
+			'employees',
+			String(employeeId),
+			'Person',
+			{ deletedAt: employee.deletedAt },
+			{ deletedAt: null }
 		);
 
 		return { success: true };

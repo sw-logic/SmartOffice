@@ -269,6 +269,7 @@ model Person {
   assignedProjects       ProjectEmployee[]
   assignedTasks          Task[]              @relation("TaskAssignee")
   kanbanBoardMemberships KanbanBoardMember[]
+  timeRecords            TimeRecord[]        @relation("TimeRecordPerson")
 
   deletedAt DateTime?
   createdAt DateTime  @default(now())
@@ -487,8 +488,8 @@ model Task {
 
   // Time tracking
   dueDate       DateTime?
-  estimatedTime Decimal?     @db.Decimal(10, 2) // Hours
-  // spentTime is calculated as SUM of related timeRecords
+  estimatedTime Int? // Estimated duration in minutes
+  spentTime     Int          @default(0) // Total minutes from timeRecords (materialized aggregate)
   timeRecords   TimeRecord[]
 
   notes String? @db.Text
@@ -516,11 +517,16 @@ model TimeRecord {
   task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   date        DateTime // Selectable date (when the work was done)
-  hours       Decimal  @db.Decimal(10, 2) // Duration in hours (e.g. 1.5, 3.0)
+  minutes     Int // Duration in minutes (e.g. 30, 90, 120)
   description String?
+  billable    Boolean  @default(true)
 
   type     String? // Managed via enums (e.g. "development", "design", "meeting")
   category String? // Managed via enums (e.g. "billable", "non-billable", "overtime")
+
+  // Person who did the work (defaults to creator's linked person)
+  personId Int?
+  person   Person? @relation("TimeRecordPerson", fields: [personId], references: [id])
 
   // Creator (editable by creator, admins, and project manager)
   createdById String
@@ -532,6 +538,7 @@ model TimeRecord {
 
   @@index([taskId])
   @@index([createdById])
+  @@index([personId])
   @@index([date])
 }
 
@@ -718,11 +725,16 @@ model Income {
 
   // Status and payment tracking
   status  String    @default("pending") // "paid", "pending", "late", "suspended"
-  dueDate DateTime? // Payment deadline
+  dueDate         DateTime? // Payment deadline (auto-calculated from date + paymentTermDays)
+  paymentTermDays Int?      // Payment term in days (e.g. 7, 14, 30)
 
   // Recurring settings
-  isRecurring     Boolean @default(false)
-  recurringPeriod String? // "weekly", "monthly", "quarterly", "yearly" - only when isRecurring is true
+  isRecurring      Boolean   @default(false)
+  recurringPeriod  String? // "weekly", "monthly", "quarterly", "yearly" - only when isRecurring is true
+  recurringEndDate DateTime? // "Generate projections until" date
+  parentId         Int?      // Self-reference: links generated occurrences to the parent
+  parent           Income?   @relation("IncomeRecurring", fields: [parentId], references: [id])
+  children         Income[]  @relation("IncomeRecurring")
 
   // Relations
   clientId Int?
@@ -752,6 +764,7 @@ model Income {
   @@index([category])
   @@index([status])
   @@index([dueDate])
+  @@index([parentId])
 }
 
 model Expense {
@@ -768,11 +781,16 @@ model Expense {
 
   // Status and payment tracking
   status  String    @default("pending") // "paid", "pending", "late", "suspended"
-  dueDate DateTime? // Payment deadline
+  dueDate         DateTime? // Payment deadline (auto-calculated from date + paymentTermDays)
+  paymentTermDays Int?      // Payment term in days (e.g. 7, 14, 30)
 
   // Recurring settings
-  isRecurring     Boolean @default(false)
-  recurringPeriod String? // "weekly", "monthly", "quarterly", "yearly" - only when isRecurring is true
+  isRecurring      Boolean   @default(false)
+  recurringPeriod  String? // "weekly", "monthly", "quarterly", "yearly" - only when isRecurring is true
+  recurringEndDate DateTime? // "Generate projections until" date
+  parentId         Int?      // Self-reference: links generated occurrences to the parent
+  parent           Expense?  @relation("ExpenseRecurring", fields: [parentId], references: [id])
+  children         Expense[] @relation("ExpenseRecurring")
 
   // Relations
   projectId Int?
@@ -801,6 +819,7 @@ model Expense {
   @@index([category])
   @@index([status])
   @@index([dueDate])
+  @@index([parentId])
 }
 
 model Payment {

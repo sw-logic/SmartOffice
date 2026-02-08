@@ -3,9 +3,8 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
 import { fail, redirect, error } from '@sveltejs/kit';
 import { logUpdate } from '$lib/server/audit';
-import { getEnumValuesBatch } from '$lib/server/enums';
 
-export const load: PageServerLoad = async ({ locals, params }) => {
+export const load: PageServerLoad = async ({ locals, params, parent }) => {
 	await requirePermission(locals, 'pricelists', 'update');
 
 	// Parse item ID
@@ -14,7 +13,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		error(400, 'Invalid item ID');
 	}
 
-	const [itemRaw, existingCategoriesRaw, enums] = await Promise.all([
+	const [parentData, itemRaw, existingCategoriesRaw] = await Promise.all([
+		parent(),
 		prisma.priceListItem.findFirst({
 			where: { id: itemId, deletedAt: null }
 		}),
@@ -26,9 +26,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			},
 			select: { category: true },
 			distinct: ['category']
-		}),
-		// Get enum values
-		getEnumValuesBatch(['pricelist_category', 'currency', 'unit_of_measure'])
+		})
 	]);
 
 	if (!itemRaw) {
@@ -42,24 +40,24 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		taxRate: itemRaw.taxRate ? Number(itemRaw.taxRate) : null
 	};
 
+	const pricelistCategoryEnums = parentData.enums.pricelist_category || [];
+
 	// Merge existing categories with enum categories
 	const existingCategories = existingCategoriesRaw
 		.map((c) => c.category)
 		.filter((c): c is string => c !== null);
-	const enumCategoryValues = enums.pricelist_category.map((c) => c.value);
+	const enumCategoryValues = pricelistCategoryEnums.map((c) => c.value);
 	const allCategoryValues = [...new Set([...enumCategoryValues, ...existingCategories])].sort();
 
 	// Convert to value/label format (existing items might not have labels)
 	const categories = allCategoryValues.map((value) => {
-		const enumItem = enums.pricelist_category.find((c) => c.value === value);
+		const enumItem = pricelistCategoryEnums.find((c) => c.value === value);
 		return enumItem || { value, label: value, isDefault: false };
 	});
 
 	return {
 		item,
-		categories,
-		currencies: enums.currency,
-		unitOptions: enums.unit_of_measure
+		categories
 	};
 };
 

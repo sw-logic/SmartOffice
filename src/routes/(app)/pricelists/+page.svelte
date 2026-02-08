@@ -9,6 +9,7 @@
 	import * as Select from '$lib/components/ui/select';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Pencil, Trash2, RotateCcw, Plus, Search, ArrowUpDown } from 'lucide-svelte';
+	import { formatDate } from '$lib/utils/date';
 
 	let { data } = $props();
 
@@ -76,10 +77,6 @@
 		}).format(amount);
 	}
 
-	function formatDate(date: Date | string | null): string {
-		if (!date) return '-';
-		return new Date(date).toLocaleDateString();
-	}
 
 	function isValidNow(validFrom: Date | null, validTo: Date | null): boolean {
 		const now = new Date();

@@ -1,5 +1,6 @@
 <script lang="ts">
-	import '../app.css';
+	import '../app.css'; // Tailwind styles
+	import '../styles/app.scss'; // Custom styles for the application
 	import { Toaster } from '$lib/components/ui/sonner';
 
 	let { children } = $props();

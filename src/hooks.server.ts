@@ -1,7 +1,131 @@
 import { handle as authHandle } from './auth';
-import { redirect, type Handle } from '@sveltejs/kit';
+import { error, redirect, type Handle } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
 import { prisma } from '$lib/server/prisma';
+import { loadUserPermissions } from '$lib/server/access-control';
+import { loginLimiter, apiMutationLimiter, apiReadLimiter } from '$lib/server/rate-limit';
+import { getCachedUserValidity, setCachedUserValidity } from '$lib/server/user-cache';
+
+// Rate limiting handle
+// - Login (auth callback): 5 attempts / minute per IP (prevents brute-forcing)
+// - Mutating API requests:  100 / minute per IP (prevents resource spam)
+// - Read API requests:      200 / minute per IP (prevents scraping / DoS)
+const rateLimitHandle: Handle = async ({ event, resolve }) => {
+	const { url, request } = event;
+	const method = request.method.toUpperCase();
+	const path = url.pathname;
+
+	let clientIp: string;
+	try {
+		clientIp = event.getClientAddress();
+	} catch {
+		clientIp = 'unknown';
+	}
+
+	// ── Login rate limiting (strictest) ──
+	if (path.startsWith('/auth/callback/credentials') && method === 'POST') {
+		const result = loginLimiter.check(clientIp);
+		if (!result.allowed) {
+			return new Response(
+				JSON.stringify({ error: 'Too many login attempts. Please try again later.' }),
+				{
+					status: 429,
+					headers: {
+						'Content-Type': 'application/json',
+						'Retry-After': String(result.retryAfterSeconds)
+					}
+				}
+			);
+		}
+		return resolve(event);
+	}
+
+	// ── API rate limiting ──
+	if (path.startsWith('/api/')) {
+		const isMutation = method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS';
+		const limiter = isMutation ? apiMutationLimiter : apiReadLimiter;
+		const result = limiter.check(clientIp);
+
+		if (!result.allowed) {
+			return new Response(
+				JSON.stringify({ error: 'Too many requests. Please slow down.' }),
+				{
+					status: 429,
+					headers: {
+						'Content-Type': 'application/json',
+						'Retry-After': String(result.retryAfterSeconds),
+						'X-RateLimit-Remaining': '0'
+					}
+				}
+			);
+		}
+	}
+
+	return resolve(event);
+};
+
+// CSRF protection for JSON API endpoints
+// SvelteKit's built-in CSRF only covers form submissions (application/x-www-form-urlencoded,
+// multipart/form-data). This handle extends that protection to JSON API requests by validating
+// the Origin header against the server's own origin on all mutating HTTP methods.
+const csrfHandle: Handle = async ({ event, resolve }) => {
+	const { request, url } = event;
+	const method = request.method.toUpperCase();
+
+	// Only check mutating methods
+	if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
+		return resolve(event);
+	}
+
+	// Skip CSRF check for Auth.js callback routes (they handle their own verification)
+	if (url.pathname.startsWith('/auth/')) {
+		return resolve(event);
+	}
+
+	// Determine the expected origin from the request URL
+	const expectedOrigin = url.origin;
+
+	// Check Origin header first, fall back to Referer
+	const origin = request.headers.get('origin');
+	const referer = request.headers.get('referer');
+
+	if (origin) {
+		// Origin header present — must match exactly
+		if (origin !== expectedOrigin) {
+			throw error(403, 'Cross-site request blocked: Origin mismatch');
+		}
+	} else if (referer) {
+		// No Origin header — validate Referer as fallback
+		try {
+			const refererOrigin = new URL(referer).origin;
+			if (refererOrigin !== expectedOrigin) {
+				throw error(403, 'Cross-site request blocked: Referer mismatch');
+			}
+		} catch {
+			throw error(403, 'Cross-site request blocked: Invalid Referer');
+		}
+	} else {
+		// Neither Origin nor Referer present on a mutating request — block it.
+		// Legitimate browser requests always include at least one of these headers.
+		throw error(403, 'Cross-site request blocked: Missing Origin header');
+	}
+
+	return resolve(event);
+};
+
+// Security headers handle
+const securityHeadersHandle: Handle = async ({ event, resolve }) => {
+	const response = await resolve(event);
+	response.headers.set('X-Content-Type-Options', 'nosniff');
+	response.headers.set('X-Frame-Options', 'DENY');
+	response.headers.set('X-XSS-Protection', '1; mode=block');
+	response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+	response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+	if (event.url.protocol === 'https:') {
+		response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+	}
+	return response;
+};
 
 // Authorization handle - protect routes
 const authorizationHandle: Handle = async ({ event, resolve }) => {
@@ -16,32 +140,39 @@ const authorizationHandle: Handle = async ({ event, resolve }) => {
 		redirect(303, `/login?callbackUrl=${encodeURIComponent(event.url.pathname)}`);
 	}
 
-	// Validate session - check if user still exists and is not deleted
+	// Validate session - check if user still exists and is not deleted.
+	// Uses an in-memory cache (5-min TTL) so the DB is only hit once per user
+	// per TTL window instead of on every single request.
 	let isValidSession = false;
 	if (session?.user) {
-		try {
-			const user = await prisma.user.findUnique({
-				where: { id: session.user.id as string },
-				select: { id: true, deletedAt: true }
-			});
+		const userId = session.user.id as string;
+		const cached = getCachedUserValidity(userId);
 
-			// Session is valid only if user exists and is not deleted
-			isValidSession = !!(user && !user.deletedAt);
+		if (cached !== null) {
+			isValidSession = cached;
+		} else {
+			try {
+				const user = await prisma.user.findUnique({
+					where: { id: userId },
+					select: { id: true, deletedAt: true }
+				});
+				isValidSession = !!(user && !user.deletedAt);
+				setCachedUserValidity(userId, isValidSession);
+			} catch (err) {
+				// Re-throw redirects (they're thrown as exceptions in SvelteKit)
+				if (err && typeof err === 'object' && 'status' in err && 'location' in err) {
+					throw err;
+				}
+				// Database error — don't cache, retry on next request
+				console.error('Session validation error:', err);
+				if (!isPublicRoute) {
+					redirect(303, `/login?error=session_expired`);
+				}
+			}
+		}
 
-			// If on protected route and session is invalid, redirect to login
-			if (!isValidSession && !isPublicRoute) {
-				redirect(303, `/login?callbackUrl=${encodeURIComponent(event.url.pathname)}&error=session_expired`);
-			}
-		} catch (err) {
-			// Re-throw redirects (they're thrown as exceptions in SvelteKit)
-			if (err && typeof err === 'object' && 'status' in err && 'location' in err) {
-				throw err;
-			}
-			// Database error - redirect to login with session expired
-			console.error('Session validation error:', err);
-			if (!isPublicRoute) {
-				redirect(303, `/login?error=session_expired`);
-			}
+		if (!isValidSession && !isPublicRoute) {
+			redirect(303, `/login?callbackUrl=${encodeURIComponent(event.url.pathname)}&error=session_expired`);
 		}
 	}
 
@@ -57,15 +188,20 @@ const authorizationHandle: Handle = async ({ event, resolve }) => {
 
 	// Add user to event.locals for easy access (only if valid session)
 	if (isValidSession && session?.user) {
+		const userId = session.user.id as string;
 		event.locals.user = {
-			id: session.user.id as string,
+			id: userId,
 			email: session.user.email as string,
 			name: session.user.name as string,
 			companyId: (session.user as unknown as { companyId?: string }).companyId
 		};
+
+		// Load permissions once for the entire request — all downstream
+		// checkPermission / requirePermission calls read from this Set.
+		event.locals.permissions = await loadUserPermissions(userId);
 	}
 
 	return resolve(event);
 };
 
-export const handle = sequence(authHandle, authorizationHandle);
+export const handle = sequence(rateLimitHandle, csrfHandle, securityHeadersHandle, authHandle, authorizationHandle);

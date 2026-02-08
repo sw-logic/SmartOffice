@@ -3,18 +3,15 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { fail, redirect, error } from '@sveltejs/kit';
 import { logUpdate } from '$lib/server/audit';
-import { getEnumValuesBatch } from '$lib/server/enums';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'employees', 'update');
 
 	// Check if user can manage salary
-	const canManageSalary = locals.user
-		? await checkPermission(locals.user.id, 'employees', 'salary')
-		: false;
+	const canManageSalary = checkPermission(locals, 'employees', 'salary');
 
 	// Check if current user is admin (can edit deleted employees)
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+	const isAdmin = checkPermission(locals, '*', '*');
 
 	// Parse employee ID
 	const employeeId = parseInt(params.id);
@@ -31,37 +28,34 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			}
 		: {};
 
-	const [employee, enums] = await Promise.all([
-		prisma.person.findFirst({
-			where: {
-				id: employeeId,
-				personType: 'company_employee'
-			},
-			select: {
-				id: true,
-				firstName: true,
-				lastName: true,
-				email: true,
-				phone: true,
-				mobile: true,
-				dateOfBirth: true,
-				street: true,
-				city: true,
-				postalCode: true,
-				country: true,
-				hireDate: true,
-				employmentType: true,
-				department: true,
-				jobTitle: true,
-				employeeStatus: true,
-				emergencyContact: true,
-				notes: true,
-				deletedAt: true,
-				...salarySelect
-			}
-		}),
-		getEnumValuesBatch(['department', 'employment_type', 'employee_status'])
-	]);
+	const employee = await prisma.person.findFirst({
+		where: {
+			id: employeeId,
+			personType: 'company_employee'
+		},
+		select: {
+			id: true,
+			firstName: true,
+			lastName: true,
+			email: true,
+			phone: true,
+			mobile: true,
+			dateOfBirth: true,
+			street: true,
+			city: true,
+			postalCode: true,
+			country: true,
+			hireDate: true,
+			employmentType: true,
+			department: true,
+			jobTitle: true,
+			employeeStatus: true,
+			emergencyContact: true,
+			notes: true,
+			deletedAt: true,
+			...salarySelect
+		}
+	});
 
 	if (!employee) {
 		error(404, 'Employee not found');
@@ -86,9 +80,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				: '',
 			hireDate: employee.hireDate ? new Date(employee.hireDate).toISOString().split('T')[0] : ''
 		},
-		departments: enums.department,
-		employmentTypes: enums.employment_type,
-		statuses: enums.employee_status,
 		canManageSalary,
 		isAdmin
 	};
@@ -104,9 +95,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'Invalid employee ID' });
 		}
 
-		const canManageSalary = locals.user
-			? await checkPermission(locals.user.id, 'employees', 'salary')
-			: false;
+		const canManageSalary = checkPermission(locals, 'employees', 'salary');
 
 		const formData = await request.formData();
 

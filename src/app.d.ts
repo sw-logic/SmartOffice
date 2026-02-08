@@ -11,6 +11,7 @@ declare global {
 				name: string;
 				companyId?: string;
 			};
+			permissions?: Set<string>;
 			auth(): Promise<Session | null>;
 		}
 		interface PageData {

@@ -6,7 +6,8 @@
 	import * as Select from '$lib/components/ui/select';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Command from '$lib/components/ui/command';
-	import * as Avatar from '$lib/components/ui/avatar';
+	import TaskDetailModal from '$lib/components/shared/TaskDetailModal.svelte';
+	import TaskCard from '$lib/components/shared/TaskCard.svelte';
 	import { toast } from 'svelte-sonner';
 	import { dndzone } from 'svelte-dnd-action';
 	import { flip } from 'svelte/animate';
@@ -16,11 +17,78 @@
 		SearchIcon,
 		ChevronDown,
 		ChevronRight,
-		Calendar,
-		Plus
+		Plus,
+		Settings
 	} from 'lucide-svelte';
 
 	let { data } = $props();
+
+	// Task modal state
+	let modalOpen = $state(false);
+	let modalTaskId = $state<number | null>(null);
+	let modalDefaults = $state<Record<string, unknown> | undefined>(undefined);
+
+	// Lazy-loaded modal data (fetched once when the modal first opens)
+	let modalData = $state<{
+		projects: Array<{
+			id: number;
+			name: string;
+			client: { id: number; name: string };
+			kanbanBoards: Array<{
+				id: number;
+				name: string;
+				columns: Array<{ id: number; name: string }>;
+				swimlanes: Array<{ id: number; name: string }>;
+			}>;
+		}>;
+		employees: Array<{ id: number; firstName: string; lastName: string }>;
+		availableTags: Array<{ id: number; value: string; label: string; color: string | null }>;
+	} | null>(null);
+	let modalDataLoading = $state(false);
+
+	async function ensureModalData(): Promise<boolean> {
+		if (modalData) return true;
+		if (modalDataLoading) return false;
+		modalDataLoading = true;
+		try {
+			const res = await fetch('/api/tasks/modal-data');
+			if (!res.ok) {
+				toast.error('Failed to load task data');
+				return false;
+			}
+			modalData = await res.json();
+			return true;
+		} catch {
+			toast.error('Failed to load task data');
+			return false;
+		} finally {
+			modalDataLoading = false;
+		}
+	}
+
+	async function openNewTaskModal() {
+		modalTaskId = null;
+		modalDefaults = {
+			projectId: data.board.projectId,
+			kanbanBoardId: data.board.id,
+			columnId: data.board.columns[0]?.id ?? undefined,
+			swimlaneId: data.board.swimlanes[0]?.id ?? undefined
+		};
+		if (await ensureModalData()) {
+			modalOpen = true;
+		}
+	}
+
+	async function openTaskModal(taskId: number) {
+		modalTaskId = taskId;
+		modalDefaults = undefined;
+		if (await ensureModalData()) {
+			modalOpen = true;
+		}
+	}
+
+	// Track drag state to distinguish clicks from drags
+	let isDragging = $state(false);
 
 	// Navigation state
 	let selectedClientId = $state<number | null>(data.board.clientId);
@@ -44,6 +112,8 @@
 		swimlaneId: number | null;
 		order: number;
 		dueDate: string | Date | null;
+		estimatedTime: number | null;
+		spentTime: number;
 		assignedTo: { id: number; firstName: string; lastName: string } | null;
 	};
 
@@ -85,10 +155,13 @@
 
 	// DnD handlers
 	function handleDndConsider(swimlaneId: number, columnId: number, e: CustomEvent<{ items: TaskItem[] }>) {
+		isDragging = true;
 		cellTasks[swimlaneId][columnId] = e.detail.items;
 	}
 
 	async function handleDndFinalize(swimlaneId: number, columnId: number, e: CustomEvent<{ items: TaskItem[] }>) {
+		// Reset drag flag after a tick so the click handler can check it
+		setTimeout(() => { isDragging = false; }, 0);
 		cellTasks[swimlaneId][columnId] = e.detail.items;
 
 		const updates: Array<{ id: number; columnId: number; swimlaneId: number; order: number }> = [];
@@ -213,23 +286,6 @@
 		if (boardId !== data.board.id) goto(`/projects/boards/${boardId}`);
 	}
 
-	function getInitials(firstName: string, lastName: string): string {
-		return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
-	}
-
-	function getPriorityColor(priority: string): string {
-		switch (priority) {
-			case 'urgent': return 'border-l-red-600';
-			case 'high': return 'border-l-orange-500';
-			case 'medium': return 'border-l-blue-500';
-			case 'low': return 'border-l-gray-400';
-			default: return 'border-l-gray-300';
-		}
-	}
-
-	function formatDate(date: string | Date): string {
-		return new Date(date).toLocaleDateString();
-	}
 </script>
 
 <div class="flex flex-col h-full gap-3">
@@ -307,8 +363,12 @@
 			</Popover.Content>
 		</Popover.Root>
 
-		<div class="ml-auto">
-			<Button size="sm">
+		<div class="ml-auto flex items-center gap-2">
+			<Button variant="outline" size="sm" href="/projects/boards/{data.board.id}/settings">
+				<Settings class="mr-1 h-4 w-4" />
+				Settings
+			</Button>
+			<Button size="sm" onclick={openNewTaskModal}>
 				<Plus class="mr-1 h-4 w-4" />
 				New Task
 			</Button>
@@ -428,31 +488,8 @@
 												onfinalize={(e) => handleDndFinalize(swimlane.id, column.id, e)}
 											>
 												{#each cellTasks[swimlane.id]?.[column.id] || [] as task (task.id)}
-													<div
-														animate:flip={{ duration: flipDurationMs }}
-														class="rounded-sm border bg-card shadow-sm p-2.5 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow border-l-[3px] {getPriorityColor(task.priority)}"
-													>
-														<p class="text-sm font-medium leading-snug">{task.name}</p>
-														<div class="flex items-center justify-between mt-1.5 gap-2">
-															<div class="flex items-center gap-1.5 flex-wrap">
-																{#if task.type}
-																	<Badge variant="outline" class="text-[10px] px-1 py-0">{task.type}</Badge>
-																{/if}
-																{#if task.dueDate}
-																	<span class="text-[11px] text-muted-foreground flex items-center gap-0.5">
-																		<Calendar class="h-3 w-3" />
-																		{formatDate(task.dueDate)}
-																	</span>
-																{/if}
-															</div>
-															{#if task.assignedTo}
-																<Avatar.Root class="h-5 w-5 shrink-0" title="{task.assignedTo.firstName} {task.assignedTo.lastName}">
-																	<Avatar.Fallback class="text-[9px]">
-																		{getInitials(task.assignedTo.firstName, task.assignedTo.lastName)}
-																	</Avatar.Fallback>
-																</Avatar.Root>
-															{/if}
-														</div>
+													<div animate:flip={{ duration: flipDurationMs }}>
+														<TaskCard {task} onclick={() => { if (!isDragging) openTaskModal(task.id); }} />
 													</div>
 												{/each}
 											</div>
@@ -467,3 +504,28 @@
 		</div>
 	{/if}
 </div>
+
+{#if modalData}
+	<TaskDetailModal
+		bind:open={modalOpen}
+		onOpenChange={(v) => (modalOpen = v)}
+		taskId={modalTaskId}
+		projects={modalData.projects}
+		employees={modalData.employees}
+		taskTypes={data.enums.task_type}
+		taskCategories={data.enums.task_category}
+		taskPriorities={[
+			{ value: 'low', label: 'Low' },
+			{ value: 'medium', label: 'Medium' },
+			{ value: 'high', label: 'High' },
+			{ value: 'urgent', label: 'Urgent' }
+		]}
+		availableTags={modalData.availableTags}
+		timeRecordTypes={data.enums.time_record_type}
+		timeRecordCategories={data.enums.time_record_category}
+		currentPersonId={data.user?.personId}
+		defaults={modalDefaults}
+		onTaskCreated={() => invalidateAll()}
+		onTaskUpdated={() => invalidateAll()}
+	/>
+{/if}

@@ -8,7 +8,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'clients', 'read');
 
 	// Check if user is admin (can see deleted clients)
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+	const isAdmin = checkPermission(locals, '*', '*');
 
 	const search = url.searchParams.get('search') || '';
 	const sortBy = url.searchParams.get('sortBy') || 'name';
@@ -147,7 +147,7 @@ export const actions: Actions = {
 		await requirePermission(locals, 'clients', 'update');
 
 		// Only admins can restore clients
-		const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+		const isAdmin = checkPermission(locals, '*', '*');
 		if (!isAdmin) {
 			return fail(403, { error: 'Only administrators can restore deleted clients' });
 		}

@@ -12,7 +12,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		error(400, 'Invalid expense ID');
 	}
 
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+	const isAdmin = checkPermission(locals, '*', '*');
 
 	const expense = await prisma.expense.findUnique({
 		where: { id: expenseId },

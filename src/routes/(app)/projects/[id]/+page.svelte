@@ -10,6 +10,7 @@
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Avatar from '$lib/components/ui/avatar';
 	import MilestoneFormModal from '$lib/components/shared/MilestoneFormModal.svelte';
+	import MarkdownViewer from '$lib/components/shared/MarkdownViewer.svelte';
 	import Metric from '$lib/components/shared/Metric.svelte';
 	import { toast } from 'svelte-sonner';
 	import { invalidateAll } from '$app/navigation';
@@ -31,6 +32,7 @@
 		Check,
 		ChevronsUpDown
 	} from 'lucide-svelte';
+	import { formatDate } from '$lib/utils/date';
 
 	let { data } = $props();
 
@@ -211,9 +213,6 @@
 		}).format(amount);
 	}
 
-	function formatDate(date: string | Date): string {
-		return new Date(date).toLocaleDateString();
-	}
 </script>
 
 <div class="space-y-6">
@@ -319,7 +318,7 @@
 				{#if data.project.description}
 					<div class="pt-4 border-t">
 						<p class="text-sm text-muted-foreground mb-1">Description</p>
-						<p class="whitespace-pre-wrap">{data.project.description}</p>
+						<MarkdownViewer value={data.project.description} />
 					</div>
 				{/if}
 			</Card.Content>
@@ -446,9 +445,9 @@
 					<div class="flex items-center justify-between">
 						<div class="flex items-center gap-2 text-muted-foreground">
 							<Clock class="h-4 w-4" />
-							<span>Spent Hours</span>
+							<span>Spent Time</span>
 						</div>
-						<span class="font-semibold">{data.project.spentHours}h</span>
+						<span class="font-semibold">{Math.floor(data.project.spentMinutes / 60)}h {data.project.spentMinutes % 60}m</span>
 					</div>
 
 					{#if data.canViewBudget}

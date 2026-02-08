@@ -12,7 +12,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		error(400, 'Invalid income ID');
 	}
 
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+	const isAdmin = checkPermission(locals, '*', '*');
 
 	const income = await prisma.income.findUnique({
 		where: { id: incomeId },

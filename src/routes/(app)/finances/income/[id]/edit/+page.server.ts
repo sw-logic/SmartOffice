@@ -3,7 +3,6 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { fail, redirect, error } from '@sveltejs/kit';
 import { logUpdate } from '$lib/server/audit';
-import { getEnumValuesBatch } from '$lib/server/enums';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'finances.income', 'update');
@@ -14,9 +13,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		error(400, 'Invalid income ID');
 	}
 
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+	const isAdmin = checkPermission(locals, '*', '*');
 
-	const [income, clients, projects, enums] = await Promise.all([
+	const [income, clients, projects] = await Promise.all([
 		prisma.income.findUnique({
 			where: { id: incomeId },
 			select: {
@@ -28,6 +27,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				category: true,
 				status: true,
 				dueDate: true,
+				paymentTermDays: true,
 				isRecurring: true,
 				recurringPeriod: true,
 				clientId: true,
@@ -41,7 +41,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		// Get clients for dropdown
 		prisma.client.findMany({
 			where: { deletedAt: null },
-			select: { id: true, name: true },
+			select: { id: true, name: true, paymentTerms: true },
 			orderBy: { name: 'asc' }
 		}),
 		// Get projects for dropdown
@@ -53,9 +53,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				client: { select: { id: true, name: true } }
 			},
 			orderBy: { name: 'asc' }
-		}),
-		// Get enum values
-		getEnumValuesBatch(['income_category', 'currency', 'income_status', 'recurring_period'])
+		})
 	]);
 
 	if (!income) {
@@ -72,16 +70,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			...income,
 			amount: Number(income.amount),
 			taxRate: income.taxRate ? Number(income.taxRate) : null,
+			paymentTermDays: income.paymentTermDays,
 			isDeleted: income.deletedAt !== null,
 			date: income.date.toISOString().split('T')[0],
 			dueDate: income.dueDate ? income.dueDate.toISOString().split('T')[0] : ''
 		},
 		clients,
 		projects,
-		categories: enums.income_category,
-		currencies: enums.currency,
-		statuses: enums.income_status,
-		recurringPeriods: enums.recurring_period,
 		isAdmin
 	};
 };
@@ -104,7 +99,8 @@ export const actions: Actions = {
 		const description = formData.get('description') as string;
 		const category = formData.get('category') as string;
 		const status = (formData.get('status') as string) || 'pending';
-		const dueDate = formData.get('dueDate') as string;
+		const paymentTermDaysStr = formData.get('paymentTermDays') as string;
+		const paymentTermDays = paymentTermDaysStr ? parseInt(paymentTermDaysStr) : null;
 		const isRecurring = formData.get('isRecurring') === 'true';
 		const recurringPeriod = formData.get('recurringPeriod') as string;
 		const clientId = formData.get('clientId') as string;
@@ -150,7 +146,7 @@ export const actions: Actions = {
 					description,
 					category,
 					status,
-					dueDate,
+					paymentTermDays: paymentTermDaysStr,
 					isRecurring,
 					recurringPeriod,
 					clientId,
@@ -173,6 +169,7 @@ export const actions: Actions = {
 				category: true,
 				status: true,
 				dueDate: true,
+				paymentTermDays: true,
 				isRecurring: true,
 				recurringPeriod: true,
 				clientId: true,
@@ -193,7 +190,8 @@ export const actions: Actions = {
 				description: description.trim(),
 				category,
 				status,
-				dueDate: dueDate ? new Date(dueDate) : null,
+				paymentTermDays,
+				dueDate: paymentTermDays && date ? new Date(new Date(date).getTime() + paymentTermDays * 86400000) : null,
 				isRecurring,
 				recurringPeriod: isRecurring ? recurringPeriod : null,
 				clientId: clientId ? parseInt(clientId) : null,

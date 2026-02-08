@@ -12,12 +12,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		error(400, 'Invalid project ID');
 	}
 
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+	const isAdmin = checkPermission(locals, '*', '*');
 
 	// Budget visible to admin or accountant
-	const isAccountant = locals.user
-		? await checkPermission(locals.user.id, 'finances.income', '*')
-		: false;
+	const isAccountant = checkPermission(locals, 'finances.income', '*');
 	const canViewBudget = isAdmin || isAccountant;
 
 	const project = await prisma.project.findUnique({
@@ -158,15 +156,12 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		});
 	}
 
-	// Aggregate spent hours (visible to all)
-	const hoursAgg = await prisma.timeRecord.aggregate({
-		where: {
-			task: { projectId, deletedAt: null },
-			deletedAt: null
-		},
-		_sum: { hours: true }
+	// Aggregate spent minutes from materialized spentTime on tasks (visible to all)
+	const minutesAgg = await prisma.task.aggregate({
+		where: { projectId, deletedAt: null },
+		_sum: { spentTime: true }
 	});
-	const spentHours = Number(hoursAgg._sum.hours || 0);
+	const spentMinutes = minutesAgg._sum.spentTime ?? 0;
 
 	// Aggregate financials if user can view budget
 	let totalIncome = 0;
@@ -195,7 +190,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			isDeleted: project.deletedAt !== null,
 			totalIncome,
 			totalExpenses,
-			spentHours
+			spentMinutes
 		},
 		isAdmin,
 		canViewBudget,
@@ -212,7 +207,7 @@ export const actions: Actions = {
 		if (isNaN(projectId)) return fail(400, { error: 'Invalid project ID' });
 
 		// Verify canManageProject
-		const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+		const isAdmin = checkPermission(locals, '*', '*');
 		let canManage = isAdmin;
 		if (!canManage && locals.user) {
 			const project = await prisma.project.findUnique({ where: { id: projectId }, select: { projectManagerId: true } });
@@ -267,7 +262,7 @@ export const actions: Actions = {
 		if (isNaN(projectId)) return fail(400, { error: 'Invalid project ID' });
 
 		// Verify canManageProject
-		const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+		const isAdmin = checkPermission(locals, '*', '*');
 		let canManage = isAdmin;
 		if (!canManage && locals.user) {
 			const project = await prisma.project.findUnique({ where: { id: projectId }, select: { projectManagerId: true } });
@@ -314,7 +309,7 @@ export const actions: Actions = {
 		if (isNaN(projectId)) return fail(400, { error: 'Invalid project ID' });
 
 		// Verify canManageProject
-		const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+		const isAdmin = checkPermission(locals, '*', '*');
 		let canManage = isAdmin;
 		if (!canManage && locals.user) {
 			const project = await prisma.project.findUnique({ where: { id: projectId }, select: { projectManagerId: true } });

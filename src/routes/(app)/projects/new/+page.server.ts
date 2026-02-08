@@ -3,21 +3,17 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { fail, redirect } from '@sveltejs/kit';
 import { logCreate } from '$lib/server/audit';
-import { getEnumValuesBatch } from '$lib/server/enums';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'projects', 'create');
 
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
-	const isAccountant = locals.user
-		? await checkPermission(locals.user.id, 'finances.income', '*')
-		: false;
+	const isAdmin = checkPermission(locals, '*', '*');
+	const isAccountant = checkPermission(locals, 'finances.income', '*');
 	const canViewBudget = isAdmin || isAccountant;
 
 	const preselectedClientId = url.searchParams.get('clientId') || '';
 
-	const [enums, clients, persons] = await Promise.all([
-		getEnumValuesBatch(['project_status', 'priority', 'currency']),
+	const [clients, persons] = await Promise.all([
 		prisma.client.findMany({
 			where: { deletedAt: null, status: 'active' },
 			select: { id: true, name: true },
@@ -35,8 +31,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	]);
 
 	return {
-		statuses: enums.project_status,
-		priorities: enums.priority,
 		clients,
 		persons,
 		preselectedClientId,

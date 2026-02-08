@@ -1,8 +1,9 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { prisma } from '$lib/server/prisma';
-import { requirePermission } from '$lib/server/access-control';
+import { requirePermission, isAdmin } from '$lib/server/access-control';
 import { logUpdate } from '$lib/server/audit';
+import { generateIncomeOccurrences } from '$lib/server/recurring';
 
 export const GET: RequestHandler = async ({ locals, params }) => {
 	await requirePermission(locals, 'finances.income', 'read');
@@ -56,18 +57,28 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 			category: true,
 			status: true,
 			dueDate: true,
+			paymentTermDays: true,
 			isRecurring: true,
 			recurringPeriod: true,
+			recurringEndDate: true,
+			parentId: true,
 			clientId: true,
 			projectId: true,
 			invoiceReference: true,
 			taxRate: true,
-			notes: true
+			notes: true,
+			createdById: true
 		}
 	});
 
 	if (!existing) {
 		return json({ error: 'Income not found' }, { status: 404 });
+	}
+
+	// Row-level access: only the creator or an admin can update income records
+	const userId = locals.user!.id;
+	if (existing.createdById !== userId && !(await isAdmin(locals))) {
+		return json({ error: 'Forbidden' }, { status: 403 });
 	}
 
 	const body = await request.json();
@@ -100,6 +111,12 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 		'isRecurring', 'recurringPeriod', 'invoiceReference', 'notes'
 	];
 
+	// Handle recurringEndDate as a special date field
+	if ('recurringEndDate' in body) {
+		data.recurringEndDate = body.recurringEndDate ? new Date(body.recurringEndDate) : null;
+		oldValues.recurringEndDate = existing.recurringEndDate;
+	}
+
 	for (const field of allowedFields) {
 		if (field in body) {
 			data[field] = body[field];
@@ -120,8 +137,17 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 		data.date = new Date(body.date);
 		oldValues.date = existing.date;
 	}
-	if ('dueDate' in body) {
-		data.dueDate = body.dueDate ? new Date(body.dueDate) : null;
+	if ('paymentTermDays' in body) {
+		data.paymentTermDays = body.paymentTermDays ? parseInt(body.paymentTermDays) : null;
+		oldValues.paymentTermDays = existing.paymentTermDays;
+	}
+	// Recalculate dueDate from date + paymentTermDays
+	if ('paymentTermDays' in body || 'date' in body) {
+		const finalDate = data.date ? (data.date as Date) : existing.date;
+		const finalTermDays = 'paymentTermDays' in body
+			? (body.paymentTermDays ? parseInt(body.paymentTermDays) : null)
+			: existing.paymentTermDays;
+		data.dueDate = finalTermDays ? new Date(new Date(finalDate).getTime() + finalTermDays * 86400000) : null;
 		oldValues.dueDate = existing.dueDate;
 	}
 	if ('taxRate' in body) {
@@ -148,6 +174,7 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 	// Handle recurring logic
 	if ('isRecurring' in body && !body.isRecurring) {
 		data.recurringPeriod = null;
+		data.recurringEndDate = null;
 	}
 
 	const updated = await prisma.income.update({
@@ -157,6 +184,24 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 
 	await logUpdate(locals.user!.id, 'finances.income', String(id), 'Income', oldValues, body);
 
+	// Handle projected children regeneration
+	let projectedCount = 0;
+	const isParent = updated.isRecurring && !updated.parentId;
+
+	if (isParent && updated.recurringEndDate) {
+		// Regenerate projected children when parent is updated
+		projectedCount = await generateIncomeOccurrences(id, locals.user!.id);
+	} else if ('isRecurring' in body && !body.isRecurring && !existing.parentId) {
+		// Recurring was toggled off — delete all projected children
+		await prisma.income.deleteMany({
+			where: {
+				parentId: id,
+				status: 'projected',
+				deletedAt: null
+			}
+		});
+	}
+
 	return json({
 		income: {
 			...updated,
@@ -164,6 +209,7 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 			tax: Number(updated.tax),
 			tax_value: Number(updated.tax_value),
 			taxRate: updated.taxRate ? Number(updated.taxRate) : null
-		}
+		},
+		projectedCount
 	});
 };

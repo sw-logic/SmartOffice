@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
-	import { Textarea } from '$lib/components/ui/textarea';
 	import { Label } from '$lib/components/ui/label';
+	import MarkdownEditor from './MarkdownEditor.svelte';
+	import MarkdownViewer from './MarkdownViewer.svelte';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Select from '$lib/components/ui/select';
 	import * as Tabs from '$lib/components/ui/tabs';
@@ -13,7 +14,9 @@
 	import TaskTagsEditor from './TaskTagsEditor.svelte';
 	import NotesList from './NotesList.svelte';
 	import TaskTimeRecordsList from './TaskTimeRecordsList.svelte';
+	import DurationInput from './DurationInput.svelte';
 	import { toast } from 'svelte-sonner';
+	import { formatDateTime } from '$lib/utils/date';
 	import {
 		Loader2,
 		Check,
@@ -57,7 +60,6 @@
 		kanbanBoardId?: number;
 		columnId?: number;
 		swimlaneId?: number;
-		status?: string;
 		priority?: string;
 		type?: string;
 		category?: string;
@@ -72,11 +74,11 @@
 		employees: PersonOption[];
 		taskTypes: EnumOption[];
 		taskCategories: EnumOption[];
-		taskStatuses: EnumOption[];
 		taskPriorities: EnumOption[];
 		availableTags: AvailableTag[];
 		timeRecordTypes: EnumOption[];
 		timeRecordCategories: EnumOption[];
+		currentPersonId?: number | null;
 		defaults?: TaskDefaults;
 		onTaskCreated?: () => void;
 		onTaskUpdated?: () => void;
@@ -90,15 +92,21 @@
 		employees,
 		taskTypes,
 		taskCategories,
-		taskStatuses,
 		taskPriorities,
 		availableTags,
 		timeRecordTypes,
 		timeRecordCategories,
+		currentPersonId = null,
 		defaults,
 		onTaskCreated,
 		onTaskUpdated
 	}: Props = $props();
+
+	function fmtMin(m: number): string {
+		const h = Math.floor(m / 60);
+		const min = m % 60;
+		return `${h}h ${min}m`;
+	}
 
 	// Task state
 	let loading = $state(false);
@@ -117,7 +125,6 @@
 		kanbanBoardId: null as number | null,
 		columnId: null as number | null,
 		swimlaneId: null as number | null,
-		status: '',
 		type: null as string | null,
 		category: null as string | null,
 		priority: '',
@@ -131,7 +138,7 @@
 	// Editing states for view mode
 	let nameValue = $state('');
 	let descValue = $state('');
-	let descChanged = $state(false);
+	let descOriginal = $state('');
 
 	// Client filter (UI-only, not stored on task)
 	let filterClientId = $state<number | null>(null);
@@ -242,7 +249,6 @@
 				kanbanBoardId: defaults?.kanbanBoardId ?? null,
 				columnId: defaults?.columnId ?? null,
 				swimlaneId: defaults?.swimlaneId ?? null,
-				status: defaults?.status || taskStatuses[0]?.value || 'todo',
 				type: defaults?.type ?? null,
 				category: defaults?.category ?? null,
 				priority: defaults?.priority || taskPriorities[0]?.value || 'medium',
@@ -267,7 +273,7 @@
 				tags = data.tags;
 				nameValue = task!.name;
 				descValue = task!.description || '';
-				descChanged = false;
+				descOriginal = descValue;
 				filterClientId = task!.project?.client?.id ?? null;
 			} else {
 				toast.error('Failed to load task');
@@ -299,7 +305,6 @@
 					kanbanBoardId: formData.kanbanBoardId,
 					columnId: formData.columnId,
 					swimlaneId: formData.swimlaneId,
-					status: formData.status,
 					type: formData.type,
 					category: formData.category,
 					priority: formData.priority,
@@ -363,10 +368,10 @@
 		}
 	}
 
-	function handleDescBlur() {
-		if (task && descChanged) {
+	function handleDescSave() {
+		if (task && descValue !== descOriginal) {
 			saveField('description', descValue.trim() || null);
-			descChanged = false;
+			descOriginal = descValue;
 		}
 	}
 
@@ -412,14 +417,32 @@
 		return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 	}
 
-	function formatDateTime(date: string | Date): string {
-		return new Date(date).toLocaleString();
-	}
+
 
 	function handleOpenChange(newOpen: boolean) {
 		if (!loading) {
 			onOpenChange(newOpen);
 		}
+	}
+
+	function cancelEditing() {
+		nameValue = task!.name;
+		descValue = task!.description || '';
+		descOriginal = descValue;
+		isEditing = false;
+	}
+
+	function saveEditing() {
+		handleNameBlur();
+		handleDescSave();
+		isEditing = false;
+	}
+
+	function startEditing() {
+		nameValue = task!.name;
+		descValue = task!.description || '';
+		descOriginal = descValue;
+		isEditing = true;
 	}
 
 	// Helper: get display values for right panel selects
@@ -443,7 +466,8 @@
 			if (!formData.columnId) return 'None';
 			return columnOptions.find((c: any) => c.id === formData.columnId)?.name || 'None';
 		}
-		return task?.column?.name || columnOptions.find((c: any) => c.id === task?.columnId)?.name || 'None';
+		if (!task?.columnId) return 'None';
+		return columnOptions.find((c: any) => c.id === task!.columnId)?.name || task!.column?.name || 'None';
 	}
 
 	function getSwimlaneDisplay(): string {
@@ -451,7 +475,8 @@
 			if (!formData.swimlaneId) return 'None';
 			return swimlaneOptions.find((s: any) => s.id === formData.swimlaneId)?.name || 'None';
 		}
-		return task?.swimlane?.name || swimlaneOptions.find((s: any) => s.id === task?.swimlaneId)?.name || 'None';
+		if (!task?.swimlaneId) return 'None';
+		return swimlaneOptions.find((s: any) => s.id === task!.swimlaneId)?.name || task!.swimlane?.name || 'None';
 	}
 </script>
 
@@ -468,7 +493,7 @@
 					<!-- LEFT COLUMN -->
 					<div class="flex-1 min-w-0 overflow-y-auto p-4 space-y-2 flex flex-col">
 						{#if isCreating}
-							<!-- CREATE MODE: Name input + Description textarea -->
+							<!-- CREATE MODE: Name input + Description -->
 							<div>
 								<Input
 									placeholder="Task name *"
@@ -479,11 +504,9 @@
 							</div>
 							<div class="space-y-1 flex-1">
 								<Label class="text-xs text-muted-foreground">Description</Label>
-								<Textarea
-									placeholder="Add a description..."
+								<MarkdownEditor
 									bind:value={formData.description}
-									rows={6}
-									class="resize-none"
+									placeholder="Add a description..."
 								/>
 							</div>
 							<!-- Footer -->
@@ -493,51 +516,45 @@
 									{loading ? 'Creating...' : 'Create Task'}
 								</Button>
 							</div>
+						{:else if task && isEditing}
+							<!-- EDIT MODE: same layout as create -->
+							<div>
+								<Input
+									bind:value={nameValue}
+									placeholder="Task name"
+									class="text-xl font-bold border-none shadow-none px-2 py-1 -mx-2 focus-visible:ring-1"
+									onkeydown={(e) => e.key === 'Enter' && e.preventDefault()}
+									autofocus
+								/>
+							</div>
+							<div class="space-y-1 flex-1">
+								<Label class="text-xs text-muted-foreground">Description</Label>
+								<MarkdownEditor
+									bind:value={descValue}
+									placeholder="Add a description..."
+								/>
+							</div>
+							<!-- Footer -->
+							<div class="flex justify-end gap-2 pt-3 border-t mt-auto">
+								<Button variant="outline" onclick={cancelEditing}>Cancel</Button>
+								<Button onclick={saveEditing} disabled={loading}>
+									Save Changes
+								</Button>
+							</div>
 						{:else if task}
-							<!-- VIEW / EDIT MODE -->
+							<!-- VIEW MODE -->
 							<div class="flex items-start gap-2">
-								<div class="flex-1 min-w-0">
-									{#if isEditing}
-										<Input
-											bind:value={nameValue}
-											class="text-xl font-bold"
-											onblur={handleNameBlur}
-											onkeydown={(e) => {
-												if (e.key === 'Enter') handleNameBlur();
-												if (e.key === 'Escape') { nameValue = task!.name; isEditing = false; }
-											}}
-											autofocus
-										/>
-									{:else}
-										<h2 class="text-xl font-bold px-2 py-1 -mx-2">
-											{task.name}
-										</h2>
-									{/if}
-								</div>
+								<h2 class="flex-1 min-w-0 text-xl font-bold px-2 py-1 -mx-2">
+									{task.name}
+								</h2>
 								<Button
 									variant="ghost"
 									size="icon"
 									class="h-8 w-8 shrink-0 mt-0.5"
-									onclick={() => {
-										if (isEditing) {
-											// Save pending changes before exiting edit mode
-											handleNameBlur();
-											handleDescBlur();
-											isEditing = false;
-										} else {
-											nameValue = task!.name;
-											descValue = task!.description || '';
-											descChanged = false;
-											isEditing = true;
-										}
-									}}
-									title={isEditing ? 'Stop editing' : 'Edit'}
+									onclick={startEditing}
+									title="Edit"
 								>
-									{#if isEditing}
-										<X class="h-4 w-4" />
-									{:else}
-										<Pencil class="h-4 w-4" />
-									{/if}
+									<Pencil class="h-4 w-4" />
 								</Button>
 							</div>
 
@@ -561,18 +578,13 @@
 							<!-- Description -->
 							<div class="space-y-1">
 								<Label class="text-xs text-muted-foreground">Description</Label>
-								{#if isEditing}
-									<Textarea
-										placeholder="Add a description..."
-										bind:value={descValue}
-										oninput={() => descChanged = true}
-										onblur={handleDescBlur}
-										rows={4}
-										class="resize-none"
-									/>
+								{#if task.description}
+									<div class="text-sm px-2 py-1 min-h-[60px] rounded bg-muted/30">
+										<MarkdownViewer value={task.description} />
+									</div>
 								{:else}
-									<p class="text-sm whitespace-pre-wrap px-2 py-1 min-h-[60px] rounded bg-muted/30">
-										{task.description || 'No description'}
+									<p class="text-sm text-muted-foreground px-2 py-1 min-h-[60px] rounded bg-muted/30">
+										No description
 									</p>
 								{/if}
 							</div>
@@ -592,6 +604,8 @@
 										timeRecords={task.timeRecords || []}
 										typeOptions={timeRecordTypes}
 										categoryOptions={timeRecordCategories}
+										{employees}
+										{currentPersonId}
 										onTimeRecordsChange={(records) => {
 											task = { ...task, timeRecords: records };
 											onTaskUpdated?.();
@@ -603,7 +617,7 @@
 					</div>
 
 					<!-- RIGHT COLUMN - identical for create and view/edit -->
-					<div class="shrink-0 overflow-y-auto border-l p-4 pt-6 space-y-2 w-fit max-w-[320px]">
+					<div class="shrink-0 overflow-y-auto border-l p-4 pt-12 space-y-2 w-fit max-w-[320px]">
 						<!-- Client (UI filter only) -->
 						<div class="flex items-center gap-2">
 							<Label class="text-xs text-muted-foreground w-20 shrink-0 text-right">Client</Label>
@@ -770,32 +784,6 @@
 						{/if}
 
 						<hr />
-
-						<!-- Status -->
-						<div class="flex items-center gap-2">
-							<Label class="text-xs text-muted-foreground w-20 shrink-0 text-right">Status</Label>
-							<Select.Root
-								type="single"
-								value={isCreating ? formData.status : task?.status}
-								onValueChange={(v) => {
-									if (!v) return;
-									if (isCreating) {
-										formData.status = v;
-									} else {
-										saveField('status', v);
-									}
-								}}
-							>
-								<Select.Trigger size="sm" class="h-8 text-sm flex-1">
-									{taskStatuses.find(o => o.value === (isCreating ? formData.status : task?.status))?.label || 'Select'}
-								</Select.Trigger>
-								<Select.Content>
-									{#each taskStatuses as option}
-										<Select.Item value={option.value}>{option.label}</Select.Item>
-									{/each}
-								</Select.Content>
-							</Select.Root>
-						</div>
 
 						<!-- Type -->
 						<div class="flex items-center gap-2">
@@ -1060,18 +1048,13 @@
 						<!-- Estimated Time -->
 						<div class="flex items-center gap-2">
 							<Label class="text-xs text-muted-foreground w-20 shrink-0 text-right">Est. Time {isCreating ? '*' : ''}</Label>
-							<Input
-								type="number"
-								step="0.5"
-								min="0"
-								placeholder="hours"
-								value={isCreating ? (formData.estimatedTime !== null ? formData.estimatedTime : '') : (task?.estimatedTime !== null ? Number(task!.estimatedTime) : '')}
-								onchange={(e) => {
-									const val = e.currentTarget.value;
+							<DurationInput
+								value={isCreating ? formData.estimatedTime : (task?.estimatedTime ?? null)}
+								onchange={(minutes) => {
 									if (isCreating) {
-										formData.estimatedTime = val ? parseFloat(val) : null;
+										formData.estimatedTime = minutes;
 									} else {
-										saveField('estimatedTime', val || null);
+										saveField('estimatedTime', minutes);
 									}
 								}}
 								class="h-8 text-sm flex-1"
@@ -1083,10 +1066,10 @@
 							<div class="flex items-center gap-2">
 								<Label class="text-xs text-muted-foreground w-20 shrink-0 text-right">Spent</Label>
 								<p class="text-sm font-medium">
-									{task.spentTime?.toFixed(2) || '0.00'}h
+									{fmtMin(task.spentTime || 0)}
 									{#if task.estimatedTime}
 										<span class="text-muted-foreground">
-											/ {Number(task.estimatedTime).toFixed(2)}h
+											/ {fmtMin(task.estimatedTime)}
 										</span>
 									{/if}
 								</p>

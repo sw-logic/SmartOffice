@@ -3,15 +3,12 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { fail, redirect, error } from '@sveltejs/kit';
 import { logUpdate } from '$lib/server/audit';
-import { getEnumValuesBatch } from '$lib/server/enums';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'projects', 'update');
 
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
-	const isAccountant = locals.user
-		? await checkPermission(locals.user.id, 'finances.income', '*')
-		: false;
+	const isAdmin = checkPermission(locals, '*', '*');
+	const isAccountant = checkPermission(locals, 'finances.income', '*');
 	const canViewBudget = isAdmin || isAccountant;
 
 	const projectId = parseInt(params.id);
@@ -19,7 +16,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		error(400, 'Invalid project ID');
 	}
 
-	const [project, enums, clients, persons] = await Promise.all([
+	const [project, clients, persons] = await Promise.all([
 		prisma.project.findUnique({
 			where: { id: projectId },
 			select: {
@@ -37,7 +34,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				deletedAt: true
 			}
 		}),
-		getEnumValuesBatch(['project_status', 'priority', 'currency']),
 		prisma.client.findMany({
 			where: { deletedAt: null, status: 'active' },
 			select: { id: true, name: true },
@@ -69,8 +65,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			estimatedHours: project.estimatedHours ? Number(project.estimatedHours) : null,
 			isDeleted: project.deletedAt !== null
 		},
-		statuses: enums.project_status,
-		priorities: enums.priority,
 		clients,
 		persons,
 		isAdmin,

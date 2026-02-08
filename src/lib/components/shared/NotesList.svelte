@@ -4,8 +4,10 @@
 	import * as Avatar from '$lib/components/ui/avatar';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import NoteFormModal from './NoteFormModal.svelte';
+	import MarkdownViewer from './MarkdownViewer.svelte';
 	import { toast } from 'svelte-sonner';
 	import { Plus, Pencil, Trash2 } from 'lucide-svelte';
+	import { formatDateTime } from '$lib/utils/date';
 
 	interface Note {
 		id: number;
@@ -139,9 +141,7 @@
 		}
 	}
 
-	function formatDate(date: string | Date): string {
-		return new Date(date).toLocaleString();
-	}
+
 
 	function getInitials(name: string): string {
 		return name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
@@ -175,7 +175,7 @@
 								<Avatar.Fallback class="text-[10px]">{getInitials(note.author.name)}</Avatar.Fallback>
 							</Avatar.Root>
 							<span class="text-sm font-medium">{note.author.name}</span>
-							<span class="text-xs text-muted-foreground">{formatDate(note.createdAt)}</span>
+							<span class="text-xs text-muted-foreground">{formatDateTime(note.createdAt)}</span>
 							{#if note.priority !== 'normal'}
 								<Badge variant={getPriorityVariant(note.priority)} class="text-xs">
 									{note.priority}
@@ -201,7 +201,9 @@
 							</Button>
 						</div>
 					</div>
-					<p class="text-sm whitespace-pre-wrap">{note.content}</p>
+					<div class="text-sm">
+						<MarkdownViewer value={note.content} />
+					</div>
 				</div>
 			{/each}
 		{/if}

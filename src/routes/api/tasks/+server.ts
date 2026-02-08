@@ -19,7 +19,7 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	if (!body.dueDate) {
 		return json({ error: 'Due date is required' }, { status: 400 });
 	}
-	if (!body.estimatedTime || Number(body.estimatedTime) <= 0) {
+	if (!body.estimatedTime || Math.round(Number(body.estimatedTime)) <= 0) {
 		return json({ error: 'Estimated time is required and must be greater than 0' }, { status: 400 });
 	}
 
@@ -47,7 +47,7 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 			swimlaneId: body.swimlaneId || null,
 			assignedToId: body.assignedToId || null,
 			dueDate: body.dueDate ? new Date(body.dueDate) : null,
-			estimatedTime: body.estimatedTime || null,
+			estimatedTime: body.estimatedTime ? Math.round(Number(body.estimatedTime)) : null,
 			reviewerIds: body.reviewerIds || [],
 			followerIds: body.followerIds || []
 		}

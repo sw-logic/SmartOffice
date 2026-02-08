@@ -3,12 +3,13 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { fail } from '@sveltejs/kit';
 import { logDelete, logAction } from '$lib/server/audit';
+import { invalidateUserValidity } from '$lib/server/user-cache';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'settings', 'users');
 
 	// Check if user is admin (can see deleted users)
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+	const isAdmin = checkPermission(locals, '*', '*');
 
 	const search = url.searchParams.get('search') || '';
 	const sortBy = url.searchParams.get('sortBy') || 'name';
@@ -124,6 +125,10 @@ export const actions: Actions = {
 			data: { deletedAt: new Date() }
 		});
 
+		// Immediately evict from session validity cache so the deleted user
+		// loses access on their next request instead of waiting for TTL expiry.
+		invalidateUserValidity(id);
+
 		await logDelete(locals.user!.id, 'users', id, 'User', {
 			email: user.email,
 			name: user.name
@@ -136,7 +141,7 @@ export const actions: Actions = {
 		await requirePermission(locals, 'settings', 'users');
 
 		// Only admins can restore users
-		const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+		const isAdmin = checkPermission(locals, '*', '*');
 		if (!isAdmin) {
 			return fail(403, { error: 'Only administrators can restore deleted users' });
 		}
@@ -166,6 +171,9 @@ export const actions: Actions = {
 			where: { id },
 			data: { deletedAt: null }
 		});
+
+		// Evict stale "invalid" cache entry so the restored user can log in immediately.
+		invalidateUserValidity(id);
 
 		await logAction({
 			userId: locals.user!.id,

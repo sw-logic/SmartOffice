@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
+	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Card from '$lib/components/ui/card';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as Table from '$lib/components/ui/table';
@@ -23,14 +24,20 @@
 		AlertTriangle,
 		DollarSign,
 		X,
-		Plus
+		Plus,
+		Trash2,
+		RotateCcw
 	} from 'lucide-svelte';
+	import { formatDate } from '$lib/utils/date';
 
 	let { data } = $props();
 
 	let selectedGroupToAdd = $state('');
 	let removeGroupDialogOpen = $state(false);
 	let groupToRemove = $state<{ id: number; name: string } | null>(null);
+	let deleteDialogOpen = $state(false);
+	let restoreDialogOpen = $state(false);
+	let deactivateUser = $state(false);
 
 	const employmentTypes: Record<string, string> = {
 		'full-time': 'Full-time',
@@ -82,10 +89,6 @@
 		}
 	}
 
-	function formatDate(date: Date | string | null): string {
-		if (!date) return '-';
-		return new Date(date).toLocaleDateString();
-	}
 
 	function formatCurrency(amount: number | null): string {
 		if (amount === null) return '-';
@@ -139,12 +142,27 @@
 				</p>
 			</div>
 		</div>
-		{#if !data.employee.isDeleted}
-			<Button href="/employees/{data.employee.id}/edit">
-				<Pencil class="mr-2 h-4 w-4" />
-				Edit Employee
-			</Button>
-		{/if}
+		<div class="flex items-center gap-2">
+			{#if data.employee.isDeleted}
+				{#if data.isAdmin}
+					<Button variant="outline" onclick={() => (restoreDialogOpen = true)}>
+						<RotateCcw class="mr-2 h-4 w-4" />
+						Restore Employee
+					</Button>
+				{/if}
+			{:else}
+				<Button href="/employees/{data.employee.id}/edit">
+					<Pencil class="mr-2 h-4 w-4" />
+					Edit Employee
+				</Button>
+				{#if data.canDelete}
+					<Button variant="destructive" onclick={() => { deactivateUser = false; deleteDialogOpen = true; }}>
+						<Trash2 class="mr-2 h-4 w-4" />
+						Delete Employee
+					</Button>
+				{/if}
+			{/if}
+		</div>
 	</div>
 
 	{#if data.employee.isDeleted}
@@ -517,6 +535,70 @@
 		{/if}
 	</Tabs.Root>
 </div>
+
+<!-- Delete Confirmation Dialog -->
+<AlertDialog.Root bind:open={deleteDialogOpen}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Delete Employee</AlertDialog.Title>
+			<AlertDialog.Description>
+				Are you sure you want to delete {data.employee.firstName}
+				{data.employee.lastName}? This action can be undone by an administrator.
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		{#if data.employee.user}
+			<div class="flex items-center space-x-2 py-2">
+				<Checkbox
+					id="deactivateUser"
+					checked={deactivateUser}
+					onCheckedChange={(checked) => (deactivateUser = checked === true)}
+				/>
+				<label for="deactivateUser" class="text-sm cursor-pointer">
+					Also deactivate the linked user account ({data.employee.user.email})
+				</label>
+			</div>
+		{/if}
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<form
+				method="POST"
+				action="?/delete"
+				use:enhance
+			>
+				<input type="hidden" name="deactivateUser" value={deactivateUser.toString()} />
+				<Button type="submit" variant="destructive">Delete</Button>
+			</form>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
+
+<!-- Restore Confirmation Dialog -->
+<AlertDialog.Root bind:open={restoreDialogOpen}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Restore Employee</AlertDialog.Title>
+			<AlertDialog.Description>
+				Are you sure you want to restore {data.employee.firstName}
+				{data.employee.lastName}?
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<form
+				method="POST"
+				action="?/restore"
+				use:enhance={() => {
+					return async ({ update }) => {
+						await update();
+						restoreDialogOpen = false;
+					};
+				}}
+			>
+				<Button type="submit">Restore</Button>
+			</form>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
 
 <!-- Remove Group Confirmation Dialog -->
 <AlertDialog.Root bind:open={removeGroupDialogOpen}>

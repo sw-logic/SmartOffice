@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { Label } from '$lib/components/ui/label';
-	import { Textarea } from '$lib/components/ui/textarea';
+	import MarkdownEditor from './MarkdownEditor.svelte';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Select from '$lib/components/ui/select';
 
@@ -105,12 +105,9 @@
 
 			<div class="space-y-2">
 				<Label for="noteContent">Content *</Label>
-				<Textarea
-					id="noteContent"
-					placeholder="Write your note..."
+				<MarkdownEditor
 					bind:value={content}
-					rows={5}
-					required
+					placeholder="Write your note..."
 				/>
 			</div>
 

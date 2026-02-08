@@ -21,8 +21,8 @@
 	}
 
 	// Get default values from enums
-	const defaultCurrency = data.currencies.find((c) => c.isDefault)?.value || 'USD';
-	const defaultUnit = data.unitOptions.find((u) => u.isDefault)?.value || 'hour';
+	const defaultCurrency = data.enums.currency.find((c) => c.isDefault)?.value || 'USD';
+	const defaultUnit = data.enums.unit_of_measure.find((u) => u.isDefault)?.value || 'hour';
 
 	let selectedCurrency = $state(form?.values?.currency || data.item.currency || defaultCurrency);
 	let selectedCategory = $state(form?.values?.category || data.item.category || '');
@@ -143,10 +143,10 @@
 						<Label for="currency">Currency</Label>
 						<Select.Root type="single" bind:value={selectedCurrency} name="currency">
 							<Select.Trigger>
-								{data.currencies.find((c) => c.value === selectedCurrency)?.label || selectedCurrency}
+								{data.enums.currency.find((c) => c.value === selectedCurrency)?.label || selectedCurrency}
 							</Select.Trigger>
 							<Select.Content>
-								{#each data.currencies as currency}
+								{#each data.enums.currency as currency}
 									<Select.Item value={currency.value}>{currency.label}</Select.Item>
 								{/each}
 							</Select.Content>
@@ -158,10 +158,10 @@
 						<Label for="unitOfMeasure">Unit of Measure</Label>
 						<Select.Root type="single" bind:value={selectedUnit} name="unitOfMeasure">
 							<Select.Trigger>
-								{data.unitOptions.find((u) => u.value === selectedUnit)?.label || 'Select unit'}
+								{data.enums.unit_of_measure.find((u) => u.value === selectedUnit)?.label || 'Select unit'}
 							</Select.Trigger>
 							<Select.Content>
-								{#each data.unitOptions as unit}
+								{#each data.enums.unit_of_measure as unit}
 									<Select.Item value={unit.value}>{unit.label}</Select.Item>
 								{/each}
 							</Select.Content>

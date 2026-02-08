@@ -3,6 +3,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import * as Popover from '$lib/components/ui/popover';
 	import { Calendar, ChevronDown } from 'lucide-svelte';
+	import { formatDate } from '$lib/utils/date';
 
 	interface Props {
 		startDate: string;
@@ -30,14 +31,14 @@
 		const now = new Date();
 		const start = new Date(now.getFullYear(), now.getMonth(), 1);
 		const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-		return { start: formatDate(start), end: formatDate(end) };
+		return { start: toISODateStr(start), end: toISODateStr(end) };
 	}
 
 	function getPreviousMonth(): { start: string; end: string } {
 		const now = new Date();
 		const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 		const end = new Date(now.getFullYear(), now.getMonth(), 0);
-		return { start: formatDate(start), end: formatDate(end) };
+		return { start: toISODateStr(start), end: toISODateStr(end) };
 	}
 
 	function getCurrentQuarter(): { start: string; end: string } {
@@ -45,7 +46,7 @@
 		const quarter = Math.floor(now.getMonth() / 3);
 		const start = new Date(now.getFullYear(), quarter * 3, 1);
 		const end = new Date(now.getFullYear(), quarter * 3 + 3, 0);
-		return { start: formatDate(start), end: formatDate(end) };
+		return { start: toISODateStr(start), end: toISODateStr(end) };
 	}
 
 	function getPreviousQuarter(): { start: string; end: string } {
@@ -55,36 +56,34 @@
 		const adjustedQuarter = quarter < 0 ? 3 : quarter;
 		const start = new Date(year, adjustedQuarter * 3, 1);
 		const end = new Date(year, adjustedQuarter * 3 + 3, 0);
-		return { start: formatDate(start), end: formatDate(end) };
+		return { start: toISODateStr(start), end: toISODateStr(end) };
 	}
 
 	function getCurrentYear(): { start: string; end: string } {
 		const now = new Date();
 		const start = new Date(now.getFullYear(), 0, 1);
 		const end = new Date(now.getFullYear(), 11, 31);
-		return { start: formatDate(start), end: formatDate(end) };
+		return { start: toISODateStr(start), end: toISODateStr(end) };
 	}
 
 	function getLast30Days(): { start: string; end: string } {
 		const now = new Date();
 		const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-		return { start: formatDate(start), end: formatDate(now) };
+		return { start: toISODateStr(start), end: toISODateStr(now) };
 	}
 
 	function getLast90Days(): { start: string; end: string } {
 		const now = new Date();
 		const start = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-		return { start: formatDate(start), end: formatDate(now) };
+		return { start: toISODateStr(start), end: toISODateStr(now) };
 	}
 
-	function formatDate(date: Date): string {
+	function toISODateStr(date: Date): string {
 		return date.toISOString().split('T')[0];
 	}
 
 	function formatDisplayDate(dateStr: string): string {
-		if (!dateStr) return '';
-		const date = new Date(dateStr);
-		return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+		return formatDate(dateStr);
 	}
 
 	function applyShortcut(shortcut: (typeof shortcuts)[0]) {

@@ -568,6 +568,7 @@ async function main() {
 			group: 'Finances',
 			isSystem: true,
 			values: [
+				{ value: 'projected', label: 'Projected', sortOrder: 0 },
 				{ value: 'pending', label: 'Pending', sortOrder: 1, isDefault: true },
 				{ value: 'paid', label: 'Paid', sortOrder: 2 },
 				{ value: 'late', label: 'Late', sortOrder: 3 },
@@ -601,6 +602,7 @@ async function main() {
 			group: 'Finances',
 			isSystem: true,
 			values: [
+				{ value: 'projected', label: 'Projected', sortOrder: 0 },
 				{ value: 'pending', label: 'Pending', sortOrder: 1, isDefault: true },
 				{ value: 'paid', label: 'Paid', sortOrder: 2 },
 				{ value: 'late', label: 'Late', sortOrder: 3 },
@@ -634,6 +636,18 @@ async function main() {
 				{ value: 'completed', label: 'Completed', sortOrder: 2 },
 				{ value: 'failed', label: 'Failed', sortOrder: 3 },
 				{ value: 'cancelled', label: 'Cancelled', sortOrder: 4 }
+			]
+		},
+		{
+			code: 'payment_terms',
+			name: 'Payment Terms',
+			description: 'Payment term options in days',
+			group: 'Finances',
+			isSystem: true,
+			values: [
+				{ value: '7', label: '7 Days', sortOrder: 1 },
+				{ value: '14', label: '14 Days', sortOrder: 2 },
+				{ value: '30', label: '30 Days', sortOrder: 3, isDefault: true }
 			]
 		},
 		{
@@ -1105,42 +1119,42 @@ async function main() {
 			description: 'The hamburger menu does not open on iOS Safari.\n\n## Steps to reproduce\n1. Open site on iPhone\n2. Tap hamburger icon\n3. Nothing happens',
 			type: 'bug', category: 'frontend', status: 'in_progress', priority: 'high',
 			column: 'In Progress', swimlane: 'Bugs',
-			assignedToId: alice.id, estimatedTime: 4, order: 0
+			assignedToId: alice.id, estimatedTime: 240, order: 0
 		},
 		{
 			name: 'Design new homepage layout',
 			description: 'Create wireframe and high-fidelity mockup for the new homepage.',
 			type: 'feature', category: 'design', status: 'review', priority: 'high',
 			column: 'Review', swimlane: 'New Requests',
-			assignedToId: bob.id, estimatedTime: 16, order: 0
+			assignedToId: bob.id, estimatedTime: 960, order: 0
 		},
 		{
 			name: 'Set up CI/CD pipeline',
 			description: 'Configure automated testing and deployment pipeline using GitHub Actions.',
 			type: 'task', category: 'devops', status: 'todo', priority: 'medium',
 			column: 'To Do', swimlane: 'Tasks',
-			assignedToId: null, estimatedTime: 8, order: 0
+			assignedToId: null, estimatedTime: 480, order: 0
 		},
 		{
 			name: 'Implement contact form',
 			description: 'Build the contact form with validation and email notification.',
 			type: 'feature', category: 'backend', status: 'todo', priority: 'medium',
 			column: 'To Do', swimlane: 'New Requests',
-			assignedToId: alice.id, estimatedTime: 12, order: 1
+			assignedToId: alice.id, estimatedTime: 720, order: 1
 		},
 		{
 			name: 'Research analytics integration',
 			description: 'Evaluate Google Analytics 4 vs Plausible for privacy-friendly analytics.',
 			type: 'research', category: 'other', status: 'backlog', priority: 'low',
 			column: 'Backlog', swimlane: 'Ideas',
-			assignedToId: null, estimatedTime: 6, order: 0
+			assignedToId: null, estimatedTime: 360, order: 0
 		},
 		{
 			name: 'Write API documentation',
 			description: 'Document all REST API endpoints with request/response examples.',
 			type: 'documentation', category: 'backend', status: 'backlog', priority: 'low',
 			column: 'Backlog', swimlane: 'Tasks',
-			assignedToId: bob.id, estimatedTime: 10, order: 1
+			assignedToId: bob.id, estimatedTime: 600, order: 1
 		}
 	];
 
@@ -1170,10 +1184,10 @@ async function main() {
 	// Create time records
 	console.log('Creating time records...');
 	const timeRecordData = [
-		{ taskIndex: 0, date: '2026-01-20', hours: 2.5, description: 'Investigated iOS Safari bug, found CSS issue', type: 'development', category: 'billable' },
-		{ taskIndex: 0, date: '2026-01-21', hours: 1.5, description: 'Applied fix and tested across devices', type: 'development', category: 'billable' },
-		{ taskIndex: 1, date: '2026-01-18', hours: 4, description: 'Initial wireframe sketches for homepage', type: 'design', category: 'billable' },
-		{ taskIndex: 1, date: '2026-01-22', hours: 6, description: 'High-fidelity mockup in Figma', type: 'design', category: 'billable' }
+		{ taskIndex: 0, date: '2026-01-20', minutes: 150, description: 'Investigated iOS Safari bug, found CSS issue', type: 'development', category: 'billable', billable: true, personId: alice.id },
+		{ taskIndex: 0, date: '2026-01-21', minutes: 90, description: 'Applied fix and tested across devices', type: 'development', category: 'billable', billable: true, personId: alice.id },
+		{ taskIndex: 1, date: '2026-01-18', minutes: 240, description: 'Initial wireframe sketches for homepage', type: 'design', category: 'billable', billable: true, personId: bob.id },
+		{ taskIndex: 1, date: '2026-01-22', minutes: 360, description: 'High-fidelity mockup in Figma', type: 'design', category: 'billable', billable: true, personId: bob.id }
 	];
 
 	for (const tr of timeRecordData) {
@@ -1181,12 +1195,26 @@ async function main() {
 			data: {
 				taskId: createdTasks[tr.taskIndex].id,
 				date: new Date(tr.date),
-				hours: tr.hours,
+				minutes: tr.minutes,
 				description: tr.description,
 				type: tr.type,
 				category: tr.category,
+				billable: tr.billable,
+				personId: tr.personId,
 				createdById: adminUser.id
 			}
+		});
+	}
+
+	// Recalculate spentTime for seeded tasks
+	for (const task of createdTasks) {
+		const result = await prisma.timeRecord.aggregate({
+			where: { taskId: task.id, deletedAt: null },
+			_sum: { minutes: true }
+		});
+		await prisma.task.update({
+			where: { id: task.id },
+			data: { spentTime: result._sum.minutes ?? 0 }
 		});
 	}
 

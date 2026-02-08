@@ -7,7 +7,7 @@ import { logAction } from '$lib/server/audit';
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'projects', 'read');
 
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+	const isAdmin = checkPermission(locals, '*', '*');
 
 	const id = parseInt(params.id);
 	if (isNaN(id)) {
@@ -67,6 +67,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 					swimlaneId: true,
 					order: true,
 					dueDate: true,
+					estimatedTime: true,
+					spentTime: true,
 					assignedTo: {
 						select: {
 							id: true,
@@ -238,6 +240,14 @@ export const actions: Actions = {
 				})
 			)
 		);
+
+		await logAction({
+			userId: locals.user!.id,
+			action: 'updated',
+			module: 'projects',
+			entityType: 'Task',
+			newValues: { reordered: updates.map(u => u.id), count: updates.length }
+		});
 
 		return { success: true };
 	}

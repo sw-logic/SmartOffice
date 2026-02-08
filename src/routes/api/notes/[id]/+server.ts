@@ -4,9 +4,21 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
 import { logUpdate, logDelete } from '$lib/server/audit';
 
-export const PATCH: RequestHandler = async ({ locals, params, request }) => {
-	await requirePermission(locals, 'projects', 'update');
+// Map entity types to their permission modules
+const ENTITY_PERMISSION_MAP: Record<string, string> = {
+	'Task': 'projects',
+	'Project': 'projects',
+	'Client': 'clients',
+	'Vendor': 'vendors',
+	'Person': 'employees',
+	'Income': 'finances.income',
+	'Expense': 'finances.expenses',
+	'Payment': 'finances.payments',
+	'Offer': 'offers',
+	'PriceListItem': 'pricelists'
+};
 
+export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 	const id = parseInt(params.id);
 	if (isNaN(id)) {
 		return json({ error: 'Invalid note ID' }, { status: 400 });
@@ -14,12 +26,15 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 
 	const existing = await prisma.note.findUnique({
 		where: { id },
-		select: { id: true, content: true, priority: true, color: true, deletedAt: true }
+		select: { id: true, content: true, priority: true, color: true, deletedAt: true, entityType: true }
 	});
 
 	if (!existing || existing.deletedAt) {
 		return json({ error: 'Note not found' }, { status: 404 });
 	}
+
+	const permModule = ENTITY_PERMISSION_MAP[existing.entityType] || 'projects';
+	await requirePermission(locals, permModule, 'update');
 
 	const body = await request.json();
 	const data: Record<string, unknown> = {};
@@ -64,8 +79,6 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 };
 
 export const DELETE: RequestHandler = async ({ locals, params }) => {
-	await requirePermission(locals, 'projects', 'update');
-
 	const id = parseInt(params.id);
 	if (isNaN(id)) {
 		return json({ error: 'Invalid note ID' }, { status: 400 });
@@ -73,12 +86,15 @@ export const DELETE: RequestHandler = async ({ locals, params }) => {
 
 	const note = await prisma.note.findUnique({
 		where: { id },
-		select: { id: true, content: true, deletedAt: true }
+		select: { id: true, content: true, deletedAt: true, entityType: true }
 	});
 
 	if (!note || note.deletedAt) {
 		return json({ error: 'Note not found' }, { status: 404 });
 	}
+
+	const permModule = ENTITY_PERMISSION_MAP[note.entityType] || 'projects';
+	await requirePermission(locals, permModule, 'update');
 
 	await prisma.note.update({
 		where: { id },

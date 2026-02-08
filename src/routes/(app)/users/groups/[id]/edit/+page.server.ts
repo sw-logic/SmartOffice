@@ -14,7 +14,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	}
 
 	// Check if current user is admin (can edit deleted groups)
-	const isAdmin = locals.user ? await checkPermission(locals.user.id, '*', '*') : false;
+	const isAdmin = checkPermission(locals, '*', '*');
 
 	// Find the group
 	const group = await prisma.userGroup.findUnique({

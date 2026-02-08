@@ -30,8 +30,8 @@ import {
 } from 'date-fns';
 
 // Default date format
-const DEFAULT_DATE_FORMAT = 'MMM d, yyyy';
-const DEFAULT_DATETIME_FORMAT = 'MMM d, yyyy h:mm a';
+const DEFAULT_DATE_FORMAT = 'yyyy.MM.dd';
+const DEFAULT_DATETIME_FORMAT = 'yyyy.MM.dd HH:mm';
 const DEFAULT_TIME_FORMAT = 'h:mm a';
 const ISO_DATE_FORMAT = 'yyyy-MM-dd';
 

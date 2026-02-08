@@ -14,8 +14,8 @@
 	let isSubmitting = $state(false);
 
 	// Get default values from enums
-	const defaultCurrency = data.currencies.find((c) => c.isDefault)?.value || 'USD';
-	const defaultStatus = data.statuses.find((s) => s.isDefault)?.value || 'pending';
+	const defaultCurrency = data.enums.currency.find((c) => c.isDefault)?.value || 'USD';
+	const defaultStatus = data.enums.expense_status.find((s) => s.isDefault)?.value || 'pending';
 
 	let selectedCurrency = $state(form?.values?.currency || defaultCurrency);
 	let selectedCategory = $state(form?.values?.category || '');
@@ -24,9 +24,17 @@
 	let selectedProject = $state(form?.values?.projectId || '');
 	let selectedRecurringPeriod = $state(form?.values?.recurringPeriod || '');
 	let isRecurring = $state(form?.values?.isRecurring || false);
+	let selectedPaymentTermDays = $state(form?.values?.paymentTermDays || '');
+	let dateValue = $state(form?.values?.date || new Date().toISOString().split('T')[0]);
 
-	// Today's date for default
-	const today = new Date().toISOString().split('T')[0];
+	const calculatedDueDate = $derived(() => {
+		if (dateValue && selectedPaymentTermDays) {
+			const d = new Date(dateValue);
+			d.setDate(d.getDate() + parseInt(selectedPaymentTermDays));
+			return d.toISOString().split('T')[0];
+		}
+		return '';
+	});
 </script>
 
 <div class="space-y-6">
@@ -79,10 +87,10 @@
 						<Label for="currency">Currency</Label>
 						<Select.Root type="single" bind:value={selectedCurrency} name="currency">
 							<Select.Trigger>
-								{data.currencies.find((c) => c.value === selectedCurrency)?.label || selectedCurrency}
+								{data.enums.currency.find((c) => c.value === selectedCurrency)?.label || selectedCurrency}
 							</Select.Trigger>
 							<Select.Content>
-								{#each data.currencies as currency}
+								{#each data.enums.currency as currency}
 									<Select.Item value={currency.value}>{currency.label}</Select.Item>
 								{/each}
 							</Select.Content>
@@ -110,11 +118,11 @@
 						<Label for="category">Category *</Label>
 						<Select.Root type="single" bind:value={selectedCategory} name="category">
 							<Select.Trigger>
-								{data.categories.find((c) => c.value === selectedCategory)?.label ||
+								{data.enums.expense_category.find((c) => c.value === selectedCategory)?.label ||
 									'Select category'}
 							</Select.Trigger>
 							<Select.Content>
-								{#each data.categories as category}
+								{#each data.enums.expense_category as category}
 									<Select.Item value={category.value}>{category.label}</Select.Item>
 								{/each}
 							</Select.Content>
@@ -129,10 +137,10 @@
 						<Label for="status">Status</Label>
 						<Select.Root type="single" bind:value={selectedStatus} name="status">
 							<Select.Trigger>
-								{data.statuses.find((s) => s.value === selectedStatus)?.label || 'Select status'}
+								{data.enums.expense_status.find((s) => s.value === selectedStatus)?.label || 'Select status'}
 							</Select.Trigger>
 							<Select.Content>
-								{#each data.statuses as status}
+								{#each data.enums.expense_status as status}
 									<Select.Item value={status.value}>{status.label}</Select.Item>
 								{/each}
 							</Select.Content>
@@ -148,7 +156,7 @@
 							id="date"
 							name="date"
 							type="date"
-							value={form?.values?.date || today}
+							bind:value={dateValue}
 							required
 						/>
 						{#if form?.errors?.date}
@@ -157,13 +165,22 @@
 					</div>
 
 					<div class="space-y-2">
-						<Label for="dueDate">Due Date</Label>
-						<Input
-							id="dueDate"
-							name="dueDate"
-							type="date"
-							value={form?.values?.dueDate || ''}
-						/>
+						<Label for="paymentTermDays">Payment Terms</Label>
+						<Select.Root type="single" value={selectedPaymentTermDays} onValueChange={(v) => { selectedPaymentTermDays = v; }}>
+							<Select.Trigger>
+								{data.enums.payment_terms.find((pt) => pt.value === selectedPaymentTermDays)?.label || 'Select terms'}
+							</Select.Trigger>
+							<Select.Content>
+								<Select.Item value="">No terms</Select.Item>
+								{#each data.enums.payment_terms as pt}
+									<Select.Item value={pt.value}>{pt.label}</Select.Item>
+								{/each}
+							</Select.Content>
+						</Select.Root>
+						<input type="hidden" name="paymentTermDays" value={selectedPaymentTermDays} />
+						{#if calculatedDueDate()}
+							<p class="text-xs text-muted-foreground">Due: {calculatedDueDate()}</p>
+						{/if}
 					</div>
 				</div>
 
@@ -191,11 +208,11 @@
 						<Label for="recurringPeriod">Recurring Period *</Label>
 						<Select.Root type="single" bind:value={selectedRecurringPeriod} name="recurringPeriod">
 							<Select.Trigger>
-								{data.recurringPeriods.find((r) => r.value === selectedRecurringPeriod)?.label ||
+								{data.enums.recurring_period.find((r) => r.value === selectedRecurringPeriod)?.label ||
 									'Select period'}
 							</Select.Trigger>
 							<Select.Content>
-								{#each data.recurringPeriods as period}
+								{#each data.enums.recurring_period as period}
 									<Select.Item value={period.value}>{period.label}</Select.Item>
 								{/each}
 							</Select.Content>
@@ -218,7 +235,7 @@
 				<div class="grid grid-cols-2 gap-4">
 					<div class="space-y-2">
 						<Label for="vendorId">Vendor</Label>
-						<Select.Root type="single" bind:value={selectedVendor} name="vendorId">
+						<Select.Root type="single" value={selectedVendor} onValueChange={(v) => { selectedVendor = v; if (v && !selectedPaymentTermDays) { const vn = data.vendors.find(x => String(x.id) === v); if (vn) selectedPaymentTermDays = String(vn.paymentTerms); } }} name="vendorId">
 							<Select.Trigger>
 								{data.vendors.find((v) => String(v.id) === selectedVendor)?.name || 'Select vendor'}
 							</Select.Trigger>

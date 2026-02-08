@@ -14,6 +14,7 @@
 		AlertTriangle,
 		Receipt
 	} from 'lucide-svelte';
+	import { formatDate } from '$lib/utils/date';
 
 	let { data } = $props();
 
@@ -70,10 +71,6 @@
 		}).format(amount);
 	}
 
-	function formatDate(date: Date | string | null): string {
-		if (!date) return '-';
-		return new Date(date).toLocaleDateString();
-	}
 </script>
 
 <div class="space-y-6">

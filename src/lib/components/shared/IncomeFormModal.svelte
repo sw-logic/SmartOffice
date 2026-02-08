@@ -22,19 +22,22 @@
 	interface Props {
 		open: boolean;
 		incomeId?: number | null;
+		isProjectedOccurrence?: boolean;
 		defaults?: IncomeDefaults;
-		clients: Array<{ id: number; name: string }>;
+		clients: Array<{ id: number; name: string; paymentTerms: number }>;
 		projects: Array<{ id: number; name: string; client?: { id: number; name: string } | null }>;
 		categories: EnumOption[];
 		currencies: EnumOption[];
 		statuses: EnumOption[];
 		recurringPeriods: EnumOption[];
+		paymentTerms: EnumOption[];
 		onSaved?: () => void;
 	}
 
 	let {
 		open = $bindable(),
 		incomeId = null,
+		isProjectedOccurrence = false,
 		defaults,
 		clients,
 		projects,
@@ -42,12 +45,14 @@
 		currencies,
 		statuses,
 		recurringPeriods,
+		paymentTerms,
 		onSaved
 	}: Props = $props();
 
 	let loading = $state(false);
 	let saving = $state(false);
 	let error = $state<string | null>(null);
+	let parentId = $state<number | null>(null);
 
 	// Form fields
 	let amount = $state('');
@@ -56,17 +61,29 @@
 	let category = $state('');
 	let status = $state('');
 	let date = $state('');
-	let dueDate = $state('');
+	let paymentTermDays = $state('');
 	let invoiceReference = $state('');
+
+	const calculatedDueDate = $derived(() => {
+		if (date && paymentTermDays) {
+			const d = new Date(date);
+			d.setDate(d.getDate() + parseInt(paymentTermDays));
+			return d.toISOString().split('T')[0];
+		}
+		return '';
+	});
 	let tax = $state('');
 	let isRecurring = $state(false);
 	let recurringPeriod = $state('');
+	let recurringEndDate = $state('');
 	let selectedClient = $state('');
 	let selectedProject = $state('');
 	let notes = $state('');
 
 	const isEditMode = $derived(incomeId != null);
-	const title = $derived(isEditMode ? 'Edit Income' : 'New Income');
+	const title = $derived(
+		isProjectedOccurrence ? 'Edit Projected Occurrence' : isEditMode ? 'Edit Income' : 'New Income'
+	);
 
 	const defaultCurrency = $derived(currencies.find((c) => c.isDefault)?.value || currencies[0]?.value || 'USD');
 	const defaultStatus = $derived(statuses.find((s) => s.isDefault)?.value || statuses[0]?.value || 'pending');
@@ -85,14 +102,16 @@
 		category = '';
 		status = defaultStatus;
 		date = new Date().toISOString().split('T')[0];
-		dueDate = '';
+		paymentTermDays = '';
 		invoiceReference = '';
 		tax = '0';
 		isRecurring = false;
 		recurringPeriod = '';
+		recurringEndDate = '';
 		selectedClient = defaults?.clientId ? String(defaults.clientId) : '';
 		selectedProject = defaults?.projectId ? String(defaults.projectId) : '';
 		notes = '';
+		parentId = null;
 		error = null;
 	}
 
@@ -112,14 +131,16 @@
 			category = income.category || '';
 			status = income.status || defaultStatus;
 			date = income.date ? new Date(income.date).toISOString().split('T')[0] : '';
-			dueDate = income.dueDate ? new Date(income.dueDate).toISOString().split('T')[0] : '';
+			paymentTermDays = income.paymentTermDays ? String(income.paymentTermDays) : '';
 			invoiceReference = income.invoiceReference || '';
 			tax = income.tax != null ? String(income.tax) : '0';
 			isRecurring = income.isRecurring || false;
 			recurringPeriod = income.recurringPeriod || '';
+			recurringEndDate = income.recurringEndDate ? new Date(income.recurringEndDate).toISOString().split('T')[0] : '';
 			selectedClient = income.clientId ? String(income.clientId) : '';
 			selectedProject = income.projectId ? String(income.projectId) : '';
 			notes = income.notes || '';
+			parentId = income.parentId || null;
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load income';
 		} finally {
@@ -149,11 +170,12 @@
 			category,
 			status,
 			date,
-			dueDate: dueDate || null,
+			paymentTermDays: paymentTermDays || null,
 			invoiceReference: invoiceReference || null,
 			tax,
 			isRecurring,
 			recurringPeriod: isRecurring ? recurringPeriod : null,
+			recurringEndDate: isRecurring && recurringEndDate ? recurringEndDate : null,
 			clientId: selectedClient || null,
 			projectId: selectedProject || null,
 			notes: notes || null
@@ -196,7 +218,9 @@
 		<Dialog.Header>
 			<Dialog.Title>{title}</Dialog.Title>
 			<Dialog.Description>
-				{isEditMode ? 'Update this income record.' : 'Record a new income entry.'}
+				{isProjectedOccurrence
+					? 'Edit this projected occurrence. Changes apply only to this occurrence.'
+					: isEditMode ? 'Update this income record.' : 'Record a new income entry.'}
 			</Dialog.Description>
 		</Dialog.Header>
 
@@ -206,6 +230,27 @@
 			</div>
 		{:else}
 			<form onsubmit={handleSubmit} class="space-y-4">
+				{#if isProjectedOccurrence && parentId}
+					<div class="rounded-md border border-dashed border-blue-300 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 p-3 text-sm">
+						<div class="flex items-center justify-between">
+							<span class="text-blue-700 dark:text-blue-300 font-medium">Projected occurrence</span>
+							<Button
+								type="button"
+								variant="link"
+								size="sm"
+								class="text-blue-600 dark:text-blue-400 h-auto p-0"
+								onclick={() => {
+									incomeId = parentId;
+									isProjectedOccurrence = false;
+									loadIncome(parentId!);
+								}}
+							>
+								View original record
+							</Button>
+						</div>
+					</div>
+				{/if}
+
 				{#if error}
 					<div class="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
 						{error}
@@ -291,7 +336,7 @@
 				<div class="grid grid-cols-3 gap-4">
                     <div class="space-y-2">
                         <Label for="incClient">Client</Label>
-                        <Select.Root type="single" value={selectedClient} onValueChange={(v) => { selectedClient = v; if (!v) selectedProject = ''; }}>
+                        <Select.Root type="single" value={selectedClient} onValueChange={(v) => { selectedClient = v; if (!v) selectedProject = ''; else if (!paymentTermDays) { const cl = clients.find(c => String(c.id) === v); if (cl) paymentTermDays = String(cl.paymentTerms); } }}>
                             <Select.Trigger id="incClient" class="w-full">
                                 {clients.find((c) => String(c.id) === selectedClient)?.name || 'Select client'}
                             </Select.Trigger>
@@ -346,8 +391,21 @@
 					</div>
 
 					<div class="space-y-2">
-						<Label for="incDueDate">Due Date</Label>
-						<Input id="incDueDate" class="w-full" type="date" bind:value={dueDate} />
+						<Label for="incPaymentTerms">Payment Terms</Label>
+						<Select.Root type="single" value={paymentTermDays} onValueChange={(v) => { paymentTermDays = v; }}>
+							<Select.Trigger id="incPaymentTerms" class="w-full">
+								{paymentTerms.find((pt) => pt.value === paymentTermDays)?.label || 'Select terms'}
+							</Select.Trigger>
+							<Select.Content>
+								<Select.Item value="">No terms</Select.Item>
+								{#each paymentTerms as pt}
+									<Select.Item value={pt.value}>{pt.label}</Select.Item>
+								{/each}
+							</Select.Content>
+						</Select.Root>
+						{#if calculatedDueDate()}
+							<p class="text-xs text-muted-foreground">Due: {calculatedDueDate()}</p>
+						{/if}
 					</div>
 
                     <div class="space-y-2">
@@ -365,33 +423,62 @@
                     </div>
 				</div>
 
+                {#if !isProjectedOccurrence}
                 <hr>
 
-				<div class="grid grid-cols-2 gap-8">
-                    <div class="grid grid-cols-2 gap-4 items-end">
-                        <div class="flex items-center space-x-2 pb-3">
-                            <Checkbox
-                                    id="incIsRecurring"
-                                    checked={isRecurring}
-                                    onCheckedChange={(checked) => (isRecurring = checked === true)}
-                            />
-                            <Label for="incIsRecurring" class="cursor-pointer">Recurring income</Label>
-                        </div>
+				<div class="space-y-3">
+                    <div class="grid grid-cols-2 gap-8">
+                        <div class="grid grid-cols-2 gap-4 items-end">
+                            <div class="flex items-center space-x-2 pb-3">
+                                <Checkbox
+                                        id="incIsRecurring"
+                                        checked={isRecurring}
+                                        onCheckedChange={(checked) => {
+                                            isRecurring = checked === true;
+                                            if (!isRecurring) {
+                                                recurringPeriod = '';
+                                                recurringEndDate = '';
+                                            }
+                                        }}
+                                />
+                                <Label for="incIsRecurring" class="cursor-pointer">Recurring income</Label>
+                            </div>
 
-                        <div class="space-y-2">
-                            <Select.Root type="single" value={recurringPeriod} onValueChange={(v) => { if (v) recurringPeriod = v; }}>
-                                <Select.Trigger id="incRecurringPeriod" disabled={!isRecurring} class={!isRecurring ? 'pointer-events-none' : ''}>
-                                    {recurringPeriods.find((r) => r.value === recurringPeriod)?.label || 'Select period'}
-                                </Select.Trigger>
-                                <Select.Content>
-                                    {#each recurringPeriods as period}
-                                        <Select.Item value={period.value}>{period.label}</Select.Item>
-                                    {/each}
-                                </Select.Content>
-                            </Select.Root>
+                            <div class="space-y-2">
+                                <Select.Root type="single" value={recurringPeriod} onValueChange={(v) => { if (v) recurringPeriod = v; }}>
+                                    <Select.Trigger id="incRecurringPeriod" disabled={!isRecurring} class={!isRecurring ? 'pointer-events-none' : ''}>
+                                        {recurringPeriods.find((r) => r.value === recurringPeriod)?.label || 'Select period'}
+                                    </Select.Trigger>
+                                    <Select.Content>
+                                        {#each recurringPeriods as period}
+                                            <Select.Item value={period.value}>{period.label}</Select.Item>
+                                        {/each}
+                                    </Select.Content>
+                                </Select.Root>
+                            </div>
                         </div>
                     </div>
+
+                    {#if isRecurring}
+                        <div class="grid grid-cols-2 gap-8">
+                            <div class="space-y-2">
+                                <Label for="incRecurringEndDate">Generate until</Label>
+                                <Input id="incRecurringEndDate" class="w-full" type="date" bind:value={recurringEndDate} />
+                            </div>
+                            <div class="flex items-end gap-2 pb-0.5">
+                                <Button type="button" variant="outline" size="sm" onclick={() => {
+                                    const y = new Date().getFullYear();
+                                    recurringEndDate = `${y}-12-31`;
+                                }}>End of Year</Button>
+                                <Button type="button" variant="outline" size="sm" onclick={() => {
+                                    const y = new Date().getFullYear() + 1;
+                                    recurringEndDate = `${y}-12-31`;
+                                }}>End of Next Year</Button>
+                            </div>
+                        </div>
+                    {/if}
 				</div>
+                {/if}
 
 				<Dialog.Footer>
 					<Button type="button" variant="outline" onclick={() => handleOpenChange(false)} disabled={saving}>

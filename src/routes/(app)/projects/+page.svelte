@@ -24,6 +24,7 @@
 		ListChecks
 	} from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
+	import { formatDate } from '$lib/utils/date';
 
 	let { data } = $props();
 
@@ -362,14 +363,14 @@
 							</Table.Cell>
 							<Table.Cell>
 								{#if project.startDate}
-									{new Date(project.startDate).toLocaleDateString()}
+									{formatDate(project.startDate)}
 								{:else}
 									<span class="text-muted-foreground">-</span>
 								{/if}
 							</Table.Cell>
 							<Table.Cell>
 								{#if project.endDate}
-									{new Date(project.endDate).toLocaleDateString()}
+									{formatDate(project.endDate)}
 								{:else}
 									<span class="text-muted-foreground">-</span>
 								{/if}
@@ -387,10 +388,10 @@
 								</div>
 							</Table.Cell>
 							<Table.Cell>
-								{new Date(project.createdAt).toLocaleDateString()}
+								{formatDate(project.createdAt)}
 							</Table.Cell>
 							<Table.Cell>
-								<div class="flex items-center gap-1">
+								<div class="flex items-center gap-1" onclick={(e) => e.stopPropagation()}>
 									<Button variant="ghost" size="icon" href="/projects/{project.id}" title="View project">
 										<Eye class="h-4 w-4" />
 									</Button>

@@ -5,6 +5,7 @@ export interface EnumOption {
 	label: string;
 	description?: string | null;
 	isDefault: boolean;
+	color?: string | null;
 	metadata?: Record<string, unknown> | null;
 }
 
@@ -15,6 +16,17 @@ export interface EnumType {
 	description: string | null;
 	isSystem: boolean;
 }
+
+export const ALL_ENUM_CODES = [
+	'currency', 'priority', 'entity_status', 'note_priority',
+	'income_category', 'income_status', 'expense_category', 'expense_status',
+	'payment_method', 'payment_status', 'payment_terms', 'recurring_period',
+	'client_industry', 'vendor_category',
+	'department', 'employment_type', 'employee_status',
+	'project_status', 'task_status', 'task_type', 'task_category',
+	'time_record_type', 'time_record_category',
+	'offer_status', 'unit_of_measure', 'pricelist_category'
+] as const;
 
 // Cache for enum values with TTL
 const enumCache = new Map<string, { values: EnumOption[]; timestamp: number }>();
@@ -52,6 +64,7 @@ export async function getEnumValues(typeCode: string): Promise<EnumOption[]> {
 		label: v.label,
 		description: v.description,
 		isDefault: v.isDefault,
+		color: v.color,
 		metadata: v.metadata as Record<string, unknown> | null
 	}));
 

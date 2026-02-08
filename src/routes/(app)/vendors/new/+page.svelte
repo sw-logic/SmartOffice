@@ -13,12 +13,13 @@
 	let isSubmitting = $state(false);
 
 	// Get default values from enums
-	const defaultStatus = data.statuses.find((s) => s.isDefault)?.value || 'active';
-	const defaultCurrency = data.currencies.find((c) => c.isDefault)?.value || 'USD';
+	const defaultStatus = data.enums.entity_status.find((s) => s.isDefault)?.value || 'active';
+	const defaultCurrency = data.enums.currency.find((c) => c.isDefault)?.value || 'USD';
 
 	let selectedStatus = $state(form?.values?.status || defaultStatus);
 	let selectedCategory = $state(form?.values?.category || '');
 	let selectedCurrency = $state(form?.values?.currency || defaultCurrency);
+	let selectedPaymentTerms = $state(String(form?.values?.paymentTerms || '30'));
 </script>
 
 <div class="space-y-6">
@@ -121,10 +122,10 @@
 						<Label for="category">Category</Label>
 						<Select.Root type="single" bind:value={selectedCategory} name="category">
 							<Select.Trigger>
-								{data.categories.find((c) => c.value === selectedCategory)?.label || 'Select category'}
+								{data.enums.vendor_category.find((c) => c.value === selectedCategory)?.label || 'Select category'}
 							</Select.Trigger>
 							<Select.Content>
-								{#each data.categories as category}
+								{#each data.enums.vendor_category as category}
 									<Select.Item value={category.value}>{category.label}</Select.Item>
 								{/each}
 							</Select.Content>
@@ -136,10 +137,10 @@
 						<Label for="status">Status</Label>
 						<Select.Root type="single" bind:value={selectedStatus} name="status">
 							<Select.Trigger>
-								{data.statuses.find((s) => s.value === selectedStatus)?.label || 'Select status'}
+								{data.enums.entity_status.find((s) => s.value === selectedStatus)?.label || 'Select status'}
 							</Select.Trigger>
 							<Select.Content>
-								{#each data.statuses as status}
+								{#each data.enums.entity_status as status}
 									<Select.Item value={status.value}>{status.label}</Select.Item>
 								{/each}
 							</Select.Content>
@@ -230,26 +231,28 @@
 
 				<div class="grid grid-cols-2 gap-4">
 					<div class="space-y-2">
-						<Label for="paymentTerms">Payment Terms (days)</Label>
-						<Input
-							id="paymentTerms"
-							name="paymentTerms"
-							type="number"
-							min="0"
-							max="365"
-							placeholder="30"
-							value={form?.values?.paymentTerms || 30}
-						/>
+						<Label for="paymentTerms">Payment Terms</Label>
+						<Select.Root type="single" value={selectedPaymentTerms} onValueChange={(v) => { if (v) selectedPaymentTerms = v; }}>
+							<Select.Trigger id="paymentTerms" class="w-full">
+								{data.enums.payment_terms.find((pt) => pt.value === selectedPaymentTerms)?.label || 'Select terms'}
+							</Select.Trigger>
+							<Select.Content>
+								{#each data.enums.payment_terms as pt}
+									<Select.Item value={pt.value}>{pt.label}</Select.Item>
+								{/each}
+							</Select.Content>
+						</Select.Root>
+						<input type="hidden" name="paymentTerms" value={selectedPaymentTerms} />
 					</div>
 
 					<div class="space-y-2">
 						<Label for="currency">Currency</Label>
 						<Select.Root type="single" bind:value={selectedCurrency} name="currency">
 							<Select.Trigger>
-								{data.currencies.find((c) => c.value === selectedCurrency)?.label || selectedCurrency}
+								{data.enums.currency.find((c) => c.value === selectedCurrency)?.label || selectedCurrency}
 							</Select.Trigger>
 							<Select.Content>
-								{#each data.currencies as currency}
+								{#each data.enums.currency as currency}
 									<Select.Item value={currency.value}>{currency.label}</Select.Item>
 								{/each}
 							</Select.Content>

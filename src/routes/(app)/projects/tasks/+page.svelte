@@ -8,6 +8,7 @@
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as Select from '$lib/components/ui/select';
 	import * as Avatar from '$lib/components/ui/avatar';
+	import { Checkbox } from '$lib/components/ui/checkbox';
 	import TaskDetailModal from '$lib/components/shared/TaskDetailModal.svelte';
 	import {
 		Plus,
@@ -16,15 +17,13 @@
 		ArrowUp,
 		ArrowDown,
 		Trash2,
-		ChevronLeft,
-		ChevronRight,
 		RotateCcw,
 		Filter,
 		X,
-		Group,
-		ChevronsUpDown
+		Group
 	} from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
+	import { formatDate } from '$lib/utils/date';
 
 	let { data } = $props();
 
@@ -35,6 +34,60 @@
 	let taskToRestore = $state<{ id: number; name: string } | null>(null);
 	let isDeleting = $state(false);
 	let isRestoring = $state(false);
+
+	// Selection state
+	let selectedIds = $state<Set<number>>(new Set());
+	let bulkDeleteDialogOpen = $state(false);
+	let isBulkDeleting = $state(false);
+
+	const selectableTasks = $derived(data.tasks.filter(t => !isTaskDeleted(t)));
+	const allSelected = $derived(
+		selectableTasks.length > 0 && selectableTasks.every(t => selectedIds.has(t.id))
+	);
+	const someSelected = $derived(selectedIds.size > 0);
+
+	function toggleSelectAll() {
+		if (allSelected) {
+			selectedIds = new Set();
+		} else {
+			selectedIds = new Set(selectableTasks.map(t => t.id));
+		}
+	}
+
+	function toggleSelect(id: number) {
+		const next = new Set(selectedIds);
+		if (next.has(id)) {
+			next.delete(id);
+		} else {
+			next.add(id);
+		}
+		selectedIds = next;
+	}
+
+	async function handleBulkDelete() {
+		if (selectedIds.size === 0) return;
+		isBulkDeleting = true;
+
+		const formData = new FormData();
+		formData.append('ids', Array.from(selectedIds).join(','));
+
+		const response = await fetch('?/bulkDelete', {
+			method: 'POST',
+			body: formData
+		});
+		const result = await response.json();
+
+		if (result.type === 'success') {
+			toast.success(`${selectedIds.size} tasks deleted successfully`);
+			invalidateAll();
+		} else {
+			toast.error(result.data?.error || 'Failed to delete tasks');
+		}
+
+		isBulkDeleting = false;
+		bulkDeleteDialogOpen = false;
+		selectedIds = new Set();
+	}
 
 	// Modal state
 	let modalOpen = $state(false);
@@ -59,15 +112,11 @@
 		{ value: 'category', label: 'Category' }
 	];
 
-	// Sort-by options
-	const sortByOptions = [
-		{ value: 'name', label: 'Name' },
-		{ value: 'project', label: 'Project' },
-		{ value: 'client', label: 'Client' },
-		{ value: 'assignee', label: 'Assignee' },
-		{ value: 'dueDate', label: 'Due Date' },
-		{ value: 'status', label: 'Stage' },
-		{ value: 'priority', label: 'Priority' }
+	// Per-page options
+	const perPageOptions = [
+		{ value: '25', label: '25' },
+		{ value: '50', label: '50' },
+		{ value: '100', label: '100' }
 	];
 
 	// Extract group key/label from a task
@@ -83,11 +132,11 @@
 			case 'priority': return formatStatus(task.priority);
 			case 'type':
 				return task.type
-					? (data.taskTypes.find(t => t.value === task.type)?.label || task.type)
+					? (data.enums.task_type.find(t => t.value === task.type)?.label || task.type)
 					: 'No Type';
 			case 'category':
 				return task.category
-					? (data.taskCategories.find(c => c.value === task.category)?.label || task.category)
+					? (data.enums.task_category.find(c => c.value === task.category)?.label || task.category)
 					: 'No Category';
 			default: return '';
 		}
@@ -154,12 +203,6 @@
 			url.searchParams.set('sortBy', column);
 			url.searchParams.set('sortOrder', 'asc');
 		}
-		goto(url.toString(), { replaceState: true });
-	}
-
-	function goToPage(newPage: number) {
-		const url = new URL($page.url);
-		url.searchParams.set('page', newPage.toString());
 		goto(url.toString(), { replaceState: true });
 	}
 
@@ -285,9 +328,6 @@
 		return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 	}
 
-	function formatDate(date: string | Date): string {
-		return new Date(date).toLocaleDateString();
-	}
 
 	function getInitials(firstName: string, lastName: string): string {
 		return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
@@ -301,10 +341,18 @@
 			<h1 class="text-3xl font-bold tracking-tight">Tasks</h1>
 			<p class="text-muted-foreground">Manage tasks across all projects</p>
 		</div>
-		<Button onclick={openNewTaskModal}>
-			<Plus class="mr-2 h-4 w-4" />
-			New Task
-		</Button>
+		<div class="flex items-center gap-2">
+			{#if someSelected}
+				<Button variant="destructive" onclick={() => (bulkDeleteDialogOpen = true)}>
+					<Trash2 class="mr-2 h-4 w-4" />
+					Delete ({selectedIds.size})
+				</Button>
+			{/if}
+			<Button onclick={openNewTaskModal}>
+				<Plus class="mr-2 h-4 w-4" />
+				New Task
+			</Button>
+		</div>
 	</div>
 
 	<!-- Search & Status filter row -->
@@ -368,39 +416,6 @@
 				{/each}
 			</Select.Content>
 		</Select.Root>
-
-		<!-- Sort by -->
-		<div class="flex items-center gap-0">
-			<Select.Root
-				type="single"
-				value={data.filters.sortBy}
-				onValueChange={(v) => {
-					if (v) updateUrl({ sortBy: v, sortOrder: 'asc' });
-				}}
-			>
-				<Select.Trigger class="w-[150px] rounded-r-none border-r-0">
-					<ChevronsUpDown class="mr-1 h-4 w-4 shrink-0 text-muted-foreground" />
-					{sortByOptions.find(o => o.value === data.filters.sortBy)?.label || 'Name'}
-				</Select.Trigger>
-				<Select.Content>
-					{#each sortByOptions as option}
-						<Select.Item value={option.value}>{option.label}</Select.Item>
-					{/each}
-				</Select.Content>
-			</Select.Root>
-			<Button
-				variant="outline"
-				class="px-2 rounded-l-none"
-				onclick={() => updateUrl({ sortOrder: data.filters.sortOrder === 'asc' ? 'desc' : 'asc' })}
-				title={data.filters.sortOrder === 'asc' ? 'Ascending' : 'Descending'}
-			>
-				{#if data.filters.sortOrder === 'asc'}
-					<ArrowUp class="h-4 w-4" />
-				{:else}
-					<ArrowDown class="h-4 w-4" />
-				{/if}
-			</Button>
-		</div>
 
 		<Button
 			variant={filtersExpanded ? 'secondary' : 'outline'}
@@ -520,36 +535,36 @@
 				</Select.Content>
 			</Select.Root>
 
-			{#if data.taskTypes.length > 0}
+			{#if data.enums.task_type.length > 0}
 				<Select.Root
 					type="single"
 					value={data.filters.taskType || 'all'}
 					onValueChange={(v) => updateFilter('taskType', v === 'all' ? undefined : v)}
 				>
 					<Select.Trigger class="w-[160px]">
-						{data.filters.taskType ? data.taskTypes.find(t => t.value === data.filters.taskType)?.label || 'Type' : 'All Types'}
+						{data.filters.taskType ? data.enums.task_type.find(t => t.value === data.filters.taskType)?.label || 'Type' : 'All Types'}
 					</Select.Trigger>
 					<Select.Content>
 						<Select.Item value="all">All Types</Select.Item>
-						{#each data.taskTypes as option}
+						{#each data.enums.task_type as option}
 							<Select.Item value={option.value}>{option.label}</Select.Item>
 						{/each}
 					</Select.Content>
 				</Select.Root>
 			{/if}
 
-			{#if data.taskCategories.length > 0}
+			{#if data.enums.task_category.length > 0}
 				<Select.Root
 					type="single"
 					value={data.filters.taskCategory || 'all'}
 					onValueChange={(v) => updateFilter('taskCategory', v === 'all' ? undefined : v)}
 				>
 					<Select.Trigger class="w-[160px]">
-						{data.filters.taskCategory ? data.taskCategories.find(c => c.value === data.filters.taskCategory)?.label || 'Category' : 'All Categories'}
+						{data.filters.taskCategory ? data.enums.task_category.find(c => c.value === data.filters.taskCategory)?.label || 'Category' : 'All Categories'}
 					</Select.Trigger>
 					<Select.Content>
 						<Select.Item value="all">All Categories</Select.Item>
-						{#each data.taskCategories as option}
+						{#each data.enums.task_category as option}
 							<Select.Item value={option.value}>{option.label}</Select.Item>
 						{/each}
 					</Select.Content>
@@ -559,68 +574,86 @@
 	{/if}
 
 	<!-- Table -->
-	<div class="rounded-md border">
-		<Table.Root>
-			<Table.Header>
-				<Table.Row>
-					<Table.Head class="w-[250px]">
-						<Button variant="ghost" class="-ml-4" onclick={() => updateSort('name')}>
-							Name
-							<svelte:component this={getSortIcon('name')} class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
-					<Table.Head>
-						<Button variant="ghost" class="-ml-4" onclick={() => updateSort('project')}>
-							Project
-							<svelte:component this={getSortIcon('project')} class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
-					<Table.Head>
-						<Button variant="ghost" class="-ml-4" onclick={() => updateSort('client')}>
-							Client
-							<svelte:component this={getSortIcon('client')} class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
-					<Table.Head class="w-[100px]">Status</Table.Head>
-					<Table.Head class="w-[90px]">Priority</Table.Head>
-					<Table.Head>
-						<Button variant="ghost" class="-ml-4" onclick={() => updateSort('assignee')}>
-							Assignee
-							<svelte:component this={getSortIcon('assignee')} class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
-					<Table.Head>
-						<Button variant="ghost" class="-ml-4" onclick={() => updateSort('dueDate')}>
-							Due Date
-							<svelte:component this={getSortIcon('dueDate')} class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
-					<Table.Head class="text-right w-[120px]">Est / Spent</Table.Head>
-					<Table.Head class="w-[80px]">Actions</Table.Head>
-				</Table.Row>
-			</Table.Header>
-			<Table.Body>
-				{#if data.tasks.length === 0}
+	{#if data.tasks.length === 0}
+		<div class="rounded-md border">
+			<Table.Root>
+				<Table.Body>
 					<Table.Row>
-						<Table.Cell colspan={9} class="h-24 text-center">
+						<Table.Cell class="h-24 text-center">
 							No tasks found.
 						</Table.Cell>
 					</Table.Row>
-				{:else}
-					{#each groupedTasks as group}
-						{#if group.label}
-							<Table.Row class="bg-muted/50 hover:bg-muted/50">
-								<Table.Cell colspan={9} class="py-1.5">
-									<span class="font-semibold text-sm">{group.label}</span>
-									<span class="text-xs text-muted-foreground ml-2">({group.tasks.length})</span>
-								</Table.Cell>
-							</Table.Row>
-						{/if}
+				</Table.Body>
+			</Table.Root>
+		</div>
+	{:else}
+		{#each groupedTasks as group, groupIdx}
+			{#if group.label}
+				<div class="flex items-center gap-2 {groupIdx > 0 ? 'mt-6' : ''}">
+					<h3 class="text-sm font-semibold">{group.label}</h3>
+					<Badge variant="secondary" class="text-xs">{group.tasks.length}</Badge>
+				</div>
+			{/if}
+			<div class="rounded-md border {group.label ? 'mt-1' : ''}">
+				<Table.Root>
+					<Table.Header>
+						<Table.Row>
+							<Table.Head class="w-[40px]">
+								<Checkbox
+									checked={allSelected}
+									onCheckedChange={() => toggleSelectAll()}
+								/>
+							</Table.Head>
+							<Table.Head class="w-[250px]">
+								<Button variant="ghost" class="-ml-4" onclick={() => updateSort('name')}>
+									Name
+									<svelte:component this={getSortIcon('name')} class="ml-2 h-4 w-4" />
+								</Button>
+							</Table.Head>
+							<Table.Head>
+								<Button variant="ghost" class="-ml-4" onclick={() => updateSort('project')}>
+									Project
+									<svelte:component this={getSortIcon('project')} class="ml-2 h-4 w-4" />
+								</Button>
+							</Table.Head>
+							<Table.Head>
+								<Button variant="ghost" class="-ml-4" onclick={() => updateSort('client')}>
+									Client
+									<svelte:component this={getSortIcon('client')} class="ml-2 h-4 w-4" />
+								</Button>
+							</Table.Head>
+							<Table.Head class="w-[100px]">Status</Table.Head>
+							<Table.Head class="w-[90px]">Priority</Table.Head>
+							<Table.Head>
+								<Button variant="ghost" class="-ml-4" onclick={() => updateSort('assignee')}>
+									Assignee
+									<svelte:component this={getSortIcon('assignee')} class="ml-2 h-4 w-4" />
+								</Button>
+							</Table.Head>
+							<Table.Head>
+								<Button variant="ghost" class="-ml-4" onclick={() => updateSort('dueDate')}>
+									Due Date
+									<svelte:component this={getSortIcon('dueDate')} class="ml-2 h-4 w-4" />
+								</Button>
+							</Table.Head>
+							<Table.Head class="text-right w-[120px]">Est / Spent</Table.Head>
+							<Table.Head class="w-[80px]">Actions</Table.Head>
+						</Table.Row>
+					</Table.Header>
+					<Table.Body>
 						{#each group.tasks as task}
 							<Table.Row
 								class="cursor-pointer hover:bg-muted/50 {isTaskDeleted(task) ? 'opacity-60' : ''}"
 								onclick={() => openTaskModal(task.id)}
 							>
+								<Table.Cell onclick={(e) => e.stopPropagation()}>
+									{#if !isTaskDeleted(task)}
+										<Checkbox
+											checked={selectedIds.has(task.id)}
+											onCheckedChange={() => toggleSelect(task.id)}
+										/>
+									{/if}
+								</Table.Cell>
 								<Table.Cell>
 									<div class="flex flex-col">
 										<span class="font-medium truncate max-w-[230px]">
@@ -631,7 +664,7 @@
 										</span>
 										{#if task.type}
 											<span class="text-xs text-muted-foreground">
-												{data.taskTypes.find(t => t.value === task.type)?.label || task.type}
+												{data.enums.task_type.find(t => t.value === task.type)?.label || task.type}
 											</span>
 										{/if}
 									</div>
@@ -675,14 +708,11 @@
 										<span class="text-muted-foreground">-</span>
 									{/if}
 								</Table.Cell>
-								<Table.Cell class="text-sm text-right">
+								<Table.Cell class="text-sm text-right whitespace-nowrap">
+									{Math.floor(task.spentTime / 60)}h {task.spentTime % 60}m
 									{#if task.estimatedTime}
-										{Number(task.estimatedTime).toFixed(1)}h
-									{:else}
-										-
+										<span class="text-muted-foreground">/ {Math.floor(task.estimatedTime / 60)}h {task.estimatedTime % 60}m</span>
 									{/if}
-									/
-									{task.spentTime.toFixed(1)}h
 								</Table.Cell>
 								<Table.Cell>
 									<div class="flex items-center gap-1">
@@ -713,46 +743,36 @@
 								</Table.Cell>
 							</Table.Row>
 						{/each}
-					{/each}
-				{/if}
-			</Table.Body>
-		</Table.Root>
-	</div>
+					</Table.Body>
+				</Table.Root>
+			</div>
+		{/each}
+	{/if}
 
 	<!-- Pagination -->
-	{#if data.pagination.totalPages > 1}
-		<div class="flex items-center justify-between">
-			<p class="text-sm text-muted-foreground">
-				Showing {(data.pagination.page - 1) * data.pagination.limit + 1} to {Math.min(
-					data.pagination.page * data.pagination.limit,
-					data.pagination.total
-				)} of {data.pagination.total} tasks
-			</p>
-			<div class="flex items-center gap-2">
-				<Button
-					variant="outline"
-					size="sm"
-					disabled={data.pagination.page === 1}
-					onclick={() => goToPage(data.pagination.page - 1)}
-				>
-					<ChevronLeft class="h-4 w-4" />
-					Previous
-				</Button>
-				<span class="text-sm">
-					Page {data.pagination.page} of {data.pagination.totalPages}
-				</span>
-				<Button
-					variant="outline"
-					size="sm"
-					disabled={data.pagination.page === data.pagination.totalPages}
-					onclick={() => goToPage(data.pagination.page + 1)}
-				>
-					Next
-					<ChevronRight class="h-4 w-4" />
-				</Button>
-			</div>
+	<div class="flex items-center justify-between">
+		<p class="text-sm text-muted-foreground">
+			{data.pagination.total} tasks
+		</p>
+		<div class="flex items-center gap-2">
+			<span class="text-sm text-muted-foreground">Show</span>
+			<Select.Root
+				type="single"
+				value={String(data.pagination.limit)}
+				onValueChange={(v) => updateUrl({ limit: v, page: '1' })}
+			>
+				<Select.Trigger class="w-[70px] h-8">
+					{data.pagination.limit}
+				</Select.Trigger>
+				<Select.Content>
+					{#each perPageOptions as option}
+						<Select.Item value={option.value}>{option.label}</Select.Item>
+					{/each}
+				</Select.Content>
+			</Select.Root>
+			<span class="text-sm text-muted-foreground">per page</span>
 		</div>
-	{/if}
+	</div>
 </div>
 
 <!-- Task Detail Modal -->
@@ -762,13 +782,13 @@
 	taskId={modalTaskId}
 	projects={data.projects}
 	employees={data.employees}
-	taskTypes={data.taskTypes}
-	taskCategories={data.taskCategories}
-	taskStatuses={data.taskStatuses}
+	taskTypes={data.enums.task_type}
+	taskCategories={data.enums.task_category}
 	taskPriorities={data.taskPriorities}
 	availableTags={data.availableTags}
-	timeRecordTypes={data.timeRecordTypes}
-	timeRecordCategories={data.timeRecordCategories}
+	timeRecordTypes={data.enums.time_record_type}
+	timeRecordCategories={data.enums.time_record_category}
+	currentPersonId={data.user?.personId}
 	defaults={undefined}
 	onTaskCreated={() => invalidateAll()}
 	onTaskUpdated={() => invalidateAll()}
@@ -813,6 +833,28 @@
 				disabled={isRestoring}
 			>
 				{isRestoring ? 'Restoring...' : 'Restore'}
+			</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
+
+<!-- Bulk Delete Confirmation Dialog -->
+<AlertDialog.Root bind:open={bulkDeleteDialogOpen}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Delete {selectedIds.size} Tasks</AlertDialog.Title>
+			<AlertDialog.Description>
+				Are you sure you want to delete {selectedIds.size} tasks? This action can be undone by an administrator.
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<AlertDialog.Action
+				class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+				onclick={handleBulkDelete}
+				disabled={isBulkDeleting}
+			>
+				{isBulkDeleting ? 'Deleting...' : `Delete ${selectedIds.size} Tasks`}
 			</AlertDialog.Action>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>

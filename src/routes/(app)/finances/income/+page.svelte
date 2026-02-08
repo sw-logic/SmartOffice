@@ -5,12 +5,14 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
+	import * as Card from '$lib/components/ui/card';
 	import * as Table from '$lib/components/ui/table';
+	import * as Tabs from '$lib/components/ui/tabs';
 	import * as Select from '$lib/components/ui/select';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import DateRangeSelector from '$lib/components/shared/DateRangeSelector.svelte';
 	import IncomeFormModal from '$lib/components/shared/IncomeFormModal.svelte';
+	import { Checkbox } from '$lib/components/ui/checkbox';
 	import {
 		Plus,
 		Search,
@@ -18,8 +20,15 @@
 		Trash2,
 		Pencil,
 		RefreshCw,
-		TrendingUp
+		TrendingUp,
+		ChevronLeft,
+		ChevronRight,
+		DollarSign,
+		Hash,
+		Calculator
 	} from 'lucide-svelte';
+	import { toast } from 'svelte-sonner';
+	import { formatDate } from '$lib/utils/date';
 
 	let { data } = $props();
 
@@ -28,18 +37,103 @@
 	let selectedIncome = $state<{ id: number; description: string } | null>(null);
 	let modalOpen = $state(false);
 	let editIncomeId = $state<number | null>(null);
+	let editIsProjectedOccurrence = $state(false);
+
+	// Bulk selection
+	let selectedIds = $state<Set<number>>(new Set());
+	let bulkDeleteDialogOpen = $state(false);
+	let isBulkDeleting = $state(false);
+
+	let allSelected = $derived(data.incomes.length > 0 && selectedIds.size === data.incomes.length);
+	let someSelected = $derived(selectedIds.size > 0 && selectedIds.size < data.incomes.length);
+
+	function toggleSelectAll() {
+		if (allSelected) {
+			selectedIds = new Set();
+		} else {
+			selectedIds = new Set(data.incomes.map((i) => i.id));
+		}
+	}
+
+	function toggleSelect(id: number) {
+		const next = new Set(selectedIds);
+		if (next.has(id)) {
+			next.delete(id);
+		} else {
+			next.add(id);
+		}
+		selectedIds = next;
+	}
+
+	async function handleBulkDelete() {
+		if (selectedIds.size === 0) return;
+		isBulkDeleting = true;
+
+		const formData = new FormData();
+		formData.append('ids', Array.from(selectedIds).join(','));
+
+		const response = await fetch('?/bulkDelete', {
+			method: 'POST',
+			body: formData
+		});
+
+		const result = await response.json();
+
+		if (result.type === 'success') {
+			toast.success(`${selectedIds.size} income record(s) deleted successfully`);
+			selectedIds = new Set();
+			invalidateAll();
+		} else {
+			toast.error(result.data?.error || 'Failed to delete income records');
+		}
+
+		isBulkDeleting = false;
+		bulkDeleteDialogOpen = false;
+	}
+
+	// Edit choice dialog for projected occurrences
+	let editChoiceDialogOpen = $state(false);
+	let editChoiceItem = $state<{ id: number; parentId: number | null } | null>(null);
 
 	function openCreateModal() {
 		editIncomeId = null;
+		editIsProjectedOccurrence = false;
 		modalOpen = true;
 	}
 
 	function openEditModal(id: number) {
-		editIncomeId = id;
-		modalOpen = true;
+		const income = data.incomes.find((i) => i.id === id);
+		if (income?.parentId && income.status === 'projected') {
+			// Projected occurrence — ask user what to edit
+			editChoiceItem = { id: income.id, parentId: income.parentId };
+			editChoiceDialogOpen = true;
+		} else {
+			editIncomeId = id;
+			editIsProjectedOccurrence = false;
+			modalOpen = true;
+		}
+	}
+
+	function editOccurrence() {
+		if (editChoiceItem) {
+			editIncomeId = editChoiceItem.id;
+			editIsProjectedOccurrence = true;
+			editChoiceDialogOpen = false;
+			modalOpen = true;
+		}
+	}
+
+	function editOriginal() {
+		if (editChoiceItem) {
+			editIncomeId = editChoiceItem.parentId;
+			editIsProjectedOccurrence = false;
+			editChoiceDialogOpen = false;
+			modalOpen = true;
+		}
 	}
 
 	const statusOptions = [
+		{ value: 'projected', label: 'Projected' },
 		{ value: 'paid', label: 'Paid' },
 		{ value: 'pending', label: 'Pending' },
 		{ value: 'late', label: 'Late' },
@@ -63,6 +157,38 @@
 		yearly: 'Yearly'
 	};
 
+	const monthNames = [
+		'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+		'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+	];
+
+	const monthFullNames = [
+		'January', 'February', 'March', 'April', 'May', 'June',
+		'July', 'August', 'September', 'October', 'November', 'December'
+	];
+
+	const now = new Date();
+	const currentYear = now.getFullYear();
+	const currentMonth = now.getMonth() + 1;
+
+	let isMonthPeriod = $derived(parseInt(data.period) >= 1 && parseInt(data.period) <= 12);
+
+	function navigateTo(year: number, period: string) {
+		const params = new URLSearchParams($page.url.searchParams);
+		params.set('year', String(year));
+		params.set('period', period);
+		params.delete('page');
+		goto(`?${params.toString()}`);
+	}
+
+	function changeYear(delta: number) {
+		navigateTo(data.year + delta, data.period);
+	}
+
+	function changePeriod(p: string) {
+		navigateTo(data.year, p);
+	}
+
 	function updateFilter(key: string, value: string) {
 		const params = new URLSearchParams($page.url.searchParams);
 		if (value) {
@@ -73,14 +199,6 @@
 		if (key !== 'page') {
 			params.delete('page');
 		}
-		goto(`?${params.toString()}`);
-	}
-
-	function handleDateRangeChange(start: string, end: string) {
-		const params = new URLSearchParams($page.url.searchParams);
-		params.set('startDate', start);
-		params.set('endDate', end);
-		params.delete('page');
 		goto(`?${params.toString()}`);
 	}
 
@@ -118,6 +236,8 @@
 				return 'secondary';
 			case 'late':
 				return 'destructive';
+			case 'projected':
+				return 'outline';
 			case 'suspended':
 				return 'outline';
 			default:
@@ -132,33 +252,149 @@
 		}).format(amount);
 	}
 
-	function formatDate(date: Date | string | null): string {
-		if (!date) return '-';
-		return new Date(date).toLocaleDateString();
-	}
-
+	let average = $derived(data.summary.count > 0 ? data.summary.totalAmount / data.summary.count : 0);
 </script>
 
 <div class="space-y-6">
+	<!-- Header -->
 	<div class="flex items-center justify-between">
 		<div>
 			<h1 class="text-3xl font-bold tracking-tight">Income</h1>
 			<p class="text-muted-foreground">Track and manage your income</p>
 		</div>
-		<Button onclick={openCreateModal}>
-			<Plus class="mr-2 h-4 w-4" />
-			Add Income
-		</Button>
+		<div class="flex items-center gap-4">
+			{#if selectedIds.size > 0}
+				<Button variant="destructive" onclick={() => (bulkDeleteDialogOpen = true)}>
+					<Trash2 class="mr-2 h-4 w-4" />
+					Delete ({selectedIds.size})
+				</Button>
+			{/if}
+            <Button onclick={openCreateModal}>
+                <Plus class="mr-2 h-4 w-4" />
+                Add Income
+            </Button>
+			<div class="flex items-center gap-2">
+				<Button variant="outline" size="icon" onclick={() => changeYear(-1)}>
+					<ChevronLeft class="h-4 w-4" />
+				</Button>
+				<span class="min-w-[4rem] text-center text-lg font-semibold">{data.year}</span>
+				<Button variant="outline" size="icon" onclick={() => changeYear(1)}>
+					<ChevronRight class="h-4 w-4" />
+				</Button>
+			</div>
+		</div>
+	</div>
+
+	<!-- Time period selectors -->
+	<div class="w-full flex items-center gap-2">
+		<Tabs.Root class="flex-12" value={data.period} onValueChange={(v) => changePeriod(v)}>
+			<Tabs.List class="w-full gap-2">
+				{#each monthNames as name, i}
+					{@const m = i + 1}
+					{@const isCurrentMonth = data.year === currentYear && String(m) === String(currentMonth)}
+					<Tabs.Trigger
+						value={String(m)}
+						class="rounded-sm {isCurrentMonth ? 'ring-primary/50 ring-2' : ''}"
+					>
+						{name}
+					</Tabs.Trigger>
+				{/each}
+			</Tabs.List>
+		</Tabs.Root>
+
+		<Tabs.Root class="flex-5" value={data.period} onValueChange={(v) => changePeriod(v)}>
+			<Tabs.List class="w-full gap-2">
+				<Tabs.Trigger value="q1" class="rounded-sm">Q1</Tabs.Trigger>
+				<Tabs.Trigger value="q2" class="rounded-sm">Q2</Tabs.Trigger>
+				<Tabs.Trigger value="q3" class="rounded-sm">Q3</Tabs.Trigger>
+				<Tabs.Trigger value="q4" class="rounded-sm">Q4</Tabs.Trigger>
+				<Tabs.Trigger value="year" class="rounded-sm">Year</Tabs.Trigger>
+			</Tabs.List>
+		</Tabs.Root>
+	</div>
+
+	<!-- Summary Cards -->
+	<div class="grid gap-4 md:grid-cols-2 {isMonthPeriod ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}">
+		<Card.Root>
+			<Card.Header class="flex flex-row items-center justify-between space-y-0 pb-2">
+				<Card.Title class="text-sm font-medium">Total Income</Card.Title>
+				<TrendingUp class="text-muted-foreground h-4 w-4" />
+			</Card.Header>
+			<Card.Content>
+				<div class="text-2xl font-bold text-green-600">
+					{formatCurrency(data.summary.totalAmount)}
+				</div>
+				<p class="text-muted-foreground text-xs">
+					For selected period
+				</p>
+			</Card.Content>
+		</Card.Root>
+
+		<Card.Root>
+			<Card.Header class="flex flex-row items-center justify-between space-y-0 pb-2">
+				<Card.Title class="text-sm font-medium">Tax Value</Card.Title>
+				<DollarSign class="text-muted-foreground h-4 w-4" />
+			</Card.Header>
+			<Card.Content>
+				<div class="text-2xl font-bold">
+					{formatCurrency(data.summary.totalTaxValue)}
+				</div>
+				<p class="text-muted-foreground text-xs">
+					Total tax on income
+				</p>
+			</Card.Content>
+		</Card.Root>
+
+		<Card.Root>
+			<Card.Header class="flex flex-row items-center justify-between space-y-0 pb-2">
+				<Card.Title class="text-sm font-medium">Records</Card.Title>
+				<Hash class="text-muted-foreground h-4 w-4" />
+			</Card.Header>
+			<Card.Content>
+				<div class="text-2xl font-bold">
+					{data.summary.count}
+				</div>
+				<p class="text-muted-foreground text-xs">
+					Income entries
+				</p>
+			</Card.Content>
+		</Card.Root>
+
+		<Card.Root>
+			<Card.Header class="flex flex-row items-center justify-between space-y-0 pb-2">
+				<Card.Title class="text-sm font-medium">Average</Card.Title>
+				<Calculator class="text-muted-foreground h-4 w-4" />
+			</Card.Header>
+			<Card.Content>
+				<div class="text-2xl font-bold">
+					{formatCurrency(average)}
+				</div>
+				<p class="text-muted-foreground text-xs">
+					Per record
+				</p>
+			</Card.Content>
+		</Card.Root>
+
+		{#if isMonthPeriod && data.cumulativeBalance}
+			<Card.Root>
+				<Card.Header class="flex flex-row items-center justify-between space-y-0 pb-2">
+					<Card.Title class="text-sm font-medium">YTD Balance (Jan – {monthFullNames[parseInt(data.period) - 1]})</Card.Title>
+					<DollarSign class="text-muted-foreground h-4 w-4" />
+				</Card.Header>
+				<Card.Content>
+					<div class="text-2xl font-bold" class:text-green-600={data.cumulativeBalance.balance >= 0} class:text-red-600={data.cumulativeBalance.balance < 0}>
+						{formatCurrency(data.cumulativeBalance.balance)}
+					</div>
+					<p class="text-muted-foreground text-xs">
+						Income: {formatCurrency(data.cumulativeBalance.income)} &middot; Expenses: {formatCurrency(data.cumulativeBalance.expenses)}
+					</p>
+				</Card.Content>
+			</Card.Root>
+		{/if}
 	</div>
 
 	<!-- Filters -->
 	<div class="flex flex-wrap items-center gap-4">
-		<DateRangeSelector
-			startDate={data.filters.startDate}
-			endDate={data.filters.endDate}
-			onRangeChange={handleDateRangeChange}
-		/>
-
 		<div class="flex items-center gap-2">
 			<Input
 				type="search"
@@ -245,6 +481,13 @@
 		<Table.Root>
 			<Table.Header>
 				<Table.Row>
+					<Table.Head class="w-[40px]">
+						<Checkbox
+							checked={allSelected}
+							indeterminate={someSelected}
+							onCheckedChange={toggleSelectAll}
+						/>
+					</Table.Head>
 					<Table.Head>
 						<Button variant="ghost" class="-ml-4" onclick={() => toggleSort('date')}>
 							Date
@@ -269,7 +512,13 @@
 			</Table.Header>
 			<Table.Body>
 				{#each data.incomes as income}
-					<Table.Row>
+					<Table.Row class={income.status === 'projected' ? 'opacity-60 border-dashed' : ''}>
+						<Table.Cell>
+							<Checkbox
+								checked={selectedIds.has(income.id)}
+								onCheckedChange={() => toggleSelect(income.id)}
+							/>
+						</Table.Cell>
 						<Table.Cell>
 							<div>
 								<div>{formatDate(income.date)}</div>
@@ -365,7 +614,7 @@
 					</Table.Row>
 				{:else}
 					<Table.Row>
-						<Table.Cell colspan={10} class="text-center py-8">
+						<Table.Cell colspan={11} class="text-center py-8">
 							<div class="text-muted-foreground">No income records found for this period</div>
 						</Table.Cell>
 					</Table.Row>
@@ -374,7 +623,7 @@
 				<!-- Summary Row -->
 				{#if data.incomes.length > 0}
 					<Table.Row class="bg-muted/50 font-medium">
-						<Table.Cell colspan={6} class="text-right">
+						<Table.Cell colspan={7} class="text-right">
 							<div class="flex items-center justify-end gap-2">
 								<TrendingUp class="h-4 w-4 text-green-600" />
 								Summary ({data.summary.count} records)
@@ -429,14 +678,55 @@
 <IncomeFormModal
 	bind:open={modalOpen}
 	incomeId={editIncomeId}
+	isProjectedOccurrence={editIsProjectedOccurrence}
 	clients={data.clients}
 	projects={data.projects}
-	categories={data.incomeCategories}
-	currencies={data.currencies}
-	statuses={data.incomeStatuses}
-	recurringPeriods={data.recurringPeriods}
+	categories={data.enums.income_category}
+	currencies={data.enums.currency}
+	statuses={data.enums.income_status}
+	recurringPeriods={data.enums.recurring_period}
+	paymentTerms={data.enums.payment_terms}
 	onSaved={() => invalidateAll()}
 />
+
+<!-- Edit Choice Dialog for Projected Occurrences -->
+<AlertDialog.Root bind:open={editChoiceDialogOpen}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Edit Recurring Income</AlertDialog.Title>
+			<AlertDialog.Description>
+				This is a projected occurrence from a recurring income. What would you like to edit?
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<Button variant="outline" onclick={editOccurrence}>This Occurrence</Button>
+			<Button onclick={editOriginal}>Original Record</Button>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
+
+<!-- Bulk Delete Confirmation Dialog -->
+<AlertDialog.Root bind:open={bulkDeleteDialogOpen}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Delete {selectedIds.size} Income Record{selectedIds.size !== 1 ? 's' : ''}</AlertDialog.Title>
+			<AlertDialog.Description>
+				Are you sure you want to delete {selectedIds.size} selected income record{selectedIds.size !== 1 ? 's' : ''}? This action can be undone by an administrator.
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<AlertDialog.Action
+				class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+				onclick={handleBulkDelete}
+				disabled={isBulkDeleting}
+			>
+				{isBulkDeleting ? 'Deleting...' : 'Delete'}
+			</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
 
 <!-- Delete Confirmation Dialog -->
 <AlertDialog.Root bind:open={deleteDialogOpen}>
