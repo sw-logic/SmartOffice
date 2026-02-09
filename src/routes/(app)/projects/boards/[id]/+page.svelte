@@ -112,7 +112,7 @@
 		dueDate: string | Date | null;
 		estimatedTime: number | null;
 		spentTime: number;
-		assignedTo: { id: number; firstName: string; lastName: string } | null;
+		assignedTo: { id: number; firstName: string | null; lastName: string | null } | null;
 	};
 
 	// Grid: cellTasks[swimlaneId][columnId] = TaskItem[]
@@ -506,7 +506,7 @@
 		availableTags={modalData.availableTags}
 		timeRecordTypes={data.enums.time_record_type}
 		timeRecordCategories={data.enums.time_record_category}
-		currentPersonId={data.user?.personId}
+		currentUserId={data.user?.id}
 		notePriorities={data.enums.note_priority}
 		defaults={modalDefaults}
 		onTaskCreated={() => invalidateAll()}

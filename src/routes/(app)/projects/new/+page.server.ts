@@ -13,15 +13,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	const preselectedClientId = url.searchParams.get('clientId') || '';
 
-	const [clients, persons] = await Promise.all([
+	const [clients, employees] = await Promise.all([
 		prisma.client.findMany({
 			where: { status: 'active' },
 			select: { id: true, name: true },
 			orderBy: { name: 'asc' }
 		}),
-		prisma.person.findMany({
+		prisma.user.findMany({
 			where: {
-				personType: 'company_employee',
 				employeeStatus: 'active'
 			},
 			select: { id: true, firstName: true, lastName: true },
@@ -31,7 +30,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	return {
 		clients,
-		persons,
+		employees,
 		preselectedClientId,
 		canViewBudget
 	};

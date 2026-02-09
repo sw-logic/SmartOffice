@@ -265,9 +265,9 @@
 									{#if project.projectManager}
 										<span class="text-sm text-muted-foreground flex items-center gap-1">
 											<Avatar.Root class="size-5">
-												<Avatar.Fallback class="text-[9px]">{project.projectManager.firstName[0]}{project.projectManager.lastName[0]}</Avatar.Fallback>
+												<Avatar.Fallback class="text-[9px]">{(project.projectManager.firstName ?? '')[0]}{(project.projectManager.lastName ?? '')[0]}</Avatar.Fallback>
 											</Avatar.Root>
-											PM: {project.projectManager.firstName} {project.projectManager.lastName}
+											PM: {project.projectManager.firstName ?? ''} {project.projectManager.lastName ?? ''}
 										</span>
 									{/if}
 								</div>

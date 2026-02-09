@@ -33,13 +33,12 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 					id: true,
 					firstName: true,
 					lastName: true,
-					email: true,
-					jobTitle: true
+					email: true
 				}
 			},
 			assignedEmployees: {
 				include: {
-					person: {
+					user: {
 						select: {
 							id: true,
 							firstName: true,
@@ -121,21 +120,16 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	// Determine if user can manage project (admin or project manager)
 	let canManageProject = isAdmin;
 	if (!canManageProject && locals.user) {
-		const person = await prisma.person.findFirst({
-			where: { userId: locals.user.id },
-			select: { id: true }
-		});
-		if (person && project.projectManagerId === person.id) {
+		if (project.projectManagerId === locals.user.id) {
 			canManageProject = true;
 		}
 	}
 
 	// Load all active employees for team multi-select (only if user can manage)
-	let allEmployees: Array<{ id: number; firstName: string; lastName: string; jobTitle: string | null }> = [];
+	let allEmployees: Array<{ id: number; firstName: string | null; lastName: string | null; jobTitle: string | null }> = [];
 	if (canManageProject) {
-		allEmployees = await prisma.person.findMany({
+		allEmployees = await prisma.user.findMany({
 			where: {
-				personType: 'company_employee',
 				employeeStatus: 'active'
 			},
 			select: {
@@ -201,34 +195,33 @@ export const actions: Actions = {
 		let canManage = isAdmin;
 		if (!canManage && locals.user) {
 			const project = await prisma.project.findUnique({ where: { id: projectId }, select: { projectManagerId: true } });
-			const person = await prisma.person.findFirst({ where: { userId: locals.user.id }, select: { id: true } });
-			if (person && project?.projectManagerId === person.id) canManage = true;
+			if (project?.projectManagerId === locals.user.id) canManage = true;
 		}
 		if (!canManage) return fail(403, { error: 'Not authorized to manage team' });
 
 		const formData = await request.formData();
-		const personIdsJson = formData.get('personIds') as string;
+		const userIdsJson = formData.get('userIds') as string;
 
-		let personIds: number[];
+		let userIds: number[];
 		try {
-			personIds = JSON.parse(personIdsJson);
-			if (!Array.isArray(personIds)) throw new Error();
+			userIds = JSON.parse(userIdsJson);
+			if (!Array.isArray(userIds)) throw new Error();
 		} catch {
-			return fail(400, { error: 'Invalid person IDs' });
+			return fail(400, { error: 'Invalid user IDs' });
 		}
 
 		// Get old team for audit
 		const oldTeam = await prisma.projectEmployee.findMany({
 			where: { projectId },
-			select: { personId: true }
+			select: { userId: true }
 		});
 
 		// Replace team: delete all, recreate
 		await prisma.$transaction([
 			prisma.projectEmployee.deleteMany({ where: { projectId } }),
-			...personIds.map((personId) =>
+			...userIds.map((userId) =>
 				prisma.projectEmployee.create({
-					data: { projectId, personId }
+					data: { projectId, userId }
 				})
 			)
 		]);
@@ -238,8 +231,8 @@ export const actions: Actions = {
 			'projects',
 			String(projectId),
 			'Project',
-			{ teamMemberIds: oldTeam.map((t) => t.personId) },
-			{ teamMemberIds: personIds }
+			{ teamMemberIds: oldTeam.map((t) => t.userId) },
+			{ teamMemberIds: userIds }
 		);
 
 		return { success: true };
@@ -256,8 +249,7 @@ export const actions: Actions = {
 		let canManage = isAdmin;
 		if (!canManage && locals.user) {
 			const project = await prisma.project.findUnique({ where: { id: projectId }, select: { projectManagerId: true } });
-			const person = await prisma.person.findFirst({ where: { userId: locals.user.id }, select: { id: true } });
-			if (person && project?.projectManagerId === person.id) canManage = true;
+			if (project?.projectManagerId === locals.user.id) canManage = true;
 		}
 		if (!canManage) return fail(403, { error: 'Not authorized to manage milestones' });
 
@@ -303,8 +295,7 @@ export const actions: Actions = {
 		let canManage = isAdmin;
 		if (!canManage && locals.user) {
 			const project = await prisma.project.findUnique({ where: { id: projectId }, select: { projectManagerId: true } });
-			const person = await prisma.person.findFirst({ where: { userId: locals.user.id }, select: { id: true } });
-			if (person && project?.projectManagerId === person.id) canManage = true;
+			if (project?.projectManagerId === locals.user.id) canManage = true;
 		}
 		if (!canManage) return fail(403, { error: 'Not authorized to manage milestones' });
 

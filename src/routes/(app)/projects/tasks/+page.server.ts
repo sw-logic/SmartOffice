@@ -158,8 +158,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			select: { id: true, name: true, projectId: true },
 			orderBy: { name: 'asc' }
 		}),
-		prisma.person.findMany({
-			where: { personType: 'company_employee', employeeStatus: 'active' },
+		prisma.user.findMany({
+			where: { employeeStatus: 'active' },
 			select: { id: true, firstName: true, lastName: true },
 			orderBy: { firstName: 'asc' }
 		})

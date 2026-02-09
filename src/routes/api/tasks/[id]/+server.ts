@@ -62,8 +62,8 @@ export const GET: RequestHandler = async ({ locals, params }) => {
 					type: true,
 					category: true,
 					billable: true,
-					personId: true,
-					person: {
+					userId: true,
+					user: {
 						select: { id: true, firstName: true, lastName: true }
 					},
 					createdById: true,
@@ -113,22 +113,22 @@ export const GET: RequestHandler = async ({ locals, params }) => {
 		}
 	});
 
-	// Resolve reviewer and follower persons
-	const personIds = [...new Set([...task.reviewerIds, ...task.followerIds])];
-	const persons = personIds.length > 0
-		? await prisma.person.findMany({
-				where: { id: { in: personIds } },
+	// Resolve reviewer and follower users
+	const userIds = [...new Set([...task.reviewerIds, ...task.followerIds])];
+	const users = userIds.length > 0
+		? await prisma.user.findMany({
+				where: { id: { in: userIds } },
 				select: { id: true, firstName: true, lastName: true }
 			})
 		: [];
 
-	const personsMap = new Map(persons.map(p => [p.id, p]));
+	const usersMap = new Map(users.map(u => [u.id, u]));
 
 	const reviewers = task.reviewerIds
-		.map(id => personsMap.get(id))
+		.map(id => usersMap.get(id))
 		.filter(Boolean);
 	const followers = task.followerIds
-		.map(id => personsMap.get(id))
+		.map(id => usersMap.get(id))
 		.filter(Boolean);
 
 	return json({

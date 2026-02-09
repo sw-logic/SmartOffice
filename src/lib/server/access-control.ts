@@ -2,10 +2,10 @@ import { error, redirect } from '@sveltejs/kit';
 import { prisma } from './prisma';
 
 export interface SessionUser {
-	id: string;
+	id: number;
 	email: string;
 	name: string;
-	companyId?: string;
+	companyId?: number;
 }
 
 export interface Locals {
@@ -20,7 +20,7 @@ export interface Locals {
  * Load all permissions for a user from the database and return them as a Set
  * of "module.action" strings. Called once per request in the authorization hook.
  */
-export async function loadUserPermissions(userId: string): Promise<Set<string>> {
+export async function loadUserPermissions(userId: number): Promise<Set<string>> {
 	const userWithPermissions = await prisma.user.findUnique({
 		where: { id: userId },
 		include: {
@@ -142,7 +142,7 @@ export function hasAllPermissions(
  * Get all permissions for any user (used by admin pages to display/manage
  * another user's permissions). This still queries the DB.
  */
-export async function getUserPermissions(userId: string): Promise<Array<{ id: number; module: string; action: string; description: string | null }>> {
+export async function getUserPermissions(userId: number): Promise<Array<{ id: number; module: string; action: string; description: string | null }>> {
 	const userWithPermissions = await prisma.user.findUnique({
 		where: { id: userId },
 		include: {
@@ -181,18 +181,7 @@ export async function getUserPermissions(userId: string): Promise<Array<{ id: nu
 	return Array.from(permissionsMap.values());
 }
 
-// ── Row-level access control (still async — needs DB queries) ────────────────
-
-/**
- * Get the Person record linked to a User account.
- * Returns null if the user has no associated Person (e.g. system accounts).
- */
-export async function getPersonForUser(userId: string): Promise<{ id: number } | null> {
-	return prisma.person.findFirst({
-		where: { userId },
-		select: { id: true }
-	});
-}
+// ── Row-level access control ────────────────────────────────────────────────
 
 /**
  * Check if the current user can access a specific project.
@@ -206,15 +195,12 @@ export async function canAccessProject(locals: Locals, projectId: number): Promi
 
 	if (!locals.user) return false;
 
-	const person = await getPersonForUser(locals.user.id);
-	if (!person) return false;
-
 	const project = await prisma.project.findFirst({
 		where: {
 			id: projectId,
 			OR: [
-				{ projectManagerId: person.id },
-				{ assignedEmployees: { some: { personId: person.id } } }
+				{ projectManagerId: locals.user.id },
+				{ assignedEmployees: { some: { userId: locals.user.id } } }
 			]
 		},
 		select: { id: true }
@@ -229,11 +215,8 @@ export async function canAccessProject(locals: Locals, projectId: number): Promi
 export async function isProjectManager(locals: Locals, projectId: number): Promise<boolean> {
 	if (!locals.user) return false;
 
-	const person = await getPersonForUser(locals.user.id);
-	if (!person) return false;
-
 	const project = await prisma.project.findFirst({
-		where: { id: projectId, projectManagerId: person.id },
+		where: { id: projectId, projectManagerId: locals.user.id },
 		select: { id: true }
 	});
 

@@ -16,7 +16,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		error(400, 'Invalid project ID');
 	}
 
-	const [project, clients, persons] = await Promise.all([
+	const [project, clients, employees] = await Promise.all([
 		prisma.project.findUnique({
 			where: { id: projectId },
 			select: {
@@ -38,9 +38,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			select: { id: true, name: true },
 			orderBy: { name: 'asc' }
 		}),
-		prisma.person.findMany({
+		prisma.user.findMany({
 			where: {
-				personType: 'company_employee',
 				employeeStatus: 'active'
 			},
 			select: { id: true, firstName: true, lastName: true },
@@ -59,7 +58,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			estimatedHours: project.estimatedHours ? Number(project.estimatedHours) : null
 		},
 		clients,
-		persons,
+		employees,
 		canViewBudget
 	};
 };

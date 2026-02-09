@@ -10,7 +10,7 @@ const ENTITY_PERMISSION_MAP: Record<string, string> = {
 	'Project': 'projects',
 	'Client': 'clients',
 	'Vendor': 'vendors',
-	'Person': 'employees',
+	'User': 'settings.users',
 	'Income': 'finances.income',
 	'Expense': 'finances.expenses',
 	'Payment': 'finances.payments',

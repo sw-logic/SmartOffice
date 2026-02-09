@@ -7,6 +7,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import * as Table from '$lib/components/ui/table';
 	import * as Tabs from '$lib/components/ui/tabs';
+	import * as Select from '$lib/components/ui/select';
 	import {
 		TrendingUp,
 		TrendingDown,
@@ -17,6 +18,8 @@
 		RefreshCw
 	} from 'lucide-svelte';
 	import { formatDate } from '$lib/utils/date';
+	import { groupFinanceRecords, type GroupByField } from '$lib/utils/group-by';
+	import GroupHeaderRow from '$lib/components/shared/GroupHeaderRow.svelte';
 
 	let { data } = $props();
 
@@ -107,6 +110,45 @@
 
 	let balancePositive = $derived(data.summary.balance >= 0);
 	let isMultiMonth = $derived(['q1', 'q2', 'q3', 'q4', 'year'].includes(data.period));
+
+	// Group-by
+	let groupBy = $derived(($page.url.searchParams.get('groupBy') as GroupByField) || 'none');
+	let collapsedIncomeGroups = $state<Set<string>>(new Set());
+	let collapsedExpenseGroups = $state<Set<string>>(new Set());
+
+	function toggleIncomeGroup(key: string) {
+		const next = new Set(collapsedIncomeGroups);
+		if (next.has(key)) { next.delete(key); } else { next.add(key); }
+		collapsedIncomeGroups = next;
+	}
+
+	function toggleExpenseGroup(key: string) {
+		const next = new Set(collapsedExpenseGroups);
+		if (next.has(key)) { next.delete(key); } else { next.add(key); }
+		collapsedExpenseGroups = next;
+	}
+
+	function updateGroupBy(v: string) {
+		const params = new URLSearchParams($page.url.searchParams);
+		if (v) { params.set('groupBy', v); } else { params.delete('groupBy'); }
+		goto(`?${params.toString()}`);
+	}
+
+	let groupedIncomes = $derived(
+		groupFinanceRecords(
+			data.incomes,
+			groupBy,
+			groupBy === 'category' ? data.enums.income_category : data.enums.income_status
+		)
+	);
+
+	let groupedExpenses = $derived(
+		groupFinanceRecords(
+			data.expenses,
+			groupBy,
+			groupBy === 'category' ? data.enums.expense_category : data.enums.expense_status
+		)
+	);
 </script>
 
 <div class="space-y-6">
@@ -116,14 +158,30 @@
 			<h1 class="text-3xl font-bold tracking-tight">Finances Dashboard</h1>
 			<p class="text-muted-foreground">Monthly financial overview</p>
 		</div>
-		<div class="flex items-center gap-2">
-			<Button variant="outline" size="icon" onclick={() => changeYear(-1)}>
-				<ChevronLeft class="h-4 w-4" />
-			</Button>
-			<span class="min-w-[4rem] text-center text-lg font-semibold">{data.year}</span>
-			<Button variant="outline" size="icon" onclick={() => changeYear(1)}>
-				<ChevronRight class="h-4 w-4" />
-			</Button>
+		<div class="flex items-center gap-4">
+			<Select.Root
+				type="single"
+				value={groupBy}
+				onValueChange={(v) => updateGroupBy(v)}
+			>
+				<Select.Trigger class="w-40">
+					{groupBy === 'category' ? 'By Category' : groupBy === 'status' ? 'By Status' : 'No Grouping'}
+				</Select.Trigger>
+				<Select.Content>
+					<Select.Item value="">No Grouping</Select.Item>
+					<Select.Item value="category">By Category</Select.Item>
+					<Select.Item value="status">By Status</Select.Item>
+				</Select.Content>
+			</Select.Root>
+			<div class="flex items-center gap-2">
+				<Button variant="outline" size="icon" onclick={() => changeYear(-1)}>
+					<ChevronLeft class="h-4 w-4" />
+				</Button>
+				<span class="min-w-[4rem] text-center text-lg font-semibold">{data.year}</span>
+				<Button variant="outline" size="icon" onclick={() => changeYear(1)}>
+					<ChevronRight class="h-4 w-4" />
+				</Button>
+			</div>
 		</div>
 	</div>
 
@@ -244,40 +302,92 @@
 						</Table.Row>
 					</Table.Header>
 					<Table.Body>
-						{#each data.incomes as income}
-							<Table.Row>
-								<Table.Cell class="whitespace-nowrap text-xs">{formatDate(income.date)}</Table.Cell>
-								<Table.Cell>
-									<div class="font-medium text-sm truncate max-w-[150px]" title={income.description}>
-										{income.description}
-									</div>
-									<div class="text-xs text-muted-foreground">
-										{#if income.client}
-											{income.client.name}
-										{:else if income.clientName}
-											{income.clientName}
-										{/if}
-										{#if income.isRecurring}
-											<RefreshCw class="inline h-3 w-3 ml-1" />
-										{/if}
-									</div>
-								</Table.Cell>
-								<Table.Cell>
-									<EnumBadge enums={data.enums.income_status} value={income.status} class="text-xs" />
-								</Table.Cell>
-								<Table.Cell class="text-right font-medium text-green-600 whitespace-nowrap">
-									{formatCurrency(income.amount, income.currency)}
-								</Table.Cell>
-							</Table.Row>
+						{#if groupBy !== 'none'}
+							{#each groupedIncomes as group}
+								<GroupHeaderRow
+									label={group.label}
+									color={group.color}
+									count={group.subtotals.count}
+									subtotalAmount={group.subtotals.amount}
+									colspan={4}
+									expanded={!collapsedIncomeGroups.has(group.key)}
+									onToggle={() => toggleIncomeGroup(group.key)}
+									formatCurrency={(v) => formatCurrency(v)}
+									colorClass="text-green-600"
+								/>
+								{#if !collapsedIncomeGroups.has(group.key)}
+									{#each group.items as income}
+										<Table.Row>
+											<Table.Cell class="whitespace-nowrap text-xs">{formatDate(income.date)}</Table.Cell>
+											<Table.Cell>
+												<div class="font-medium text-sm truncate max-w-[150px]" title={income.description}>
+													{income.description}
+												</div>
+												<div class="text-xs text-muted-foreground">
+													{#if income.client}
+														{income.client.name}
+													{:else if income.clientName}
+														{income.clientName}
+													{/if}
+													{#if income.isRecurring}
+														<RefreshCw class="inline h-3 w-3 ml-1" />
+													{/if}
+												</div>
+											</Table.Cell>
+											<Table.Cell>
+												<EnumBadge enums={data.enums.income_status} value={income.status} class="text-xs" />
+											</Table.Cell>
+											<Table.Cell class="text-right font-medium text-green-600 whitespace-nowrap">
+												{formatCurrency(income.amount, income.currency)}
+											</Table.Cell>
+										</Table.Row>
+									{/each}
+								{/if}
+							{:else}
+								<Table.Row>
+									<Table.Cell colspan={4} class="py-8 text-center">
+										<div class="text-muted-foreground text-sm">
+											No income for {getPeriodLabel(data.period)}
+										</div>
+									</Table.Cell>
+								</Table.Row>
+							{/each}
 						{:else}
-							<Table.Row>
-								<Table.Cell colspan={4} class="py-8 text-center">
-									<div class="text-muted-foreground text-sm">
-										No income for {getPeriodLabel(data.period)}
-									</div>
-								</Table.Cell>
-							</Table.Row>
-						{/each}
+							{#each data.incomes as income}
+								<Table.Row>
+									<Table.Cell class="whitespace-nowrap text-xs">{formatDate(income.date)}</Table.Cell>
+									<Table.Cell>
+										<div class="font-medium text-sm truncate max-w-[150px]" title={income.description}>
+											{income.description}
+										</div>
+										<div class="text-xs text-muted-foreground">
+											{#if income.client}
+												{income.client.name}
+											{:else if income.clientName}
+												{income.clientName}
+											{/if}
+											{#if income.isRecurring}
+												<RefreshCw class="inline h-3 w-3 ml-1" />
+											{/if}
+										</div>
+									</Table.Cell>
+									<Table.Cell>
+										<EnumBadge enums={data.enums.income_status} value={income.status} class="text-xs" />
+									</Table.Cell>
+									<Table.Cell class="text-right font-medium text-green-600 whitespace-nowrap">
+										{formatCurrency(income.amount, income.currency)}
+									</Table.Cell>
+								</Table.Row>
+							{:else}
+								<Table.Row>
+									<Table.Cell colspan={4} class="py-8 text-center">
+										<div class="text-muted-foreground text-sm">
+											No income for {getPeriodLabel(data.period)}
+										</div>
+									</Table.Cell>
+								</Table.Row>
+							{/each}
+						{/if}
 
 						{#if data.incomes.length > 0}
 							<Table.Row class="bg-muted/50 font-medium">
@@ -311,40 +421,92 @@
 						</Table.Row>
 					</Table.Header>
 					<Table.Body>
-						{#each data.expenses as expense}
-							<Table.Row>
-								<Table.Cell class="whitespace-nowrap text-xs">{formatDate(expense.date)}</Table.Cell>
-								<Table.Cell>
-									<div class="font-medium text-sm truncate max-w-[150px]" title={expense.description}>
-										{expense.description}
-									</div>
-									<div class="text-xs text-muted-foreground">
-										{#if expense.vendor}
-											{expense.vendor.name}
-										{:else if expense.vendorName}
-											{expense.vendorName}
-										{/if}
-										{#if expense.isRecurring}
-											<RefreshCw class="inline h-3 w-3 ml-1" />
-										{/if}
-									</div>
-								</Table.Cell>
-								<Table.Cell>
-									<EnumBadge enums={data.enums.expense_status} value={expense.status} class="text-xs" />
-								</Table.Cell>
-								<Table.Cell class="text-right font-medium text-red-600 whitespace-nowrap">
-									{formatCurrency(expense.amount, expense.currency)}
-								</Table.Cell>
-							</Table.Row>
+						{#if groupBy !== 'none'}
+							{#each groupedExpenses as group}
+								<GroupHeaderRow
+									label={group.label}
+									color={group.color}
+									count={group.subtotals.count}
+									subtotalAmount={group.subtotals.amount}
+									colspan={4}
+									expanded={!collapsedExpenseGroups.has(group.key)}
+									onToggle={() => toggleExpenseGroup(group.key)}
+									formatCurrency={(v) => formatCurrency(v)}
+									colorClass="text-red-600"
+								/>
+								{#if !collapsedExpenseGroups.has(group.key)}
+									{#each group.items as expense}
+										<Table.Row>
+											<Table.Cell class="whitespace-nowrap text-xs">{formatDate(expense.date)}</Table.Cell>
+											<Table.Cell>
+												<div class="font-medium text-sm truncate max-w-[150px]" title={expense.description}>
+													{expense.description}
+												</div>
+												<div class="text-xs text-muted-foreground">
+													{#if expense.vendor}
+														{expense.vendor.name}
+													{:else if expense.vendorName}
+														{expense.vendorName}
+													{/if}
+													{#if expense.isRecurring}
+														<RefreshCw class="inline h-3 w-3 ml-1" />
+													{/if}
+												</div>
+											</Table.Cell>
+											<Table.Cell>
+												<EnumBadge enums={data.enums.expense_status} value={expense.status} class="text-xs" />
+											</Table.Cell>
+											<Table.Cell class="text-right font-medium text-red-600 whitespace-nowrap">
+												{formatCurrency(expense.amount, expense.currency)}
+											</Table.Cell>
+										</Table.Row>
+									{/each}
+								{/if}
+							{:else}
+								<Table.Row>
+									<Table.Cell colspan={4} class="py-8 text-center">
+										<div class="text-muted-foreground text-sm">
+											No expenses for {getPeriodLabel(data.period)}
+										</div>
+									</Table.Cell>
+								</Table.Row>
+							{/each}
 						{:else}
-							<Table.Row>
-								<Table.Cell colspan={4} class="py-8 text-center">
-									<div class="text-muted-foreground text-sm">
-										No expenses for {getPeriodLabel(data.period)}
-									</div>
-								</Table.Cell>
-							</Table.Row>
-						{/each}
+							{#each data.expenses as expense}
+								<Table.Row>
+									<Table.Cell class="whitespace-nowrap text-xs">{formatDate(expense.date)}</Table.Cell>
+									<Table.Cell>
+										<div class="font-medium text-sm truncate max-w-[150px]" title={expense.description}>
+											{expense.description}
+										</div>
+										<div class="text-xs text-muted-foreground">
+											{#if expense.vendor}
+												{expense.vendor.name}
+											{:else if expense.vendorName}
+												{expense.vendorName}
+											{/if}
+											{#if expense.isRecurring}
+												<RefreshCw class="inline h-3 w-3 ml-1" />
+											{/if}
+										</div>
+									</Table.Cell>
+									<Table.Cell>
+										<EnumBadge enums={data.enums.expense_status} value={expense.status} class="text-xs" />
+									</Table.Cell>
+									<Table.Cell class="text-right font-medium text-red-600 whitespace-nowrap">
+										{formatCurrency(expense.amount, expense.currency)}
+									</Table.Cell>
+								</Table.Row>
+							{:else}
+								<Table.Row>
+									<Table.Cell colspan={4} class="py-8 text-center">
+										<div class="text-muted-foreground text-sm">
+											No expenses for {getPeriodLabel(data.period)}
+										</div>
+									</Table.Cell>
+								</Table.Row>
+							{/each}
+						{/if}
 
 						{#if data.expenses.length > 0}
 							<Table.Row class="bg-muted/50 font-medium">
@@ -386,11 +548,11 @@
 								<Table.Cell>
 									<div class="flex items-center gap-2">
 										<Avatar.Root class="h-7 w-7">
-											<Avatar.Fallback class="text-xs">{emp.firstName[0]}{emp.lastName[0]}</Avatar.Fallback>
+											<Avatar.Fallback class="text-xs">{(emp.firstName ?? '')[0]}{(emp.lastName ?? '')[0]}</Avatar.Fallback>
 										</Avatar.Root>
 										<div class="min-w-0">
-											<div class="font-medium text-sm truncate" title="{emp.firstName} {emp.lastName}">
-												{emp.firstName} {emp.lastName}
+											<div class="font-medium text-sm truncate" title="{emp.firstName ?? ''} {emp.lastName ?? ''}">
+												{emp.firstName ?? ''} {emp.lastName ?? ''}
 											</div>
 											{#if emp.jobTitle}
 												<div class="text-xs text-muted-foreground truncate" title={emp.jobTitle}>

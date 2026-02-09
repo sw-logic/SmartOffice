@@ -114,7 +114,7 @@ export const actions: Actions = {
 		}
 
 		// Create contact
-		const contact = await prisma.person.create({
+		const contact = await prisma.contact.create({
 			data: {
 				firstName: firstName.trim(),
 				lastName: lastName.trim(),
@@ -122,12 +122,11 @@ export const actions: Actions = {
 				phone: phone?.trim() || null,
 				mobile: mobile?.trim() || null,
 				position: position?.trim() || null,
-				personType: 'vendor_contact',
 				vendorId: vendorId
 			}
 		});
 
-		await logCreate(locals.user!.id, 'vendors', String(contact.id), 'Person', {
+		await logCreate(locals.user!.id, 'vendors', String(contact.id), 'Contact', {
 			firstName: contact.firstName,
 			lastName: contact.lastName,
 			email: contact.email,
@@ -171,7 +170,7 @@ export const actions: Actions = {
 		}
 
 		// Verify contact exists and belongs to this vendor
-		const existingContact = await prisma.person.findFirst({
+		const existingContact = await prisma.contact.findFirst({
 			where: {
 				id: contactId,
 				vendorId: vendorId
@@ -183,7 +182,7 @@ export const actions: Actions = {
 		}
 
 		// Update contact
-		const updatedContact = await prisma.person.update({
+		const updatedContact = await prisma.contact.update({
 			where: { id: contactId },
 			data: {
 				firstName: firstName.trim(),
@@ -195,7 +194,7 @@ export const actions: Actions = {
 			}
 		});
 
-		await logUpdate(locals.user!.id, 'vendors', String(contactId), 'Person', existingContact, {
+		await logUpdate(locals.user!.id, 'vendors', String(contactId), 'Contact', existingContact, {
 			firstName: updatedContact.firstName,
 			lastName: updatedContact.lastName,
 			email: updatedContact.email,
@@ -228,7 +227,7 @@ export const actions: Actions = {
 		}
 
 		// Verify contact exists and belongs to this vendor
-		const contact = await prisma.person.findFirst({
+		const contact = await prisma.contact.findFirst({
 			where: {
 				id: contactId,
 				vendorId: vendorId
@@ -246,13 +245,13 @@ export const actions: Actions = {
 		}
 
 		// Log before hard delete
-		await logDelete(locals.user!.id, 'vendors', String(contactId), 'Person', {
+		await logDelete(locals.user!.id, 'vendors', String(contactId), 'Contact', {
 			firstName: contact.firstName,
 			lastName: contact.lastName,
 			email: contact.email
 		});
 
-		await prisma.person.delete({
+		await prisma.contact.delete({
 			where: { id: contactId }
 		});
 

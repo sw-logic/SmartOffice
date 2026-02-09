@@ -41,14 +41,14 @@
 	let isUpdatingTeam = $state(false);
 
 	let selectedPersonIds = $derived(
-		new Set(data.project.assignedEmployees.map((a: { person: { id: number } }) => a.person.id))
+		new Set(data.project.assignedEmployees.map((a: { user: { id: number } }) => a.user.id))
 	);
 
 	let filteredEmployees = $derived(
-		data.allEmployees.filter((emp: { firstName: string; lastName: string }) => {
+		data.allEmployees.filter((emp: { firstName: string | null; lastName: string | null }) => {
 			if (!teamSearchQuery) return true;
 			const q = teamSearchQuery.toLowerCase();
-			return `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(q);
+			return `${emp.firstName ?? ''} ${emp.lastName ?? ''}`.toLowerCase().includes(q);
 		})
 	);
 
@@ -64,7 +64,7 @@
 		}
 
 		const formData = new FormData();
-		formData.set('personIds', JSON.stringify([...newIds]));
+		formData.set('userIds', JSON.stringify([...newIds]));
 
 		try {
 			const response = await fetch(`?/updateTeam`, {
@@ -150,8 +150,8 @@
 		}
 	}
 
-	function getInitials(firstName: string, lastName: string): string {
-		return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+	function getInitials(firstName: string | null, lastName: string | null): string {
+		return `${(firstName ?? '').charAt(0)}${(lastName ?? '').charAt(0)}`.toUpperCase();
 	}
 
 	function formatCurrency(amount: number): string {
@@ -213,12 +213,12 @@
 						<div class="flex items-center gap-3">
 							<Avatar.Root class="h-8 w-8">
 								<Avatar.Fallback class="text-xs">
-									{getInitials(data.project.projectManager.firstName, data.project.projectManager.lastName)}
+									{getInitials(data.project.projectManager.firstName ?? '', data.project.projectManager.lastName ?? '')}
 								</Avatar.Fallback>
 							</Avatar.Root>
 							<div>
 								<p class="text-sm text-muted-foreground">Project Manager</p>
-								<p>{data.project.projectManager.firstName} {data.project.projectManager.lastName}</p>
+								<p>{data.project.projectManager.firstName ?? ''} {data.project.projectManager.lastName ?? ''}</p>
 							</div>
 						</div>
 					{/if}
@@ -333,11 +333,11 @@
 								<div class="flex items-center gap-2">
 									<Avatar.Root class="h-6 w-6">
 										<Avatar.Fallback class="text-[10px]">
-											{getInitials(assignment.person.firstName, assignment.person.lastName)}
+											{getInitials(assignment.user.firstName ?? '', assignment.user.lastName ?? '')}
 										</Avatar.Fallback>
 									</Avatar.Root>
 									<span class="text-sm">
-										{assignment.person.firstName} {assignment.person.lastName}
+										{assignment.user.firstName ?? ''} {assignment.user.lastName ?? ''}
 										{#if assignment.role}
 											<span class="text-muted-foreground">({assignment.role})</span>
 										{/if}
@@ -501,7 +501,7 @@
 											{#if task.assignedTo}
 												<Avatar.Root class="h-5 w-5">
 													<Avatar.Fallback class="text-[9px]">
-														{getInitials(task.assignedTo.firstName, task.assignedTo.lastName)}
+														{getInitials(task.assignedTo.firstName ?? '', task.assignedTo.lastName ?? '')}
 													</Avatar.Fallback>
 												</Avatar.Root>
 												<span class="text-sm text-muted-foreground">

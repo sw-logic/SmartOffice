@@ -47,10 +47,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			},
 			members: {
 				select: {
-					personId: true,
+					userId: true,
 					role: true,
 					assignedAt: true,
-					person: {
+					user: {
 						select: {
 							id: true,
 							firstName: true,
@@ -71,7 +71,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const allProjectEmployees = await prisma.projectEmployee.findMany({
 		where: { projectId: board.projectId },
 		select: {
-			person: {
+			user: {
 				select: {
 					id: true,
 					firstName: true,
@@ -105,18 +105,18 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			taskCount: s._count.tasks
 		})),
 		members: board.members.map((m) => ({
-			personId: m.personId,
+			userId: m.userId,
 			role: m.role,
 			assignedAt: m.assignedAt,
-			firstName: m.person.firstName,
-			lastName: m.person.lastName,
-			jobTitle: m.person.jobTitle
+			firstName: m.user.firstName,
+			lastName: m.user.lastName,
+			jobTitle: m.user.jobTitle
 		})),
 		allProjectEmployees: allProjectEmployees.map((e) => ({
-			id: e.person.id,
-			firstName: e.person.firstName,
-			lastName: e.person.lastName,
-			jobTitle: e.person.jobTitle
+			id: e.user.id,
+			firstName: e.user.firstName,
+			lastName: e.user.lastName,
+			jobTitle: e.user.jobTitle
 		}))
 	};
 };
@@ -424,17 +424,17 @@ export const actions: Actions = {
 
 		const boardId = parseInt(params.id);
 		const formData = await request.formData();
-		const personIdsJson = formData.get('personIds') as string;
+		const userIdsJson = formData.get('userIds') as string;
 
-		let personIds: number[];
+		let userIds: number[];
 		try {
-			personIds = JSON.parse(personIdsJson);
-			if (!Array.isArray(personIds)) throw new Error();
+			userIds = JSON.parse(userIdsJson);
+			if (!Array.isArray(userIds)) throw new Error();
 		} catch {
-			return fail(400, { error: 'Invalid person IDs' });
+			return fail(400, { error: 'Invalid user IDs' });
 		}
 
-		// Verify all persons are on the board's project
+		// Verify all users are on the board's project
 		const board = await prisma.kanbanBoard.findUnique({
 			where: { id: boardId },
 			select: { projectId: true }
@@ -446,23 +446,23 @@ export const actions: Actions = {
 
 		const projectEmployees = await prisma.projectEmployee.findMany({
 			where: { projectId: board.projectId },
-			select: { personId: true }
+			select: { userId: true }
 		});
-		const validIds = new Set(projectEmployees.map((pe) => pe.personId));
-		const filteredIds = personIds.filter((id) => validIds.has(id));
+		const validIds = new Set(projectEmployees.map((pe) => pe.userId));
+		const filteredIds = userIds.filter((id) => validIds.has(id));
 
 		// Get old members for audit
 		const oldMembers = await prisma.kanbanBoardMember.findMany({
 			where: { kanbanBoardId: boardId },
-			select: { personId: true }
+			select: { userId: true }
 		});
 
 		// Replace members: delete all, recreate
 		await prisma.$transaction([
 			prisma.kanbanBoardMember.deleteMany({ where: { kanbanBoardId: boardId } }),
-			...filteredIds.map((personId) =>
+			...filteredIds.map((userId) =>
 				prisma.kanbanBoardMember.create({
-					data: { kanbanBoardId: boardId, personId, role: 'member' }
+					data: { kanbanBoardId: boardId, userId, role: 'member' }
 				})
 			)
 		]);
@@ -472,7 +472,7 @@ export const actions: Actions = {
 			'projects.kanban',
 			String(boardId),
 			'KanbanBoard',
-			{ memberIds: oldMembers.map((m) => m.personId) },
+			{ memberIds: oldMembers.map((m) => m.userId) },
 			{ memberIds: filteredIds }
 		);
 
@@ -484,16 +484,16 @@ export const actions: Actions = {
 
 		const boardId = parseInt(params.id);
 		const formData = await request.formData();
-		const personId = parseInt(formData.get('personId') as string);
+		const userId = parseInt(formData.get('userId') as string);
 		const role = (formData.get('role') as string)?.trim();
 
-		if (!personId || !role) {
-			return fail(400, { error: 'Person ID and role are required' });
+		if (!userId || !role) {
+			return fail(400, { error: 'User ID and role are required' });
 		}
 
 		const existing = await prisma.kanbanBoardMember.findUnique({
 			where: {
-				kanbanBoardId_personId: { kanbanBoardId: boardId, personId }
+				kanbanBoardId_userId: { kanbanBoardId: boardId, userId }
 			}
 		});
 
@@ -503,7 +503,7 @@ export const actions: Actions = {
 
 		await prisma.kanbanBoardMember.update({
 			where: {
-				kanbanBoardId_personId: { kanbanBoardId: boardId, personId }
+				kanbanBoardId_userId: { kanbanBoardId: boardId, userId }
 			},
 			data: { role }
 		});
@@ -511,7 +511,7 @@ export const actions: Actions = {
 		await logUpdate(
 			locals.user!.id,
 			'projects.kanban',
-			`${boardId}-${personId}`,
+			`${boardId}-${userId}`,
 			'KanbanBoardMember',
 			{ role: existing.role },
 			{ role }

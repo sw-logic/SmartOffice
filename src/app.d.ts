@@ -6,10 +6,10 @@ declare global {
 	namespace App {
 		interface Locals {
 			user?: {
-				id: string;
+				id: number;
 				email: string;
 				name: string;
-				companyId?: string;
+				companyId?: number;
 			};
 			permissions?: Set<string>;
 			auth(): Promise<Session | null>;

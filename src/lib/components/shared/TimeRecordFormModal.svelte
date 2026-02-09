@@ -15,8 +15,8 @@
 
 	interface PersonOption {
 		id: number;
-		firstName: string;
-		lastName: string;
+		firstName: string | null;
+		lastName: string | null;
 	}
 
 	interface TimeRecordData {
@@ -27,7 +27,7 @@
 		type: string | null;
 		category: string | null;
 		billable: boolean;
-		personId: number | null;
+		userId: number | null;
 	}
 
 	interface Props {
@@ -38,7 +38,7 @@
 		typeOptions: EnumOption[];
 		categoryOptions: EnumOption[];
 		employees: PersonOption[];
-		defaultPersonId: number | null;
+		defaultUserId: number | null;
 		onSaved: (record: any) => void;
 		onDeleted?: (id: number) => void;
 	}
@@ -51,7 +51,7 @@
 		typeOptions,
 		categoryOptions,
 		employees,
-		defaultPersonId,
+		defaultUserId,
 		onSaved,
 		onDeleted
 	}: Props = $props();
@@ -66,7 +66,7 @@
 	let type = $state('');
 	let category = $state('');
 	let billable = $state(true);
-	let personId = $state<number | null>(null);
+	let userId = $state<number | null>(null);
 
 	let isEditing = $derived(!!record?.id);
 
@@ -83,7 +83,7 @@
 				type = record.type || '';
 				category = record.category || '';
 				billable = record.billable;
-				personId = record.personId;
+				userId = record.userId;
 			} else {
 				date = new Date().toISOString().slice(0, 10);
 				minutes = null;
@@ -91,7 +91,7 @@
 				type = '';
 				category = '';
 				billable = true;
-				personId = defaultPersonId;
+				userId = defaultUserId;
 			}
 			error = null;
 		}
@@ -111,7 +111,7 @@
 			type: type || null,
 			category: category || null,
 			billable,
-			personId: personId || null
+			userId: userId || null
 		};
 
 		try {
@@ -268,12 +268,12 @@
                     <Label>Person</Label>
                     <Select.Root
                             type="single"
-                            value={personId ? String(personId) : 'none'}
-                            onValueChange={(v) => { personId = v === 'none' ? null : parseInt(v); }}
+                            value={userId ? String(userId) : 'none'}
+                            onValueChange={(v) => { userId = v === 'none' ? null : parseInt(v); }}
                     >
                         <Select.Trigger class="w-full">
-                            {employees.find(e => e.id === personId)
-                                ? `${employees.find(e => e.id === personId)!.firstName} ${employees.find(e => e.id === personId)!.lastName}`
+                            {employees.find(e => e.id === userId)
+                                ? `${employees.find(e => e.id === userId)!.firstName} ${employees.find(e => e.id === userId)!.lastName}`
                                 : 'None'}
                         </Select.Trigger>
                         <Select.Content>

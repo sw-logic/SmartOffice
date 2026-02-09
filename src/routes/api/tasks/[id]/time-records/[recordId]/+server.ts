@@ -13,8 +13,8 @@ const timeRecordSelect = {
 	type: true,
 	category: true,
 	billable: true,
-	personId: true,
-	person: {
+	userId: true,
+	user: {
 		select: { id: true, firstName: true, lastName: true }
 	},
 	createdById: true,
@@ -44,7 +44,7 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 			type: true,
 			category: true,
 			billable: true,
-			personId: true,
+			userId: true,
 			createdById: true,
 			task: { select: { projectId: true } }
 		}
@@ -99,9 +99,9 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 		data.billable = !!body.billable;
 		oldValues.billable = existing.billable;
 	}
-	if ('personId' in body) {
-		data.personId = body.personId || null;
-		oldValues.personId = existing.personId;
+	if ('userId' in body) {
+		data.userId = body.userId || null;
+		oldValues.userId = existing.userId;
 	}
 
 	const updated = await prisma.timeRecord.update({

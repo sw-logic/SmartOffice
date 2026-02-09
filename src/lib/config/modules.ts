@@ -58,14 +58,6 @@ export const modules: Module[] = [
 		description: 'Manage vendors and suppliers'
 	},
 	{
-		id: 'employees',
-		name: 'Employees',
-		icon: Users,
-		route: '/employees',
-		permissions: ['employees.read'],
-		description: 'Manage company employees'
-	},
-	{
 		id: 'projects',
 		name: 'Projects',
 		icon: Briefcase,

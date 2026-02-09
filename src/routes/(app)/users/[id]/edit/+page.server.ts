@@ -8,42 +8,79 @@ import bcrypt from 'bcryptjs';
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'settings', 'users');
 
-	const isAdmin = checkPermission(locals, '*', '*');
+	const userId = parseInt(params.id);
+	if (isNaN(userId)) {
+		error(400, 'Invalid user ID');
+	}
 
-	const user = await prisma.user.findUnique({
-		where: { id: params.id },
-		select: {
-			id: true,
-			name: true,
-			email: true,
-			userGroups: {
-				select: {
-					userGroupId: true
+	const isAdmin = checkPermission(locals, '*', '*');
+	const canManageSalary = checkPermission(locals, 'employees', 'salary');
+
+	const [user, userGroups, company] = await Promise.all([
+		prisma.user.findUnique({
+			where: { id: userId },
+			select: {
+				id: true,
+				name: true,
+				email: true,
+				firstName: true,
+				lastName: true,
+				phone: true,
+				mobile: true,
+				dateOfBirth: true,
+				street: true,
+				city: true,
+				postalCode: true,
+				country: true,
+				companyId: true,
+				hireDate: true,
+				employmentType: true,
+				department: true,
+				jobTitle: true,
+				employeeStatus: true,
+				salary: true,
+				salary_tax: true,
+				salary_bonus: true,
+				emergencyContact: true,
+				notes: true,
+				userGroups: {
+					select: {
+						userGroupId: true
+					}
 				}
 			}
-		}
-	});
+		}),
+		prisma.userGroup.findMany({
+			orderBy: { name: 'asc' },
+			select: {
+				id: true,
+				name: true,
+				description: true
+			}
+		}),
+		prisma.company.findFirst({
+			select: { id: true, name: true }
+		})
+	]);
 
 	if (!user) {
 		error(404, 'User not found');
 	}
 
-	const userGroups = await prisma.userGroup.findMany({
-		orderBy: { name: 'asc' },
-		select: {
-			id: true,
-			name: true,
-			description: true
-		}
-	});
-
 	return {
 		user: {
 			...user,
-			groupIds: user.userGroups.map(ug => ug.userGroupId)
+			groupIds: user.userGroups.map((ug) => ug.userGroupId),
+			salary: Number(user.salary) || null,
+			salary_tax: Number(user.salary_tax) || null,
+			salary_bonus: Number(user.salary_bonus) || null,
+			dateOfBirth: user.dateOfBirth ? user.dateOfBirth.toISOString().split('T')[0] : '',
+			hireDate: user.hireDate ? user.hireDate.toISOString().split('T')[0] : ''
 		},
 		userGroups,
-		isAdmin
+		isAdmin,
+		canManageSalary,
+		companyId: company?.id || null
 	};
 };
 
@@ -51,11 +88,76 @@ export const actions: Actions = {
 	default: async ({ locals, request, params }) => {
 		await requirePermission(locals, 'settings', 'users');
 
+		const userId = parseInt(params.id);
+		if (isNaN(userId)) {
+			return fail(400, { errors: { name: 'Invalid user ID' } });
+		}
+
+		const canManageSalary = checkPermission(locals, 'employees', 'salary');
+
 		const formData = await request.formData();
+
+		// Account fields
 		const name = formData.get('name') as string;
 		const email = formData.get('email') as string;
 		const password = formData.get('password') as string;
 		const groupIds = formData.getAll('groups') as string[];
+
+		// Personal info
+		const firstName = formData.get('firstName') as string;
+		const lastName = formData.get('lastName') as string;
+		const phone = formData.get('phone') as string;
+		const mobile = formData.get('mobile') as string;
+		const dateOfBirth = formData.get('dateOfBirth') as string;
+
+		// Address
+		const street = formData.get('street') as string;
+		const city = formData.get('city') as string;
+		const postalCode = formData.get('postalCode') as string;
+		const country = formData.get('country') as string;
+
+		// Employment
+		const companyId = formData.get('companyId') as string;
+		const hireDate = formData.get('hireDate') as string;
+		const employmentType = formData.get('employmentType') as string;
+		const department = formData.get('department') as string;
+		const jobTitle = formData.get('jobTitle') as string;
+		const employeeStatus = formData.get('employeeStatus') as string;
+
+		// Additional
+		const emergencyContact = formData.get('emergencyContact') as string;
+		const notes = formData.get('notes') as string;
+
+		// Salary (only if permitted)
+		const salaryStr = formData.get('salary') as string;
+		const salaryTaxStr = formData.get('salary_tax') as string;
+		const salaryBonusStr = formData.get('salary_bonus') as string;
+
+		const allValues = {
+			name,
+			email,
+			groupIds,
+			firstName,
+			lastName,
+			phone,
+			mobile,
+			dateOfBirth,
+			street,
+			city,
+			postalCode,
+			country,
+			companyId,
+			hireDate,
+			employmentType,
+			department,
+			jobTitle,
+			employeeStatus,
+			emergencyContact,
+			notes,
+			salary: salaryStr,
+			salary_tax: salaryTaxStr,
+			salary_bonus: salaryBonusStr
+		};
 
 		// Validation
 		const errors: Record<string, string> = {};
@@ -75,27 +177,27 @@ export const actions: Actions = {
 		}
 
 		if (Object.keys(errors).length > 0) {
-			return fail(400, { errors, values: { name, email, groupIds } });
+			return fail(400, { errors, values: allValues });
 		}
 
 		// Check if email already exists for another user
 		const existingUser = await prisma.user.findFirst({
 			where: {
 				email,
-				id: { not: params.id }
+				id: { not: userId }
 			}
 		});
 
 		if (existingUser) {
 			return fail(400, {
 				errors: { email: 'A user with this email already exists' },
-				values: { name, email, groupIds }
+				values: allValues
 			});
 		}
 
 		// Get old values for audit
 		const oldUser = await prisma.user.findUnique({
-			where: { id: params.id },
+			where: { id: userId },
 			include: {
 				userGroups: {
 					select: { userGroupId: true }
@@ -103,35 +205,57 @@ export const actions: Actions = {
 			}
 		});
 
-		// Prepare update data
-		const updateData: {
-			name: string;
-			email: string;
-			password?: string;
-		} = { name, email };
+		// Build update data
+		const updateData: Record<string, unknown> = {
+			name,
+			email,
+			firstName: firstName?.trim() || null,
+			lastName: lastName?.trim() || null,
+			phone: phone?.trim() || null,
+			mobile: mobile?.trim() || null,
+			dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+			street: street?.trim() || null,
+			city: city?.trim() || null,
+			postalCode: postalCode?.trim() || null,
+			country: country?.trim() || null,
+			companyId: companyId ? parseInt(companyId) : null,
+			hireDate: hireDate ? new Date(hireDate) : null,
+			employmentType: employmentType || null,
+			department: department || null,
+			jobTitle: jobTitle?.trim() || null,
+			employeeStatus: employeeStatus || null,
+			emergencyContact: emergencyContact?.trim() || null,
+			notes: notes?.trim() || null
+		};
 
 		if (password) {
 			updateData.password = await bcrypt.hash(password, 10);
 		}
 
+		// Only set salary fields if user has permission
+		if (canManageSalary) {
+			updateData.salary = salaryStr ? parseFloat(salaryStr) : null;
+			updateData.salary_tax = salaryTaxStr ? parseFloat(salaryTaxStr) : null;
+			updateData.salary_bonus = salaryBonusStr ? parseFloat(salaryBonusStr) : null;
+		}
+
 		// Update user and groups in a transaction
 		await prisma.$transaction(async (tx) => {
-			// Update user
 			await tx.user.update({
-				where: { id: params.id },
+				where: { id: userId },
 				data: updateData
 			});
 
 			// Remove old groups
 			await tx.userGroupUser.deleteMany({
-				where: { userId: params.id }
+				where: { userId }
 			});
 
 			// Add new groups
 			if (groupIds.length > 0) {
 				await tx.userGroupUser.createMany({
-					data: groupIds.map(groupId => ({
-						userId: params.id,
+					data: groupIds.map((groupId) => ({
+						userId,
 						userGroupId: parseInt(groupId)
 					}))
 				});
@@ -141,20 +265,30 @@ export const actions: Actions = {
 		await logUpdate(
 			locals.user!.id,
 			'users',
-			params.id,
+			String(userId),
 			'User',
 			{
 				name: oldUser?.name,
 				email: oldUser?.email,
-				groups: oldUser?.userGroups.map(ug => ug.userGroupId)
+				firstName: oldUser?.firstName,
+				lastName: oldUser?.lastName,
+				department: oldUser?.department,
+				jobTitle: oldUser?.jobTitle,
+				employeeStatus: oldUser?.employeeStatus,
+				groups: oldUser?.userGroups.map((ug) => ug.userGroupId)
 			},
 			{
 				name,
 				email,
+				firstName: firstName || null,
+				lastName: lastName || null,
+				department: department || null,
+				jobTitle: jobTitle || null,
+				employeeStatus: employeeStatus || null,
 				groups: groupIds
 			}
 		);
 
-		redirect(303, '/users');
+		redirect(303, `/users/${userId}`);
 	}
 };

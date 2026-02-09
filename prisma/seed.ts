@@ -272,7 +272,7 @@ async function main() {
 		}
 	});
 
-	// Create admin user
+	// Create admin user (with employee fields merged)
 	console.log('Creating admin user...');
 	const hashedPassword = await bcrypt.hash('admin123', 10);
 	const adminUser = await prisma.user.upsert({
@@ -281,21 +281,10 @@ async function main() {
 		create: {
 			email: 'admin@example.com',
 			name: 'Admin User',
-			password: hashedPassword
-		}
-	});
-
-	// Create person record for admin
-	await prisma.person.upsert({
-		where: { userId: adminUser.id },
-		update: {},
-		create: {
+			password: hashedPassword,
 			firstName: 'Admin',
 			lastName: 'User',
-			email: 'admin@example.com',
-			personType: 'company_employee',
 			companyId: company.id,
-			userId: adminUser.id,
 			employeeStatus: 'active'
 		}
 	});
@@ -351,14 +340,13 @@ async function main() {
 	];
 
 	for (const contact of clientContacts) {
-		await prisma.person.create({
+		await prisma.contact.create({
 			data: {
 				firstName: contact.firstName,
 				lastName: contact.lastName,
 				email: contact.email,
 				phone: contact.phone,
 				position: contact.position,
-				personType: 'client_contact',
 				clientId: client.id,
 				isPrimaryContact: contact.isPrimary
 			}
@@ -399,20 +387,19 @@ async function main() {
 	];
 
 	for (const contact of vendorContacts) {
-		await prisma.person.create({
+		await prisma.contact.create({
 			data: {
 				firstName: contact.firstName,
 				lastName: contact.lastName,
 				email: contact.email,
 				phone: contact.phone,
 				position: contact.position,
-				personType: 'vendor_contact',
 				vendorId: vendor.id
 			}
 		});
 	}
 
-	// Create 5 employees
+	// Create 5 employees (as User records with employee fields)
 	console.log('Creating employees...');
 	const employees = [
 		{ firstName: 'Alice', lastName: 'Anderson', email: 'alice@mycompany.com', department: 'Engineering', jobTitle: 'Senior Developer', salary: 95000 },
@@ -422,14 +409,16 @@ async function main() {
 		{ firstName: 'Eva', lastName: 'Evans', email: 'eva@mycompany.com', department: 'Finance', jobTitle: 'Accountant', salary: 70000 }
 	];
 
+	const employeePassword = await bcrypt.hash('employee123', 10);
 	const createdEmployees = [];
 	for (const emp of employees) {
-		const person = await prisma.person.create({
+		const user = await prisma.user.create({
 			data: {
+				email: emp.email,
+				name: `${emp.firstName} ${emp.lastName}`,
+				password: employeePassword,
 				firstName: emp.firstName,
 				lastName: emp.lastName,
-				email: emp.email,
-				personType: 'company_employee',
 				companyId: company.id,
 				department: emp.department,
 				jobTitle: emp.jobTitle,
@@ -439,7 +428,7 @@ async function main() {
 				employmentType: 'full-time'
 			}
 		});
-		createdEmployees.push(person);
+		createdEmployees.push(user);
 	}
 	const [alice, bob] = createdEmployees;
 
@@ -516,8 +505,8 @@ async function main() {
 			values: [
 				{ value: 'HUF', label: 'Hungarian Forint', sortOrder: 1, isDefault: true, metadata: { symbol: 'HUF', code: 'HUF' } },
 				{ value: 'USD', label: 'US Dollar', sortOrder: 1, metadata: { symbol: '$', code: 'USD' } },
-				{ value: 'EUR', label: 'Euro', sortOrder: 2, metadata: { symbol: '€', code: 'EUR' } },
-				{ value: 'GBP', label: 'British Pound', sortOrder: 3, metadata: { symbol: '£', code: 'GBP' } },
+				{ value: 'EUR', label: 'Euro', sortOrder: 2, metadata: { symbol: '\u20ac', code: 'EUR' } },
+				{ value: 'GBP', label: 'British Pound', sortOrder: 3, metadata: { symbol: '\u00a3', code: 'GBP' } },
 			]
 		},
 		{
@@ -1023,19 +1012,19 @@ async function main() {
 
 	// Assign employees to project
 	console.log('Assigning employees to project...');
-	for (const person of [alice, bob]) {
+	for (const user of [alice, bob]) {
 		await prisma.projectEmployee.upsert({
 			where: {
-				projectId_personId: {
+				projectId_userId: {
 					projectId: project.id,
-					personId: person.id
+					userId: user.id
 				}
 			},
 			update: {},
 			create: {
 				projectId: project.id,
-				personId: person.id,
-				role: person.id === alice.id ? 'Lead Developer' : 'Developer'
+				userId: user.id,
+				role: user.id === alice.id ? 'Lead Developer' : 'Developer'
 			}
 		});
 	}
@@ -1073,11 +1062,11 @@ async function main() {
 	});
 
 	// Add board members
-	for (const person of [alice, bob]) {
+	for (const user of [alice, bob]) {
 		await prisma.kanbanBoardMember.create({
 			data: {
 				kanbanBoardId: kanbanBoard.id,
-				personId: person.id,
+				userId: user.id,
 				role: 'member'
 			}
 		});
@@ -1184,10 +1173,10 @@ async function main() {
 	// Create time records
 	console.log('Creating time records...');
 	const timeRecordData = [
-		{ taskIndex: 0, date: '2026-01-20', minutes: 150, description: 'Investigated iOS Safari bug, found CSS issue', type: 'development', category: 'billable', billable: true, personId: alice.id },
-		{ taskIndex: 0, date: '2026-01-21', minutes: 90, description: 'Applied fix and tested across devices', type: 'development', category: 'billable', billable: true, personId: alice.id },
-		{ taskIndex: 1, date: '2026-01-18', minutes: 240, description: 'Initial wireframe sketches for homepage', type: 'design', category: 'billable', billable: true, personId: bob.id },
-		{ taskIndex: 1, date: '2026-01-22', minutes: 360, description: 'High-fidelity mockup in Figma', type: 'design', category: 'billable', billable: true, personId: bob.id }
+		{ taskIndex: 0, date: '2026-01-20', minutes: 150, description: 'Investigated iOS Safari bug, found CSS issue', type: 'development', category: 'billable', billable: true, userId: alice.id },
+		{ taskIndex: 0, date: '2026-01-21', minutes: 90, description: 'Applied fix and tested across devices', type: 'development', category: 'billable', billable: true, userId: alice.id },
+		{ taskIndex: 1, date: '2026-01-18', minutes: 240, description: 'Initial wireframe sketches for homepage', type: 'design', category: 'billable', billable: true, userId: bob.id },
+		{ taskIndex: 1, date: '2026-01-22', minutes: 360, description: 'High-fidelity mockup in Figma', type: 'design', category: 'billable', billable: true, userId: bob.id }
 	];
 
 	for (const tr of timeRecordData) {
@@ -1200,7 +1189,7 @@ async function main() {
 				type: tr.type,
 				category: tr.category,
 				billable: tr.billable,
-				personId: tr.personId,
+				userId: tr.userId,
 				createdById: adminUser.id
 			}
 		});
@@ -1209,7 +1198,7 @@ async function main() {
 	// Recalculate spentTime for seeded tasks
 	for (const task of createdTasks) {
 		const result = await prisma.timeRecord.aggregate({
-			where: { taskId: task.id, deletedAt: null },
+			where: { taskId: task.id },
 			_sum: { minutes: true }
 		});
 		await prisma.task.update({
@@ -1296,7 +1285,7 @@ async function main() {
 	console.log('Sample data created:');
 	console.log('  - 1 Client (Acme Corporation) with 3 contacts');
 	console.log('  - 1 Vendor (TechSupply Inc) with 3 contacts');
-	console.log('  - 5 Employees');
+	console.log('  - 5 Employees (as User accounts, password: employee123)');
 	console.log('  - 10 Income records (January 2026)');
 	console.log('  - 10 Expense records (January 2026)');
 	console.log('  - 1 Project (Website Redesign) with 2 milestones');

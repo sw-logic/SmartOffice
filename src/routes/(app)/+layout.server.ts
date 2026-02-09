@@ -1,6 +1,5 @@
 import type { LayoutServerLoad } from './$types';
 import { getUserPermissions } from '$lib/server/access-control';
-import { prisma } from '$lib/server/prisma';
 import { getEnumValuesBatch, ALL_ENUM_CODES, type EnumOption } from '$lib/server/enums';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
@@ -14,12 +13,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		};
 	}
 
-	const [permissions, person, enums] = await Promise.all([
+	const [permissions, enums] = await Promise.all([
 		getUserPermissions(user.id),
-		prisma.person.findUnique({
-			where: { userId: user.id },
-			select: { id: true }
-		}),
 		getEnumValuesBatch([...ALL_ENUM_CODES])
 	]);
 
@@ -28,8 +23,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			id: user.id,
 			email: user.email,
 			name: user.name,
-			companyId: user.companyId,
-			personId: person?.id ?? null
+			companyId: user.companyId
 		},
 		permissions: permissions.map(p => ({
 			module: p.module,

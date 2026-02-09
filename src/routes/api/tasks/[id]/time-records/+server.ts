@@ -13,8 +13,8 @@ const timeRecordSelect = {
 	type: true,
 	category: true,
 	billable: true,
-	personId: true,
-	person: {
+	userId: true,
+	user: {
 		select: { id: true, firstName: true, lastName: true }
 	},
 	createdById: true,
@@ -47,7 +47,7 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
 	}
 
 	const body = await request.json();
-	const { date, minutes, description, type, category, billable, personId } = body;
+	const { date, minutes, description, type, category, billable, userId } = body;
 
 	if (!date) {
 		return json({ error: 'Date is required' }, { status: 400 });
@@ -65,7 +65,7 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
 			type: type || null,
 			category: category || null,
 			billable: billable !== undefined ? billable : true,
-			personId: personId || null,
+			userId: userId || null,
 			createdById: locals.user!.id
 		},
 		select: timeRecordSelect
@@ -77,7 +77,7 @@ export const POST: RequestHandler = async ({ locals, params, request }) => {
 		taskId,
 		date,
 		minutes: Math.round(Number(minutes)),
-		personId: personId || null,
+		userId: userId || null,
 		billable: timeRecord.billable
 	});
 

@@ -32,8 +32,8 @@
 
 	interface PersonOption {
 		id: number;
-		firstName: string;
-		lastName: string;
+		firstName: string | null;
+		lastName: string | null;
 	}
 
 	interface ProjectOption {
@@ -79,7 +79,7 @@
 		timeRecordTypes: EnumOption[];
 		timeRecordCategories: EnumOption[];
 		notePriorities?: EnumOption[];
-		currentPersonId?: number | null;
+		currentUserId?: number | null;
 		defaults?: TaskDefaults;
 		onTaskCreated?: () => void;
 		onTaskUpdated?: () => void;
@@ -98,7 +98,7 @@
 		timeRecordTypes,
 		timeRecordCategories,
 		notePriorities = [],
-		currentPersonId = null,
+		currentUserId = null,
 		defaults,
 		onTaskCreated,
 		onTaskUpdated
@@ -418,8 +418,8 @@
 		await saveField('followerIds', arr);
 	}
 
-	function getInitials(firstName: string, lastName: string): string {
-		return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+	function getInitials(firstName: string | null, lastName: string | null): string {
+		return `${(firstName ?? '').charAt(0)}${(lastName ?? '').charAt(0)}`.toUpperCase();
 	}
 
 
@@ -610,7 +610,7 @@
 										typeOptions={timeRecordTypes}
 										categoryOptions={timeRecordCategories}
 										{employees}
-										{currentPersonId}
+										{currentUserId}
 										onTimeRecordsChange={(records) => {
 											task = { ...task, timeRecords: records };
 											onTaskUpdated?.();

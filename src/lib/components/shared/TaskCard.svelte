@@ -19,7 +19,7 @@
 			dueDate: string | Date | null;
 			estimatedTime: number | null;
 			spentTime: number;
-			assignedTo: { id: number; firstName: string; lastName: string } | null;
+			assignedTo: { id: number; firstName: string | null; lastName: string | null } | null;
 		};
 		priorityEnums?: EnumOption[];
 		onclick?: () => void;
@@ -29,8 +29,8 @@
 
 	let priorityColor = $derived(priorityEnums?.find(e => e.value === task.priority)?.color || '#D1D5DB');
 
-	function getInitials(firstName: string, lastName: string): string {
-		return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+	function getInitials(firstName: string | null, lastName: string | null): string {
+		return `${(firstName ?? '').charAt(0)}${(lastName ?? '').charAt(0)}`.toUpperCase();
 	}
 
 	function formatDuration(minutes: number): string {

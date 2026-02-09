@@ -155,7 +155,7 @@ export const actions: Actions = {
 
 		// If setting as primary, unset any existing primary contact
 		if (isPrimaryContact) {
-			await prisma.person.updateMany({
+			await prisma.contact.updateMany({
 				where: {
 					clientId: clientId,
 					isPrimaryContact: true
@@ -165,7 +165,7 @@ export const actions: Actions = {
 		}
 
 		// Create contact
-		const contact = await prisma.person.create({
+		const contact = await prisma.contact.create({
 			data: {
 				firstName: firstName.trim(),
 				lastName: lastName.trim(),
@@ -174,12 +174,11 @@ export const actions: Actions = {
 				mobile: mobile?.trim() || null,
 				position: position?.trim() || null,
 				isPrimaryContact,
-				personType: 'client_contact',
 				clientId: clientId
 			}
 		});
 
-		await logCreate(locals.user!.id, 'clients', String(contact.id), 'Person', {
+		await logCreate(locals.user!.id, 'clients', String(contact.id), 'Contact', {
 			firstName: contact.firstName,
 			lastName: contact.lastName,
 			email: contact.email,
@@ -225,7 +224,7 @@ export const actions: Actions = {
 		}
 
 		// Verify contact exists and belongs to this client
-		const existingContact = await prisma.person.findFirst({
+		const existingContact = await prisma.contact.findFirst({
 			where: {
 				id: contactId,
 				clientId: clientId
@@ -238,7 +237,7 @@ export const actions: Actions = {
 
 		// If setting as primary, unset any existing primary contact
 		if (isPrimaryContact && !existingContact.isPrimaryContact) {
-			await prisma.person.updateMany({
+			await prisma.contact.updateMany({
 				where: {
 					clientId: clientId,
 					isPrimaryContact: true,
@@ -249,7 +248,7 @@ export const actions: Actions = {
 		}
 
 		// Update contact
-		const updatedContact = await prisma.person.update({
+		const updatedContact = await prisma.contact.update({
 			where: { id: contactId },
 			data: {
 				firstName: firstName.trim(),
@@ -262,7 +261,7 @@ export const actions: Actions = {
 			}
 		});
 
-		await logUpdate(locals.user!.id, 'clients', String(contactId), 'Person', existingContact, {
+		await logUpdate(locals.user!.id, 'clients', String(contactId), 'Contact', existingContact, {
 			firstName: updatedContact.firstName,
 			lastName: updatedContact.lastName,
 			email: updatedContact.email,
@@ -296,7 +295,7 @@ export const actions: Actions = {
 		}
 
 		// Verify contact exists and belongs to this client
-		const contact = await prisma.person.findFirst({
+		const contact = await prisma.contact.findFirst({
 			where: {
 				id: contactId,
 				clientId: clientId
@@ -314,13 +313,13 @@ export const actions: Actions = {
 		}
 
 		// Log before hard delete
-		await logDelete(locals.user!.id, 'clients', String(contactId), 'Person', {
+		await logDelete(locals.user!.id, 'clients', String(contactId), 'Contact', {
 			firstName: contact.firstName,
 			lastName: contact.lastName,
 			email: contact.email
 		});
 
-		await prisma.person.delete({
+		await prisma.contact.delete({
 			where: { id: contactId }
 		});
 

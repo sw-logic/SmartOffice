@@ -14,7 +14,7 @@ export type AuditAction =
 	| 'permission_changed';
 
 export interface AuditLogParams {
-	userId: string;
+	userId: number;
 	action: AuditAction;
 	module: string;
 	entityId?: string;
@@ -73,7 +73,7 @@ export function getClientInfo(event: RequestEvent): {
  * Log a create action
  */
 export async function logCreate(
-	userId: string,
+	userId: number,
 	module: string,
 	entityId: string,
 	entityType: string,
@@ -96,7 +96,7 @@ export async function logCreate(
  * Log an update action
  */
 export async function logUpdate(
-	userId: string,
+	userId: number,
 	module: string,
 	entityId: string,
 	entityType: string,
@@ -121,7 +121,7 @@ export async function logUpdate(
  * Log a delete action
  */
 export async function logDelete(
-	userId: string,
+	userId: number,
 	module: string,
 	entityId: string,
 	entityType: string,
@@ -144,7 +144,7 @@ export async function logDelete(
  * Log a login action
  */
 export async function logLogin(
-	userId: string,
+	userId: number,
 	success: boolean,
 	event?: RequestEvent
 ): Promise<void> {
@@ -160,7 +160,7 @@ export async function logLogin(
 /**
  * Log a logout action
  */
-export async function logLogout(userId: string, event?: RequestEvent): Promise<void> {
+export async function logLogout(userId: number, event?: RequestEvent): Promise<void> {
 	const clientInfo = event ? getClientInfo(event) : {};
 	await logAction({
 		userId,
@@ -174,7 +174,7 @@ export async function logLogout(userId: string, event?: RequestEvent): Promise<v
  * Log an export action
  */
 export async function logExport(
-	userId: string,
+	userId: number,
 	module: string,
 	details: Record<string, unknown>,
 	event?: RequestEvent
@@ -233,7 +233,7 @@ export async function getEntityAuditLogs(
  * Get recent audit logs for a user
  */
 export async function getUserAuditLogs(
-	userId: string,
+	userId: number,
 	limit = 50
 ): Promise<
 	Array<{

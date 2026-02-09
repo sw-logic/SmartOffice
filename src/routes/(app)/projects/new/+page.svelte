@@ -96,12 +96,12 @@
 						<Label for="projectManagerId">Project Manager</Label>
 						<Select.Root type="single" bind:value={selectedProjectManagerId} name="projectManagerId">
 							<Select.Trigger>
-								{data.persons.find((p) => String(p.id) === selectedProjectManagerId)
-									? `${data.persons.find((p) => String(p.id) === selectedProjectManagerId)!.firstName} ${data.persons.find((p) => String(p.id) === selectedProjectManagerId)!.lastName}`
+								{data.employees.find((p) => String(p.id) === selectedProjectManagerId)
+									? `${data.employees.find((p) => String(p.id) === selectedProjectManagerId)!.firstName} ${data.employees.find((p) => String(p.id) === selectedProjectManagerId)!.lastName}`
 									: 'Select manager'}
 							</Select.Trigger>
 							<Select.Content>
-								{#each data.persons as person}
+								{#each data.employees as person}
 									<Select.Item value={String(person.id)}>
 										{person.firstName} {person.lastName}
 									</Select.Item>

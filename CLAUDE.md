@@ -78,7 +78,6 @@ src/
 │   ├── (app)/            # Protected app routes
 │   │   ├── clients/
 │   │   ├── vendors/
-│   │   ├── employees/
 │   │   ├── projects/     # projects, boards, tasks
 │   │   ├── finances/     # dashboard, income, expenses
 │   │   ├── pricelists/
@@ -117,7 +116,7 @@ We use Svelte 5 runes throughout the application:
 - Use `checkPermission(locals, module, action)` for conditional UI (returns boolean)
 - Use `isAdmin(locals)` to check for `*.*` wildcard
 - Row-level: `canAccessProject(locals, projectId)`, `isProjectManager(locals, projectId)`
-- Permission modules: `clients`, `vendors`, `employees`, `projects`, `finances.income`, `finances.expenses`, `settings`, `*`
+- Permission modules: `clients`, `vendors`, `projects`, `finances.income`, `finances.expenses`, `settings`, `*`
 
 ### Hard Delete + Audit Log
 
@@ -223,11 +222,11 @@ For list pages with clickable rows (`<Table.Row onclick={() => goto(...)}>"`), a
 </Table.Cell>
 ```
 
-Applied on: employees, clients, vendors, projects list pages. Not needed on income/expenses (no clickable rows).
+Applied on: users, clients, vendors, projects list pages. Not needed on income/expenses (no clickable rows).
 
 ### Checkbox Selection / Bulk Delete Pattern
 
-Implemented on: employees, tasks, income, expenses list pages.
+Implemented on: users, tasks, income, expenses list pages.
 
 **State variables:**
 ```typescript
@@ -263,8 +262,6 @@ bulkDelete: async ({ locals, request }) => {
 - Bulk delete button appears in header when `selectedIds.size > 0`
 - AlertDialog confirmation with count of selected items
 
-**Employee-specific:** Bulk delete includes optional `deleteUsers` checkbox to also delete linked User accounts.
-
 **Finance-specific:** Bulk delete of recurring parents cascades to projected children (`status: 'projected'`).
 
 ### Delete Pattern (Detail Pages)
@@ -277,8 +274,8 @@ For entity detail pages:
 
 Reference implementations:
 
-- List: `src/routes/(app)/employees/+page.svelte`, `src/routes/(app)/finances/income/+page.svelte`
-- Detail: `src/routes/(app)/employees/[id]/+page.svelte`
+- List: `src/routes/(app)/users/+page.svelte`, `src/routes/(app)/finances/income/+page.svelte`
+- Detail: `src/routes/(app)/users/[id]/+page.svelte`
 
 ---
 
@@ -287,6 +284,10 @@ Reference implementations:
 ### Users & Settings
 
 - User management with UserGroups and Permissions
+- Users serve dual purpose: system access (auth) + employee record (personal info, salary, employment)
+- Employee fields on User: `firstName`, `lastName`, `phone`, `mobile`, `dateOfBirth`, address fields, `companyId`, `hireDate`, `employmentType`, `department`, `jobTitle`, `employeeStatus`, salary fields
+- Salary fields: `salary`, `salary_tax`, `salary_bonus` (Decimal, restricted by permission)
+- Employee status: active, on_leave, terminated
 - Enum type management (currencies, categories, statuses, tags)
 - Audit log viewer (admin only)
 
@@ -296,7 +297,7 @@ Reference implementations:
 - `paymentTerms: Int @default(30)` — used as default for income payment terms dropdown
 - Link to projects, income, payments, offers
 - Status: active, inactive
-- Contacts via Person model (`personType: "client_contact"`)
+- Contacts via `Contact` model (firstName, lastName, email, phone, mobile, position, isPrimaryContact)
 
 ### Vendors
 
@@ -304,15 +305,7 @@ Reference implementations:
 - `paymentTerms: Int @default(30)` — used as default for expense payment terms dropdown
 - Link to expenses
 - Categories managed via enums (`vendor_category`)
-- Contacts via Person model (`personType: "vendor_contact"`)
-
-### Employees
-
-- Person records (`personType: "company_employee"`) with employment details
-- Optional User account for system access (`userId String? @unique`)
-- Salary fields: `salary`, `salary_tax`, `salary_bonus` (Decimal, restricted by permission)
-- Status: active, on_leave, terminated
-- Delete strategy: optional deactivation of linked User account (checkbox in delete dialog)
+- Contacts via `Contact` model (same as clients)
 
 ### Projects
 
@@ -361,7 +354,7 @@ Reference implementations:
 ### Time Records
 
 - Time records belong to a task (`TimeRecord` model)
-- Fields: date, minutes (Int), description, billable (Boolean), type (enum), category (enum), personId
+- Fields: date, minutes (Int), description, billable (Boolean), type (enum), category (enum), userId
 - `DurationInput` component: accepts "1w 2d 3h 30m" format (1w = 5 working days, 1d = 8 hours)
 - `recalcTaskSpentTime(taskId)` — aggregates SUM(minutes) and updates `task.spentTime`
 - `formatMinutes(minutes)` — returns "Xh Ym" format
@@ -393,7 +386,7 @@ Reference implementations:
   - 3 side-by-side tables (Income, Expenses, Salaries) in `xl:grid-cols-3` layout
   - Balance = Income - (Expenses + Salaries + Salary Tax + Salary Bonus)
   - Employee salary totals multiplied by period months (3 for quarters, 12 for year)
-  - Only shows employees with `salary > 0` and `employeeStatus: 'active'`
+  - Only shows users with `salary > 0` and `employeeStatus: 'active'`
 - **Income** (`/finances/income`): Track money coming in, link to client/project
   - List with search, sort, pagination, period selector, summary cards
   - Checkbox selection for bulk delete
@@ -494,23 +487,21 @@ Reference implementations:
 
 Key models (see `prisma/schema.prisma` for full schema):
 
-- **User** (String ID, cuid) - Auth.js compatible, has `password`, `name`, `email`
+- **User** (Int ID, autoincrement) - Auth + employee record combined; has `password`, `name`, `email`, `firstName?`, `lastName?`, employee fields (salary, department, jobTitle, employeeStatus, etc.)
 - **UserGroup, Permission, GroupPermission** - RBAC with module+action pairs
 - **AuditLog** - Action logging with JSON `oldValues`/`newValues`
 - **EnumType, EnumValue** - Dynamic enums with color, metadata, sort order
 - **Company** - Single company with settings (currency, fiscal year)
-- **Person** - Central contact: `personType` discriminator ("company_employee", "client_contact", "vendor_contact")
-  - Employee fields: salary, salary_tax, salary_bonus, hireDate, department, jobTitle, employeeStatus
-  - Links to User via `userId String? @unique`
+- **Contact** - Client/vendor contacts: firstName, lastName, email, phone, mobile, position, isPrimaryContact; linked to Client or Vendor via FK
 - **Client** - Company client with paymentTerms, currency, industry
 - **Vendor** - Supplier with paymentTerms, currency, category
 - **Project** - Linked to client, has budget, milestones, kanban boards
-- **ProjectEmployee** - Many-to-many: project ↔ person with role
+- **ProjectEmployee** - Many-to-many: project ↔ user with role
 - **Task** - Belongs to project, optional kanban board placement, time tracking
-- **TimeRecord** - Belongs to task, minutes-based, billable flag, personId
+- **TimeRecord** - Belongs to task, minutes-based, billable flag, userId
 - **Milestone** - Belongs to project, with completion tracking
 - **KanbanBoard, KanbanColumn, KanbanSwimlane** - Board structure with ordering and colors
-- **KanbanBoardMember** - Board access control with roles
+- **KanbanBoardMember** - Board access control with roles (userId)
 - **UserBoardPreference** - Collapsed columns/swimlanes per user
 - **Note** - Polymorphic (`entityType` + `entityId`), markdown content, priority, color
 - **EntityTag** - Polymorphic tags backed by EnumValue
@@ -522,7 +513,7 @@ Key models (see `prisma/schema.prisma` for full schema):
 
 All models have `createdAt/updatedAt` timestamps. Deletions are hard deletes with audit log snapshots.
 All financial amounts use `Decimal @db.Decimal(10, 2)`. Tax rates use `Decimal @db.Decimal(5, 2)`.
-IDs are `Int @id @default(autoincrement())` except User/Account/Session which use `String @id @default(cuid())` for Auth.js compatibility.
+All IDs are `Int @id @default(autoincrement())`. Auth.js requires String IDs internally — the Int↔String bridging happens in `auth.ts` (returns `String(user.id)`) and `hooks.server.ts` (converts back via `parseInt()`).
 
 ---
 
@@ -603,7 +594,7 @@ npm run build
 
 Two patterns are used for CRUD operations:
 
-1. **Full-page forms** (clients, vendors, employees, projects, pricelists): SvelteKit form actions with `use:enhance`, hidden inputs, server-side validation
+1. **Full-page forms** (clients, vendors, users, projects, pricelists): SvelteKit form actions with `use:enhance`, hidden inputs, server-side validation
 2. **Modal forms** (income, expenses, tasks, notes, time records): Fetch-based API calls, client-side state, `invalidateAll()` on save
 
 ### Naming Conventions

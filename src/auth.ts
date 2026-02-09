@@ -79,9 +79,9 @@ export const { handle, signIn, signOut } = SvelteKitAuth({
 						});
 					} catch { /* audit logging should not break auth */ }
 
-					// Return user object - must have id
+					// Return user object - Auth.js requires string id internally
 					return {
-						id: user.id,
+						id: String(user.id),
 						email: user.email,
 						name: user.name ?? undefined,
 						image: user.image ?? undefined

@@ -33,6 +33,8 @@
 	} from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
 	import { formatDate } from '$lib/utils/date';
+	import { groupFinanceRecords, type GroupByField } from '$lib/utils/group-by';
+	import GroupHeaderRow from '$lib/components/shared/GroupHeaderRow.svelte';
 
 	let { data } = $props();
 
@@ -258,6 +260,28 @@
 	}
 
 	let average = $derived(data.summary.count > 0 ? data.summary.totalAmount / data.summary.count : 0);
+
+	// Group-by
+	let groupBy = $derived(($page.url.searchParams.get('groupBy') as GroupByField) || 'none');
+	let collapsedGroups = $state<Set<string>>(new Set());
+
+	function toggleGroup(key: string) {
+		const next = new Set(collapsedGroups);
+		if (next.has(key)) {
+			next.delete(key);
+		} else {
+			next.add(key);
+		}
+		collapsedGroups = next;
+	}
+
+	let groupedData = $derived(
+		groupFinanceRecords(
+			data.expenses,
+			groupBy,
+			groupBy === 'category' ? data.enums.expense_category : data.enums.expense_status
+		)
+	);
 </script>
 
 <div class="space-y-6">
@@ -479,6 +503,21 @@
 				<Select.Item value="true">Recurring</Select.Item>
 			</Select.Content>
 		</Select.Root>
+
+		<Select.Root
+			type="single"
+			value={groupBy}
+			onValueChange={(v) => updateFilter('groupBy', v)}
+		>
+			<Select.Trigger class="w-40">
+				{groupBy === 'category' ? 'By Category' : groupBy === 'status' ? 'By Status' : 'No Grouping'}
+			</Select.Trigger>
+			<Select.Content>
+				<Select.Item value="">No Grouping</Select.Item>
+				<Select.Item value="category">By Category</Select.Item>
+				<Select.Item value="status">By Status</Select.Item>
+			</Select.Content>
+		</Select.Root>
 	</div>
 
 	<!-- Table -->
@@ -516,114 +555,241 @@
 				</Table.Row>
 			</Table.Header>
 			<Table.Body>
-				{#each data.expenses as expense}
-					<Table.Row class={expense.status === 'projected' ? 'opacity-60 border-dashed' : ''}>
-						<Table.Cell>
-							<Checkbox
-								checked={selectedIds.has(expense.id)}
-								onCheckedChange={() => toggleSelect(expense.id)}
-							/>
-						</Table.Cell>
-						<Table.Cell>
-							<div>
-								<div>{formatDate(expense.date)}</div>
-								{#if expense.dueDate}
-									<div class="text-xs text-muted-foreground">Due: {formatDate(expense.dueDate)}</div>
-								{/if}
-							</div>
-						</Table.Cell>
-						<Table.Cell>
-							<div>
-								<div class="font-medium">{expense.description}</div>
-								{#if expense.receiptPath}
-									<Badge variant="outline" class="mt-1">
-										<Receipt class="mr-1 h-3 w-3" />
-										Receipt
-									</Badge>
-								{/if}
-							</div>
-						</Table.Cell>
-						<Table.Cell>
-							{#if expense.vendor}
-								<a href="/vendors/{expense.vendor.id}" class="hover:underline">
-									{expense.vendor.name}
-								</a>
-							{:else if expense.vendorName}
-								<span class="text-muted-foreground">{expense.vendorName}</span>
-							{:else}
-								<span class="text-muted-foreground">-</span>
-							{/if}
-						</Table.Cell>
-						<Table.Cell>
-							<Badge variant="outline">{categoryLabels[expense.category] || expense.category}</Badge>
-						</Table.Cell>
-						<Table.Cell>
-							<DropdownMenu.Root>
-								<DropdownMenu.Trigger>
-									<EnumBadge enums={data.enums.expense_status} value={expense.status} class="cursor-pointer hover:opacity-80" />
-								</DropdownMenu.Trigger>
-								<DropdownMenu.Content>
-									{#each statusOptions as option}
-										<form method="POST" action="?/updateStatus" use:enhance>
-											<input type="hidden" name="id" value={expense.id} />
-											<input type="hidden" name="status" value={option.value} />
-											<DropdownMenu.Item class="cursor-pointer">
-												<button type="submit" class="w-full text-left">
-													{option.label}
-												</button>
-											</DropdownMenu.Item>
-										</form>
-									{/each}
-								</DropdownMenu.Content>
-							</DropdownMenu.Root>
-						</Table.Cell>
-						<Table.Cell>
-							{#if expense.isRecurring}
-								<Badge variant="outline">
-									<RefreshCw class="mr-1 h-3 w-3" />
-									{recurringLabels[expense.recurringPeriod || ''] || expense.recurringPeriod}
-								</Badge>
-							{:else}
-								<span class="text-muted-foreground">-</span>
-							{/if}
-						</Table.Cell>
-						<Table.Cell class="text-right font-medium text-red-600">
-							{formatCurrency(Number(expense.amount), expense.currency)}
-						</Table.Cell>
-						<Table.Cell class="text-right">
-							{expense.tax}%
-						</Table.Cell>
-						<Table.Cell class="text-right">
-							{formatCurrency(expense.tax_value, expense.currency)}
-						</Table.Cell>
-						<Table.Cell>
-							<div class="flex items-center gap-1">
-								<Button
-									variant="ghost"
-									size="icon"
-									onclick={() => openEditModal(expense.id)}
-									title="Edit expense"
-								>
-									<Pencil class="h-4 w-4" />
-								</Button>
-								<Button
-									variant="ghost"
-									size="icon"
-									onclick={() => openDeleteDialog({ id: expense.id, description: expense.description })}
-									title="Delete expense"
-								>
-									<Trash2 class="h-4 w-4" />
-								</Button>
-							</div>
-						</Table.Cell>
-					</Table.Row>
+				{#if groupBy !== 'none'}
+					{#each groupedData as group}
+						<GroupHeaderRow
+							label={group.label}
+							color={group.color}
+							count={group.subtotals.count}
+							subtotalAmount={group.subtotals.amount}
+							subtotalTaxValue={group.subtotals.taxValue}
+							colspan={11}
+							expanded={!collapsedGroups.has(group.key)}
+							onToggle={() => toggleGroup(group.key)}
+							formatCurrency={(v) => formatCurrency(v)}
+							colorClass="text-red-600"
+						/>
+						{#if !collapsedGroups.has(group.key)}
+							{#each group.items as expense}
+								<Table.Row class={expense.status === 'projected' ? 'opacity-60 border-dashed' : ''}>
+									<Table.Cell>
+										<Checkbox
+											checked={selectedIds.has(expense.id)}
+											onCheckedChange={() => toggleSelect(expense.id)}
+										/>
+									</Table.Cell>
+									<Table.Cell>
+										<div>
+											<div>{formatDate(expense.date)}</div>
+											{#if expense.dueDate}
+												<div class="text-xs text-muted-foreground">Due: {formatDate(expense.dueDate)}</div>
+											{/if}
+										</div>
+									</Table.Cell>
+									<Table.Cell>
+										<div>
+											<div class="font-medium">{expense.description}</div>
+											{#if expense.receiptPath}
+												<Badge variant="outline" class="mt-1">
+													<Receipt class="mr-1 h-3 w-3" />
+													Receipt
+												</Badge>
+											{/if}
+										</div>
+									</Table.Cell>
+									<Table.Cell>
+										{#if expense.vendor}
+											<a href="/vendors/{expense.vendor.id}" class="hover:underline">
+												{expense.vendor.name}
+											</a>
+										{:else if expense.vendorName}
+											<span class="text-muted-foreground">{expense.vendorName}</span>
+										{:else}
+											<span class="text-muted-foreground">-</span>
+										{/if}
+									</Table.Cell>
+									<Table.Cell>
+										<Badge variant="outline">{categoryLabels[expense.category] || expense.category}</Badge>
+									</Table.Cell>
+									<Table.Cell>
+										<DropdownMenu.Root>
+											<DropdownMenu.Trigger>
+												<EnumBadge enums={data.enums.expense_status} value={expense.status} class="cursor-pointer hover:opacity-80" />
+											</DropdownMenu.Trigger>
+											<DropdownMenu.Content>
+												{#each statusOptions as option}
+													<form method="POST" action="?/updateStatus" use:enhance>
+														<input type="hidden" name="id" value={expense.id} />
+														<input type="hidden" name="status" value={option.value} />
+														<DropdownMenu.Item class="cursor-pointer">
+															<button type="submit" class="w-full text-left">
+																{option.label}
+															</button>
+														</DropdownMenu.Item>
+													</form>
+												{/each}
+											</DropdownMenu.Content>
+										</DropdownMenu.Root>
+									</Table.Cell>
+									<Table.Cell>
+										{#if expense.isRecurring}
+											<Badge variant="outline">
+												<RefreshCw class="mr-1 h-3 w-3" />
+												{recurringLabels[expense.recurringPeriod || ''] || expense.recurringPeriod}
+											</Badge>
+										{:else}
+											<span class="text-muted-foreground">-</span>
+										{/if}
+									</Table.Cell>
+									<Table.Cell class="text-right font-medium text-red-600">
+										{formatCurrency(Number(expense.amount), expense.currency)}
+									</Table.Cell>
+									<Table.Cell class="text-right">
+										{expense.tax}%
+									</Table.Cell>
+									<Table.Cell class="text-right">
+										{formatCurrency(expense.tax_value, expense.currency)}
+									</Table.Cell>
+									<Table.Cell>
+										<div class="flex items-center gap-1">
+											<Button
+												variant="ghost"
+												size="icon"
+												onclick={() => openEditModal(expense.id)}
+												title="Edit expense"
+											>
+												<Pencil class="h-4 w-4" />
+											</Button>
+											<Button
+												variant="ghost"
+												size="icon"
+												onclick={() => openDeleteDialog({ id: expense.id, description: expense.description })}
+												title="Delete expense"
+											>
+												<Trash2 class="h-4 w-4" />
+											</Button>
+										</div>
+									</Table.Cell>
+								</Table.Row>
+							{/each}
+						{/if}
+					{:else}
+						<Table.Row>
+							<Table.Cell colspan={11} class="text-center py-8">
+								<div class="text-muted-foreground">No expense records found for this period</div>
+							</Table.Cell>
+						</Table.Row>
+					{/each}
 				{:else}
-					<Table.Row>
-						<Table.Cell colspan={11} class="text-center py-8">
-							<div class="text-muted-foreground">No expense records found for this period</div>
-						</Table.Cell>
-					</Table.Row>
-				{/each}
+					{#each data.expenses as expense}
+						<Table.Row class={expense.status === 'projected' ? 'opacity-60 border-dashed' : ''}>
+							<Table.Cell>
+								<Checkbox
+									checked={selectedIds.has(expense.id)}
+									onCheckedChange={() => toggleSelect(expense.id)}
+								/>
+							</Table.Cell>
+							<Table.Cell>
+								<div>
+									<div>{formatDate(expense.date)}</div>
+									{#if expense.dueDate}
+										<div class="text-xs text-muted-foreground">Due: {formatDate(expense.dueDate)}</div>
+									{/if}
+								</div>
+							</Table.Cell>
+							<Table.Cell>
+								<div>
+									<div class="font-medium">{expense.description}</div>
+									{#if expense.receiptPath}
+										<Badge variant="outline" class="mt-1">
+											<Receipt class="mr-1 h-3 w-3" />
+											Receipt
+										</Badge>
+									{/if}
+								</div>
+							</Table.Cell>
+							<Table.Cell>
+								{#if expense.vendor}
+									<a href="/vendors/{expense.vendor.id}" class="hover:underline">
+										{expense.vendor.name}
+									</a>
+								{:else if expense.vendorName}
+									<span class="text-muted-foreground">{expense.vendorName}</span>
+								{:else}
+									<span class="text-muted-foreground">-</span>
+								{/if}
+							</Table.Cell>
+							<Table.Cell>
+								<Badge variant="outline">{categoryLabels[expense.category] || expense.category}</Badge>
+							</Table.Cell>
+							<Table.Cell>
+								<DropdownMenu.Root>
+									<DropdownMenu.Trigger>
+										<EnumBadge enums={data.enums.expense_status} value={expense.status} class="cursor-pointer hover:opacity-80" />
+									</DropdownMenu.Trigger>
+									<DropdownMenu.Content>
+										{#each statusOptions as option}
+											<form method="POST" action="?/updateStatus" use:enhance>
+												<input type="hidden" name="id" value={expense.id} />
+												<input type="hidden" name="status" value={option.value} />
+												<DropdownMenu.Item class="cursor-pointer">
+													<button type="submit" class="w-full text-left">
+														{option.label}
+													</button>
+												</DropdownMenu.Item>
+											</form>
+										{/each}
+									</DropdownMenu.Content>
+								</DropdownMenu.Root>
+							</Table.Cell>
+							<Table.Cell>
+								{#if expense.isRecurring}
+									<Badge variant="outline">
+										<RefreshCw class="mr-1 h-3 w-3" />
+										{recurringLabels[expense.recurringPeriod || ''] || expense.recurringPeriod}
+									</Badge>
+								{:else}
+									<span class="text-muted-foreground">-</span>
+								{/if}
+							</Table.Cell>
+							<Table.Cell class="text-right font-medium text-red-600">
+								{formatCurrency(Number(expense.amount), expense.currency)}
+							</Table.Cell>
+							<Table.Cell class="text-right">
+								{expense.tax}%
+							</Table.Cell>
+							<Table.Cell class="text-right">
+								{formatCurrency(expense.tax_value, expense.currency)}
+							</Table.Cell>
+							<Table.Cell>
+								<div class="flex items-center gap-1">
+									<Button
+										variant="ghost"
+										size="icon"
+										onclick={() => openEditModal(expense.id)}
+										title="Edit expense"
+									>
+										<Pencil class="h-4 w-4" />
+									</Button>
+									<Button
+										variant="ghost"
+										size="icon"
+										onclick={() => openDeleteDialog({ id: expense.id, description: expense.description })}
+										title="Delete expense"
+									>
+										<Trash2 class="h-4 w-4" />
+									</Button>
+								</div>
+							</Table.Cell>
+						</Table.Row>
+					{:else}
+						<Table.Row>
+							<Table.Cell colspan={11} class="text-center py-8">
+								<div class="text-muted-foreground">No expense records found for this period</div>
+							</Table.Cell>
+						</Table.Row>
+					{/each}
+				{/if}
 
 				<!-- Summary Row -->
 				{#if data.expenses.length > 0}

@@ -15,10 +15,10 @@
 		type: string | null;
 		category: string | null;
 		billable: boolean;
-		personId: number | null;
-		person: { id: number; firstName: string; lastName: string } | null;
-		createdById: string;
-		createdBy: { id: string; name: string };
+		userId: number | null;
+		user: { id: number; firstName: string; lastName: string } | null;
+		createdById: number;
+		createdBy: { id: number; name: string };
 		createdAt: string | Date;
 	}
 
@@ -29,8 +29,8 @@
 
 	interface PersonOption {
 		id: number;
-		firstName: string;
-		lastName: string;
+		firstName: string | null;
+		lastName: string | null;
 	}
 
 	interface Props {
@@ -39,11 +39,11 @@
 		typeOptions: EnumOption[];
 		categoryOptions: EnumOption[];
 		employees: PersonOption[];
-		currentPersonId: number | null;
+		currentUserId: number | null;
 		onTimeRecordsChange: (records: TimeRecord[]) => void;
 	}
 
-	let { taskId, timeRecords, typeOptions, categoryOptions, employees, currentPersonId, onTimeRecordsChange }: Props = $props();
+	let { taskId, timeRecords, typeOptions, categoryOptions, employees, currentUserId, onTimeRecordsChange }: Props = $props();
 
 	let modalOpen = $state(false);
 	let editingRecord = $state<{
@@ -54,7 +54,7 @@
 		type: string | null;
 		category: string | null;
 		billable: boolean;
-		personId: number | null;
+		userId: number | null;
 	} | null>(null);
 
 	let totalMinutes = $derived(
@@ -81,7 +81,7 @@
 			type: record.type,
 			category: record.category,
 			billable: record.billable,
-			personId: record.personId
+			userId: record.userId
 		};
 		modalOpen = true;
 	}
@@ -135,8 +135,8 @@
 							<Table.Cell class="text-xs">{formatDate(record.date)}</Table.Cell>
 							<Table.Cell class="text-sm text-left font-medium">{fmtMin(Number(record.minutes))}</Table.Cell>
 							<Table.Cell class="text-sm">
-								{#if record.person}
-									<div>{record.person.firstName} {record.person.lastName}</div>
+								{#if record.user}
+									<div>{record.user.firstName} {record.user.lastName}</div>
 								{:else}
 									-
 								{/if}
@@ -185,7 +185,7 @@
 	{typeOptions}
 	{categoryOptions}
 	{employees}
-	defaultPersonId={currentPersonId}
+	defaultUserId={currentUserId}
 	onSaved={handleSaved}
 	onDeleted={handleDeleted}
 />

@@ -125,10 +125,6 @@ export const paymentMethodSchema = z.enum([
  */
 export const paymentStatusSchema = z.enum(['pending', 'completed', 'failed', 'cancelled']);
 
-/**
- * Person type schema
- */
-export const personTypeSchema = z.enum(['company_employee', 'client_contact', 'vendor_contact']);
 
 /**
  * Employment type schema

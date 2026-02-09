@@ -275,8 +275,8 @@
 		return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 	}
 
-	function getInitials(firstName: string, lastName: string): string {
-		return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+	function getInitials(firstName: string | null, lastName: string | null): string {
+		return `${(firstName ?? '').charAt(0)}${(lastName ?? '').charAt(0)}`.toUpperCase();
 	}
 </script>
 
@@ -606,11 +606,11 @@
 										<div class="flex items-center gap-1.5">
 											<Avatar.Root class="h-6 w-6">
 												<Avatar.Fallback class="text-[9px]">
-													{getInitials(task.assignedTo.firstName, task.assignedTo.lastName)}
+													{getInitials(task.assignedTo.firstName ?? '', task.assignedTo.lastName ?? '')}
 												</Avatar.Fallback>
 											</Avatar.Root>
 											<span class="text-sm truncate max-w-[100px]">
-												{task.assignedTo.firstName} {task.assignedTo.lastName}
+												{task.assignedTo.firstName ?? ''} {task.assignedTo.lastName ?? ''}
 											</span>
 										</div>
 									{:else}
@@ -690,7 +690,7 @@
 	availableTags={data.availableTags}
 	timeRecordTypes={data.enums.time_record_type}
 	timeRecordCategories={data.enums.time_record_category}
-	currentPersonId={data.user?.personId}
+	currentUserId={data.user?.id}
 	notePriorities={data.enums.note_priority}
 	defaults={undefined}
 	onTaskCreated={() => invalidateAll()}

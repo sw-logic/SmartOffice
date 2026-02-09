@@ -145,8 +145,10 @@ const authorizationHandle: Handle = async ({ event, resolve }) => {
 	// per TTL window instead of on every single request.
 	let isValidSession = false;
 	if (session?.user) {
-		const userId = session.user.id as string;
-		const cached = getCachedUserValidity(userId);
+		// Auth.js stores id as string; convert to Int for our DB
+		const userId = parseInt(session.user.id as string);
+		const cacheKey = String(userId);
+		const cached = getCachedUserValidity(cacheKey);
 
 		if (cached !== null) {
 			isValidSession = cached;
@@ -154,10 +156,10 @@ const authorizationHandle: Handle = async ({ event, resolve }) => {
 			try {
 				const user = await prisma.user.findUnique({
 					where: { id: userId },
-					select: { id: true }
+					select: { id: true, companyId: true }
 				});
 				isValidSession = !!user;
-				setCachedUserValidity(userId, isValidSession);
+				setCachedUserValidity(cacheKey, isValidSession);
 			} catch (err) {
 				// Re-throw redirects (they're thrown as exceptions in SvelteKit)
 				if (err && typeof err === 'object' && 'status' in err && 'location' in err) {
@@ -188,12 +190,19 @@ const authorizationHandle: Handle = async ({ event, resolve }) => {
 
 	// Add user to event.locals for easy access (only if valid session)
 	if (isValidSession && session?.user) {
-		const userId = session.user.id as string;
+		const userId = parseInt(session.user.id as string);
+
+		// Load user's companyId from DB (cached via session validation above)
+		const user = await prisma.user.findUnique({
+			where: { id: userId },
+			select: { companyId: true }
+		});
+
 		event.locals.user = {
 			id: userId,
 			email: session.user.email as string,
 			name: session.user.name as string,
-			companyId: (session.user as unknown as { companyId?: string }).companyId
+			companyId: user?.companyId ?? undefined
 		};
 
 		// Load permissions once for the entire request — all downstream

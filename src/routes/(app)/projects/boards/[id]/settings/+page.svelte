@@ -49,7 +49,7 @@
 	let isUpdatingMembers = $state(false);
 
 	let selectedMemberIds = $derived(
-		new Set(data.members.map((m) => m.personId))
+		new Set(data.members.map((m) => m.userId))
 	);
 
 	let filteredEmployees = $derived(
@@ -291,7 +291,7 @@
 		}
 
 		const result = await postAction('updateMembers', {
-			personIds: JSON.stringify([...newIds])
+			userIds: JSON.stringify([...newIds])
 		});
 		if (result.type === 'success') {
 			toast.success('Members updated');
@@ -302,10 +302,10 @@
 		isUpdatingMembers = false;
 	}
 
-	async function updateMemberRole(personId: number, role: string) {
+	async function updateMemberRole(userId: number, role: string) {
 		isProcessing = true;
 		const result = await postAction('updateMemberRole', {
-			personId: String(personId),
+			userId: String(userId),
 			role
 		});
 		if (result.type === 'success') {
@@ -317,8 +317,8 @@
 		isProcessing = false;
 	}
 
-	function getInitials(firstName: string, lastName: string): string {
-		return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+	function getInitials(firstName: string | null, lastName: string | null): string {
+		return `${(firstName ?? '').charAt(0)}${(lastName ?? '').charAt(0)}`.toUpperCase();
 	}
 </script>
 
@@ -674,7 +674,7 @@
 			</Card.Header>
 			<Card.Content class="space-y-1">
 				{#if data.members.length > 0}
-					{#each data.members as member (member.personId)}
+					{#each data.members as member (member.userId)}
 						<div
 							class="flex items-center gap-2 p-2 rounded-md border bg-background hover:bg-muted/30"
 						>
@@ -697,7 +697,7 @@
 								type="single"
 								value={member.role}
 								onValueChange={(v) => {
-									if (v) updateMemberRole(member.personId, v);
+									if (v) updateMemberRole(member.userId, v);
 								}}
 							>
 								<Select.Trigger class="h-7 w-[100px] text-xs">

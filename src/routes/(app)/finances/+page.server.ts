@@ -104,9 +104,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				})
 			: [],
 		canViewSalary
-			? prisma.person.findMany({
+			? prisma.user.findMany({
 					where: {
-						personType: 'company_employee',
 						employeeStatus: 'active',
 						salary: { not: null, gt: 0 }
 					},

@@ -13,14 +13,36 @@ datasource db {
 // AUTHENTICATION & AUTHORIZATION
 // ============================================================================
 
-// Note: User, Account, Session keep String IDs for Auth.js compatibility
 model User {
-  id            String    @id @default(cuid())
+  id            Int       @id @default(autoincrement())
   email         String    @unique
   emailVerified DateTime?
   password      String // Hashed
   name          String
   image         String?
+
+  // Employee fields (merged from Person)
+  firstName      String?
+  lastName       String?
+  phone          String?
+  mobile         String?
+  dateOfBirth    DateTime?
+  street         String?
+  city           String?
+  postalCode     String?
+  country        String?
+  companyId      Int?
+  company        Company?  @relation("CompanyEmployees", fields: [companyId], references: [id], onDelete: SetNull)
+  hireDate       DateTime?
+  employmentType String? // "full-time", "part-time", "contractor"
+  department     String?
+  jobTitle       String?
+  employeeStatus String? // "active", "on_leave", "terminated"
+  salary         Decimal?  @db.Decimal(10, 2)
+  salary_tax     Decimal?  @db.Decimal(10, 2)
+  salary_bonus   Decimal?  @db.Decimal(10, 2)
+  emergencyContact String?
+  notes          String?
 
   // Relations
   accounts   Account[]
@@ -36,7 +58,7 @@ model User {
   createdProjects Project[]    @relation("CreatedBy")
   createdOffers   Offer[]      @relation("CreatedBy")
   createdTasks    Task[]       @relation("TaskCreatedBy")
-  timeRecords     TimeRecord[]
+  createdTimeRecords TimeRecord[] @relation("TimeRecordCreatedBy")
 
   // Notes authored by this user
   authoredNotes Note[]
@@ -44,19 +66,25 @@ model User {
   // Kanban board preferences
   boardPreferences UserBoardPreference[]
 
-  // Person profile (if user is linked to a person record)
-  person Person?
+  // Project relations (merged from Person)
+  managedProjects        Project[]           @relation("ProjectManager")
+  assignedProjects       ProjectEmployee[]
+  assignedTasks          Task[]              @relation("TaskAssignee")
+  kanbanBoardMemberships KanbanBoardMember[]
+  performedTimeRecords   TimeRecord[]        @relation("TimeRecordWorker")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([email])
+  @@index([companyId])
+  @@index([employeeStatus])
 }
 
 // Auth.js required models
 model Account {
   id                String  @id @default(cuid())
-  userId            String
+  userId            Int
   type              String
   provider          String
   providerAccountId String
@@ -76,7 +104,7 @@ model Account {
 model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique
-  userId       String
+  userId       Int
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -104,7 +132,7 @@ model UserGroup {
 }
 
 model UserGroupUser {
-  userId      String
+  userId      Int
   userGroupId Int
 
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -147,9 +175,9 @@ model GroupPermission {
 // ============================================================================
 
 model AuditLog {
-  id     Int    @id @default(autoincrement())
-  userId String
-  user   User   @relation(fields: [userId], references: [id])
+  id     Int  @id @default(autoincrement())
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
 
   action     String // "created", "updated", "deleted", "exported", "login", etc.
   module     String // "clients", "projects", "finances", etc.
@@ -170,7 +198,7 @@ model AuditLog {
 }
 
 // ============================================================================
-// COMPANY & EMPLOYEES
+// COMPANY
 // ============================================================================
 
 model Company {
@@ -199,81 +227,37 @@ model Company {
   // Relations
   clients   Client[]
   projects  Project[]
-  employees Person[]  @relation("CompanyEmployees")
+  employees User[]    @relation("CompanyEmployees")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 // ============================================================================
-// PERSON MODEL - Central contact management
+// CONTACT MODEL - Client/Vendor contacts
 // ============================================================================
 
-model Person {
-  id Int @id @default(autoincrement())
+model Contact {
+  id               Int      @id @default(autoincrement())
+  firstName        String
+  lastName         String
+  email            String?
+  phone            String?
+  mobile           String?
+  position         String?
+  isPrimaryContact Boolean  @default(false)
 
-  // Basic Information
-  firstName   String
-  lastName    String
-  email       String?
-  phone       String?
-  mobile      String?
-  dateOfBirth DateTime?
+  clientId Int?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
-  // Address
-  street     String?
-  city       String?
-  postalCode String?
-  country    String?
-
-  // Person Type & Relations
-  personType String // "company_employee", "client_contact", "vendor_contact"
-
-  // Company Employee (if personType = "company_employee")
-  companyId      Int?
-  company        Company?  @relation("CompanyEmployees", fields: [companyId], references: [id], onDelete: SetNull)
-  userId         String?   @unique
-  user           User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  hireDate       DateTime?
-  employmentType String? // "full-time", "part-time", "contractor"
-  department     String?
-  jobTitle       String?
-  employeeStatus String? // "active", "on_leave", "terminated"
-
-  salary       Decimal? @db.Decimal(10, 2) // Encrypted in app, restricted access, only for admins
-  salary_tax   Decimal? @db.Decimal(10, 2) // Encrypted in app, restricted access, only for admins
-  salary_bonus Decimal? @db.Decimal(10, 2) // Encrypted in app, restricted access, only for admins
-
-  // Client Contact (if personType = "client_contact")
-  clientId         Int?
-  client           Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  isPrimaryContact Boolean @default(false)
-
-  // Vendor Contact (if personType = "vendor_contact")
   vendorId Int?
-  vendor   Vendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
-
-  // Additional Info
-  position         String? // Job position/title (for all types)
-  notes            String?
-  emergencyContact String?
-
-  // Relations
-  managedProjects        Project[]           @relation("ProjectManager")
-  assignedProjects       ProjectEmployee[]
-  assignedTasks          Task[]              @relation("TaskAssignee")
-  kanbanBoardMemberships KanbanBoardMember[]
-  timeRecords            TimeRecord[]        @relation("TimeRecordPerson")
+  vendor   Vendor? @relation(fields: [vendorId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([email])
-  @@index([personType])
-  @@index([companyId])
   @@index([clientId])
   @@index([vendorId])
-  @@index([userId])
 }
 
 // ============================================================================
@@ -300,7 +284,7 @@ model Client {
   website   String?
   industry  String?
 
-  // Contact - Primary contact info (can also be in Person records)
+  // Contact
   email String?
   phone String?
 
@@ -312,14 +296,14 @@ model Client {
   notes String?
 
   // Relations
-  contacts Person[] // Client contacts/employees
+  contacts Contact[]
   projects Project[]
   income   Income[]
   payments Payment[]
   offers   Offer[]
 
-  createdById String
-  createdBy   User   @relation("CreatedBy", fields: [createdById], references: [id])
+  createdById Int
+  createdBy   User @relation("CreatedBy", fields: [createdById], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -350,7 +334,7 @@ model Vendor {
   vatNumber String?
   website   String?
 
-  // Contact - Primary contact info (can also be in Person records)
+  // Contact
   email String?
   phone String?
 
@@ -364,7 +348,7 @@ model Vendor {
   notes String?
 
   // Relations
-  contacts Person[] // Vendor contacts/employees
+  contacts Contact[]
   expenses Expense[]
 
   createdAt DateTime @default(now())
@@ -400,13 +384,9 @@ model Project {
   budgetEstimate Decimal? @db.Decimal(10, 2)
   estimatedHours Decimal? @db.Decimal(10, 2)
 
-  // Calculated fields (via relations)
-  // actualCost = sum of related expenses
-  // actualIncome = sum of related income
-
   // Relations
   projectManagerId Int?
-  projectManager   Person? @relation("ProjectManager", fields: [projectManagerId], references: [id], onDelete: SetNull)
+  projectManager   User? @relation("ProjectManager", fields: [projectManagerId], references: [id], onDelete: SetNull)
 
   assignedEmployees ProjectEmployee[]
   tasks             Task[]
@@ -415,8 +395,8 @@ model Project {
   income            Income[]
   expenses          Expense[]
 
-  createdById String
-  createdBy   User   @relation("CreatedBy", fields: [createdById], references: [id])
+  createdById Int
+  createdBy   User @relation("CreatedBy", fields: [createdById], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -428,15 +408,15 @@ model Project {
 
 model ProjectEmployee {
   projectId Int
-  personId  Int
+  userId    Int
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  person  Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   role       String? // Role in this project
   assignedAt DateTime @default(now())
 
-  @@id([projectId, personId])
+  @@id([projectId, userId])
 }
 
 model Task {
@@ -468,13 +448,13 @@ model Task {
 
   // People
   assignedToId Int?
-  assignedTo   Person? @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  assignedTo   User? @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
 
-  reviewerIds Int[] // Person IDs
-  followerIds Int[] // Person IDs
+  reviewerIds Int[] // User IDs
+  followerIds Int[] // User IDs
 
-  createdById String
-  createdBy   User   @relation("TaskCreatedBy", fields: [createdById], references: [id])
+  createdById Int
+  createdBy   User @relation("TaskCreatedBy", fields: [createdById], references: [id])
 
   // Time tracking
   startDate     DateTime?
@@ -515,20 +495,20 @@ model TimeRecord {
   type     String? // Managed via enums (e.g. "development", "design", "meeting")
   category String? // Managed via enums (e.g. "billable", "non-billable", "overtime")
 
-  // Person who did the work (defaults to creator's linked person)
-  personId Int?
-  person   Person? @relation("TimeRecordPerson", fields: [personId], references: [id], onDelete: SetNull)
+  // User who did the work
+  userId Int?
+  user   User? @relation("TimeRecordWorker", fields: [userId], references: [id], onDelete: SetNull)
 
   // Creator (editable by creator, admins, and project manager)
-  createdById String
-  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdById Int
+  createdBy   User @relation("TimeRecordCreatedBy", fields: [createdById], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([taskId])
   @@index([createdById])
-  @@index([personId])
+  @@index([userId])
   @@index([date])
 }
 
@@ -582,15 +562,15 @@ model KanbanBoard {
 
 model KanbanBoardMember {
   kanbanBoardId Int
-  personId      Int
+  userId        Int
 
   kanbanBoard KanbanBoard @relation(fields: [kanbanBoardId], references: [id], onDelete: Cascade)
-  person      Person      @relation(fields: [personId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   role       String   @default("member") // "member", "viewer"
   assignedAt DateTime @default(now())
 
-  @@id([kanbanBoardId, personId])
+  @@id([kanbanBoardId, userId])
 }
 
 model KanbanColumn {
@@ -628,9 +608,9 @@ model KanbanSwimlane {
 }
 
 model UserBoardPreference {
-  id     Int    @id @default(autoincrement())
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     Int  @id @default(autoincrement())
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   kanbanBoardId Int
   kanbanBoard   KanbanBoard @relation(fields: [kanbanBoardId], references: [id], onDelete: Cascade)
@@ -653,12 +633,12 @@ model Note {
 
   // Polymorphic relation
   entityType String // "Client", "Project", "Task", "Vendor", "Income", "Expense", etc.
-  entityId   String // ID of the parent entity (String for flexibility with cuid/int IDs)
+  entityId   String // ID of the parent entity (String for flexibility)
 
   content String @db.Text // Markdown format
 
-  authorId String?
-  author   User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  authorId Int?
+  author   User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
 
   priority String  @default("normal") // "low", "normal", "high", "urgent"
   color    String? // Hex color for visual categorization
@@ -737,8 +717,8 @@ model Income {
 
   notes String?
 
-  createdById String
-  createdBy   User   @relation("CreatedBy", fields: [createdById], references: [id])
+  createdById Int
+  createdBy   User @relation("CreatedBy", fields: [createdById], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -792,8 +772,8 @@ model Expense {
 
   notes String?
 
-  createdById String
-  createdBy   User   @relation("CreatedBy", fields: [createdById], references: [id])
+  createdById Int
+  createdBy   User @relation("CreatedBy", fields: [createdById], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -833,8 +813,8 @@ model Payment {
 
   notes String?
 
-  createdById String
-  createdBy   User   @relation("CreatedBy", fields: [createdById], references: [id])
+  createdById Int
+  createdBy   User @relation("CreatedBy", fields: [createdById], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -855,11 +835,11 @@ model PriceListItem {
   name        String
   description String?
   sku         String? @unique
-  category    String? // "Hourly rate", "Account", "Consulting", "Design", "Development", "Hosting", "Marketing", "Planning", "Project management", "SEO", "Site-build", "Support", "UX", "WordPress"
+  category    String?
 
   unitPrice     Decimal @db.Decimal(10, 2)
   currency      String  @default("USD")
-  unitOfMeasure String  @default("piece") // "hour", "piece", "project", "day", etc.
+  unitOfMeasure String  @default("piece")
 
   taxRate Decimal? @db.Decimal(5, 2)
 
@@ -919,8 +899,8 @@ model Offer {
   // Conversion
   convertedToProjectId Int?
 
-  createdById String
-  createdBy   User   @relation("CreatedBy", fields: [createdById], references: [id])
+  createdById Int
+  createdBy   User @relation("CreatedBy", fields: [createdById], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
