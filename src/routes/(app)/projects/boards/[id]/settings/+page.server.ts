@@ -1,13 +1,11 @@
 import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
-import { requirePermission, checkPermission } from '$lib/server/access-control';
+import { requirePermission } from '$lib/server/access-control';
 import { fail, error } from '@sveltejs/kit';
 import { logCreate, logUpdate, logDelete, logAction } from '$lib/server/audit';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'projects', 'kanban');
-
-	const isAdmin = checkPermission(locals, '*', '*');
 
 	const id = parseInt(params.id);
 	if (isNaN(id)) {
@@ -28,27 +26,23 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				}
 			},
 			columns: {
-				where: isAdmin ? {} : { deletedAt: null },
 				orderBy: { order: 'asc' },
 				select: {
 					id: true,
 					name: true,
 					order: true,
 					color: true,
-					deletedAt: true,
-					_count: { select: { tasks: { where: { deletedAt: null } } } }
+					_count: { select: { tasks: true } }
 				}
 			},
 			swimlanes: {
-				where: isAdmin ? {} : { deletedAt: null },
 				orderBy: { order: 'asc' },
 				select: {
 					id: true,
 					name: true,
 					order: true,
 					color: true,
-					deletedAt: true,
-					_count: { select: { tasks: { where: { deletedAt: null } } } }
+					_count: { select: { tasks: true } }
 				}
 			},
 			members: {
@@ -101,7 +95,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			name: c.name,
 			order: c.order,
 			color: c.color,
-			deletedAt: c.deletedAt,
 			taskCount: c._count.tasks
 		})),
 		swimlanes: board.swimlanes.map((s) => ({
@@ -109,7 +102,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			name: s.name,
 			order: s.order,
 			color: s.color,
-			deletedAt: s.deletedAt,
 			taskCount: s._count.tasks
 		})),
 		members: board.members.map((m) => ({
@@ -125,8 +117,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			firstName: e.person.firstName,
 			lastName: e.person.lastName,
 			jobTitle: e.person.jobTitle
-		})),
-		isAdmin
+		}))
 	};
 };
 
@@ -214,7 +205,7 @@ export const actions: Actions = {
 
 		const column = await prisma.kanbanColumn.findUnique({
 			where: { id },
-			include: { _count: { select: { tasks: { where: { deletedAt: null } } } } }
+			include: { _count: { select: { tasks: true } } }
 		});
 
 		if (!column || column.kanbanBoardId !== boardId) {
@@ -227,15 +218,12 @@ export const actions: Actions = {
 			});
 		}
 
-		await prisma.kanbanColumn.update({
-			where: { id },
-			data: { deletedAt: new Date() }
-		});
-
 		await logDelete(locals.user!.id, 'projects.kanban', String(id), 'KanbanColumn', {
 			name: column.name,
 			boardId
 		});
+
+		await prisma.kanbanColumn.delete({ where: { id } });
 
 		return { success: true };
 	},
@@ -278,45 +266,6 @@ export const actions: Actions = {
 			entityId: String(boardId),
 			entityType: 'KanbanColumn',
 			newValues: { reordered: validOrders.map((o) => o.id), count: validOrders.length }
-		});
-
-		return { success: true };
-	},
-
-	restoreColumn: async ({ locals, request, params }) => {
-		await requirePermission(locals, 'projects', 'kanban');
-
-		const isAdmin = checkPermission(locals, '*', '*');
-		if (!isAdmin) {
-			return fail(403, { error: 'Only administrators can restore deleted items' });
-		}
-
-		const boardId = parseInt(params.id);
-		const formData = await request.formData();
-		const id = parseInt(formData.get('id') as string);
-
-		if (!id) {
-			return fail(400, { error: 'ID is required' });
-		}
-
-		const column = await prisma.kanbanColumn.findUnique({ where: { id } });
-		if (!column || column.kanbanBoardId !== boardId) {
-			return fail(404, { error: 'Column not found' });
-		}
-
-		await prisma.kanbanColumn.update({
-			where: { id },
-			data: { deletedAt: null }
-		});
-
-		await logAction({
-			userId: locals.user!.id,
-			action: 'restored',
-			module: 'projects.kanban',
-			entityId: String(id),
-			entityType: 'KanbanColumn',
-			oldValues: { deletedAt: column.deletedAt },
-			newValues: { deletedAt: null }
 		});
 
 		return { success: true };
@@ -405,7 +354,7 @@ export const actions: Actions = {
 
 		const swimlane = await prisma.kanbanSwimlane.findUnique({
 			where: { id },
-			include: { _count: { select: { tasks: { where: { deletedAt: null } } } } }
+			include: { _count: { select: { tasks: true } } }
 		});
 
 		if (!swimlane || swimlane.kanbanBoardId !== boardId) {
@@ -418,15 +367,12 @@ export const actions: Actions = {
 			});
 		}
 
-		await prisma.kanbanSwimlane.update({
-			where: { id },
-			data: { deletedAt: new Date() }
-		});
-
 		await logDelete(locals.user!.id, 'projects.kanban', String(id), 'KanbanSwimlane', {
 			name: swimlane.name,
 			boardId
 		});
+
+		await prisma.kanbanSwimlane.delete({ where: { id } });
 
 		return { success: true };
 	},
@@ -468,45 +414,6 @@ export const actions: Actions = {
 			entityId: String(boardId),
 			entityType: 'KanbanSwimlane',
 			newValues: { reordered: validOrders.map((o) => o.id), count: validOrders.length }
-		});
-
-		return { success: true };
-	},
-
-	restoreSwimlane: async ({ locals, request, params }) => {
-		await requirePermission(locals, 'projects', 'kanban');
-
-		const isAdmin = checkPermission(locals, '*', '*');
-		if (!isAdmin) {
-			return fail(403, { error: 'Only administrators can restore deleted items' });
-		}
-
-		const boardId = parseInt(params.id);
-		const formData = await request.formData();
-		const id = parseInt(formData.get('id') as string);
-
-		if (!id) {
-			return fail(400, { error: 'ID is required' });
-		}
-
-		const swimlane = await prisma.kanbanSwimlane.findUnique({ where: { id } });
-		if (!swimlane || swimlane.kanbanBoardId !== boardId) {
-			return fail(404, { error: 'Swimlane not found' });
-		}
-
-		await prisma.kanbanSwimlane.update({
-			where: { id },
-			data: { deletedAt: null }
-		});
-
-		await logAction({
-			userId: locals.user!.id,
-			action: 'restored',
-			module: 'projects.kanban',
-			entityId: String(id),
-			entityType: 'KanbanSwimlane',
-			oldValues: { deletedAt: swimlane.deletedAt },
-			newValues: { deletedAt: null }
 		});
 
 		return { success: true };

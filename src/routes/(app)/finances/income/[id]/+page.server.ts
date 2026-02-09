@@ -1,6 +1,6 @@
 import type { PageServerLoad } from './$types';
 import { prisma } from '$lib/server/prisma';
-import { requirePermission, checkPermission } from '$lib/server/access-control';
+import { requirePermission } from '$lib/server/access-control';
 import { error } from '@sveltejs/kit';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
@@ -11,8 +11,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	if (isNaN(incomeId)) {
 		error(400, 'Invalid income ID');
 	}
-
-	const isAdmin = checkPermission(locals, '*', '*');
 
 	const income = await prisma.income.findUnique({
 		where: { id: incomeId },
@@ -52,10 +50,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		error(404, 'Income not found');
 	}
 
-	if (income.deletedAt && !isAdmin) {
-		error(403, 'Access denied');
-	}
-
 	// Convert Decimal fields to numbers for serialization
 	return {
 		income: {
@@ -65,9 +59,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			payment: income.payment ? {
 				...income.payment,
 				amount: Number(income.payment.amount)
-			} : null,
-			isDeleted: income.deletedAt !== null
-		},
-		isAdmin
+			} : null
+		}
 	};
 };

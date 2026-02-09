@@ -15,14 +15,13 @@ export const load: PageServerLoad = async ({ locals, params, parent }) => {
 
 	const [parentData, itemRaw, existingCategoriesRaw] = await Promise.all([
 		parent(),
-		prisma.priceListItem.findFirst({
-			where: { id: itemId, deletedAt: null }
+		prisma.priceListItem.findUnique({
+			where: { id: itemId }
 		}),
 		// Get distinct categories from existing items (for backward compatibility)
 		prisma.priceListItem.findMany({
 			where: {
-				category: { not: null },
-				deletedAt: null
+				category: { not: null }
 			},
 			select: { category: true },
 			distinct: ['category']
@@ -71,8 +70,8 @@ export const actions: Actions = {
 			return fail(400, { error: 'Invalid item ID' });
 		}
 
-		const item = await prisma.priceListItem.findFirst({
-			where: { id: itemId, deletedAt: null }
+		const item = await prisma.priceListItem.findUnique({
+			where: { id: itemId }
 		});
 
 		if (!item) {

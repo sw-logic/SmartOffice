@@ -21,19 +21,13 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// Build where clause
 	const where: any = {};
 
-	// Handle active/deleted filter
-	if (active === 'deleted' && isAdmin) {
-		where.deletedAt = { not: null };
-	} else if (active === 'false') {
-		where.deletedAt = null;
+	// Handle active filter
+	if (active === 'false') {
 		where.active = false;
 	} else if (active === 'true') {
-		where.deletedAt = null;
 		where.active = true;
-	} else {
-		// 'all' - show all non-deleted
-		where.deletedAt = null;
 	}
+	// 'all' - show all records (no filter)
 
 	// Search filter
 	if (search) {
@@ -72,7 +66,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			active: true,
 			validFrom: true,
 			validTo: true,
-			deletedAt: true,
 			_count: {
 				select: {
 					offerItems: true
@@ -94,8 +87,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// Get distinct categories for filter
 	const categoriesRaw = await prisma.priceListItem.findMany({
 		where: {
-			category: { not: null },
-			deletedAt: null
+			category: { not: null }
 		},
 		select: { category: true },
 		distinct: ['category']
@@ -159,8 +151,8 @@ export const actions: Actions = {
 			return fail(400, { error: 'Invalid item ID' });
 		}
 
-		const item = await prisma.priceListItem.findFirst({
-			where: { id, deletedAt: null },
+		const item = await prisma.priceListItem.findUnique({
+			where: { id },
 			select: {
 				id: true,
 				name: true,
@@ -173,61 +165,16 @@ export const actions: Actions = {
 			return fail(404, { error: 'Item not found' });
 		}
 
-		// Soft delete
-		await prisma.priceListItem.update({
-			where: { id },
-			data: { deletedAt: new Date() }
-		});
-
+		// Audit log before hard delete
 		await logDelete(locals.user!.id, 'pricelists', String(id), 'PriceListItem', {
 			name: item.name,
 			sku: item.sku,
 			unitPrice: Number(item.unitPrice)
 		});
 
-		return { success: true };
-	},
-
-	restore: async ({ locals, request }) => {
-		await requirePermission(locals, 'pricelists', 'update');
-
-		const isAdmin = checkPermission(locals, '*', '*');
-		if (!isAdmin) {
-			return fail(403, { error: 'Only administrators can restore deleted items' });
-		}
-
-		const formData = await request.formData();
-		const idStr = formData.get('id') as string;
-
-		if (!idStr) {
-			return fail(400, { error: 'Item ID is required' });
-		}
-		const id = parseInt(idStr);
-		if (isNaN(id)) {
-			return fail(400, { error: 'Invalid item ID' });
-		}
-
-		const item = await prisma.priceListItem.findFirst({
-			where: { id, deletedAt: { not: null } }
+		await prisma.priceListItem.delete({
+			where: { id }
 		});
-
-		if (!item) {
-			return fail(404, { error: 'Deleted item not found' });
-		}
-
-		await prisma.priceListItem.update({
-			where: { id },
-			data: { deletedAt: null }
-		});
-
-		await logUpdate(
-			locals.user!.id,
-			'pricelists',
-			String(id),
-			'PriceListItem',
-			{ deletedAt: item.deletedAt },
-			{ deletedAt: null }
-		);
 
 		return { success: true };
 	},
@@ -247,8 +194,8 @@ export const actions: Actions = {
 			return fail(400, { error: 'Invalid item ID' });
 		}
 
-		const item = await prisma.priceListItem.findFirst({
-			where: { id, deletedAt: null },
+		const item = await prisma.priceListItem.findUnique({
+			where: { id },
 			select: { id: true, active: true }
 		});
 

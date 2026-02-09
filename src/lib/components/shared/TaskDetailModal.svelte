@@ -78,6 +78,7 @@
 		availableTags: AvailableTag[];
 		timeRecordTypes: EnumOption[];
 		timeRecordCategories: EnumOption[];
+		notePriorities?: EnumOption[];
 		currentPersonId?: number | null;
 		defaults?: TaskDefaults;
 		onTaskCreated?: () => void;
@@ -96,6 +97,7 @@
 		availableTags,
 		timeRecordTypes,
 		timeRecordCategories,
+		notePriorities = [],
 		currentPersonId = null,
 		defaults,
 		onTaskCreated,
@@ -129,6 +131,7 @@
 		category: null as string | null,
 		priority: '',
 		assignedToId: null as number | null,
+		startDate: '',
 		dueDate: '',
 		estimatedTime: null as number | null,
 		reviewerIds: [] as number[],
@@ -253,6 +256,7 @@
 				category: defaults?.category ?? null,
 				priority: defaults?.priority || taskPriorities[0]?.value || 'medium',
 				assignedToId: defaults?.assignedToId ?? null,
+				startDate: '',
 				dueDate: '',
 				estimatedTime: null,
 				reviewerIds: [],
@@ -309,6 +313,7 @@
 					category: formData.category,
 					priority: formData.priority,
 					assignedToId: formData.assignedToId,
+					startDate: formData.startDate || null,
 					dueDate: formData.dueDate,
 					estimatedTime: formData.estimatedTime,
 					reviewerIds: formData.reviewerIds,
@@ -596,7 +601,7 @@
 									<Tabs.Trigger value="timeRecords">Time Records ({task.timeRecords?.length || 0})</Tabs.Trigger>
 								</Tabs.List>
 								<Tabs.Content value="notes" class="mt-3">
-									<NotesList entityType="Task" entityId={String(task.id)} />
+									<NotesList entityType="Task" entityId={String(task.id)} {notePriorities} />
 								</Tabs.Content>
 								<Tabs.Content value="timeRecords" class="mt-3">
 									<TaskTimeRecordsList
@@ -1026,6 +1031,24 @@
 						</div>
 
 						<hr />
+
+						<!-- Start Date -->
+						<div class="flex items-center gap-2">
+							<Label class="text-xs text-muted-foreground w-20 shrink-0 text-right">Start Date</Label>
+							<Input
+								type="date"
+								value={isCreating ? formData.startDate : (task?.startDate ? new Date(task.startDate).toISOString().slice(0, 10) : '')}
+								onchange={(e) => {
+									const val = e.currentTarget.value;
+									if (isCreating) {
+										formData.startDate = val;
+									} else {
+										saveField('startDate', val || null);
+									}
+								}}
+								class="h-8 text-sm flex-1"
+							/>
+						</div>
 
 						<!-- Due Date -->
 						<div class="flex items-center gap-2">

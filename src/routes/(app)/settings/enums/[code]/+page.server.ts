@@ -2,7 +2,7 @@ import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
 import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { fail, error } from '@sveltejs/kit';
-import { logCreate, logUpdate, logDelete, logAction } from '$lib/server/audit';
+import { logCreate, logUpdate, logDelete } from '$lib/server/audit';
 import { clearEnumCache } from '$lib/server/enums';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
@@ -11,10 +11,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const isAdmin = checkPermission(locals, '*', '*');
 
 	const enumType = await prisma.enumType.findUnique({
-		where: { code: params.code, deletedAt: null },
+		where: { code: params.code },
 		include: {
 			values: {
-				where: isAdmin ? {} : { deletedAt: null },
 				orderBy: { sortOrder: 'asc' }
 			}
 		}
@@ -42,7 +41,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			isActive: v.isActive,
 			color: v.color,
 			metadata: v.metadata as Record<string, unknown> | null,
-			deletedAt: v.deletedAt,
 			createdAt: v.createdAt
 		})),
 		isAdmin
@@ -64,7 +62,7 @@ export const actions: Actions = {
 		}
 
 		const enumType = await prisma.enumType.findUnique({
-			where: { code: params.code, deletedAt: null }
+			where: { code: params.code }
 		});
 
 		if (!enumType) {
@@ -131,7 +129,7 @@ export const actions: Actions = {
 		}
 
 		const enumType = await prisma.enumType.findUnique({
-			where: { code: params.code, deletedAt: null }
+			where: { code: params.code }
 		});
 
 		if (!enumType) {
@@ -195,7 +193,7 @@ export const actions: Actions = {
 		}
 
 		const enumType = await prisma.enumType.findUnique({
-			where: { code: params.code, deletedAt: null }
+			where: { code: params.code }
 		});
 
 		if (!enumType) {
@@ -242,7 +240,7 @@ export const actions: Actions = {
 		const orders: Array<{ id: number; sortOrder: number }> = JSON.parse(ordersJson);
 
 		const enumType = await prisma.enumType.findUnique({
-			where: { code: params.code, deletedAt: null }
+			where: { code: params.code }
 		});
 
 		if (!enumType) {
@@ -275,7 +273,7 @@ export const actions: Actions = {
 		}
 
 		const enumType = await prisma.enumType.findUnique({
-			where: { code: params.code, deletedAt: null }
+			where: { code: params.code }
 		});
 
 		if (!enumType) {
@@ -290,69 +288,17 @@ export const actions: Actions = {
 			return fail(404, { error: 'Value not found' });
 		}
 
-		// Soft delete
-		await prisma.enumValue.update({
-			where: { id },
-			data: { deletedAt: new Date(), isActive: false }
-		});
-
-		clearEnumCache(params.code);
-
+		// Audit log before hard delete
 		await logDelete(locals.user!.id, 'settings.enums', String(id), 'EnumValue', {
 			value: value.value,
 			label: value.label
 		});
 
-		return { success: true };
-	},
-
-	restore: async ({ locals, request, params }) => {
-		await requirePermission(locals, 'settings', 'enums');
-
-		const isAdmin = checkPermission(locals, '*', '*');
-		if (!isAdmin) {
-			return fail(403, { error: 'Only administrators can restore deleted values' });
-		}
-
-		const formData = await request.formData();
-		const id = parseInt(formData.get('id') as string);
-
-		if (!id) {
-			return fail(400, { error: 'ID is required' });
-		}
-
-		const enumType = await prisma.enumType.findUnique({
-			where: { code: params.code, deletedAt: null }
-		});
-
-		if (!enumType) {
-			return fail(404, { error: 'Enum type not found' });
-		}
-
-		const value = await prisma.enumValue.findUnique({
+		await prisma.enumValue.delete({
 			where: { id }
 		});
 
-		if (!value || value.enumTypeId !== enumType.id) {
-			return fail(404, { error: 'Value not found' });
-		}
-
-		await prisma.enumValue.update({
-			where: { id },
-			data: { deletedAt: null, isActive: true }
-		});
-
 		clearEnumCache(params.code);
-
-		await logAction({
-			userId: locals.user!.id,
-			action: 'restored',
-			module: 'settings.enums',
-			entityId: String(id),
-			entityType: 'EnumValue',
-			oldValues: { deletedAt: value.deletedAt },
-			newValues: { deletedAt: null }
-		});
 
 		return { success: true };
 	}

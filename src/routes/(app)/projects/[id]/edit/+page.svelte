@@ -6,8 +6,7 @@
 	import MarkdownEditor from '$lib/components/shared/MarkdownEditor.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import * as Select from '$lib/components/ui/select';
-	import * as Alert from '$lib/components/ui/alert';
-	import { ArrowLeft, AlertTriangle } from 'lucide-svelte';
+	import { ArrowLeft } from 'lucide-svelte';
 
 	let { data, form } = $props();
 
@@ -42,15 +41,6 @@
 		</div>
 	</div>
 
-	{#if data.project.isDeleted}
-		<Alert.Root variant="destructive" class="max-w-2xl">
-			<AlertTriangle class="h-4 w-4" />
-			<Alert.Title>Deleted Project</Alert.Title>
-			<Alert.Description>
-				This project has been deleted. You can edit its details, but it won't appear in normal lists until restored.
-			</Alert.Description>
-		</Alert.Root>
-	{/if}
 
 	<form
 		method="POST"

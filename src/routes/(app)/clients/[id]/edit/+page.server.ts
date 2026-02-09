@@ -1,14 +1,11 @@
 import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
-import { requirePermission, checkPermission } from '$lib/server/access-control';
+import { requirePermission } from '$lib/server/access-control';
 import { fail, redirect, error } from '@sveltejs/kit';
 import { logUpdate } from '$lib/server/audit';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'clients', 'update');
-
-	// Check if current user is admin (can edit deleted clients)
-	const isAdmin = checkPermission(locals, '*', '*');
 
 	const clientId = parseInt(params.id);
 	if (isNaN(clientId)) {
@@ -34,8 +31,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			status: true,
 			paymentTerms: true,
 			currency: true,
-			notes: true,
-			deletedAt: true
+			notes: true
 		}
 	});
 
@@ -43,17 +39,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		error(404, 'Client not found');
 	}
 
-	// If client is deleted and user is not admin, deny access
-	if (client.deletedAt && !isAdmin) {
-		error(403, 'Only administrators can edit deleted clients');
-	}
-
 	return {
-		client: {
-			...client,
-			isDeleted: client.deletedAt !== null
-		},
-		isAdmin
+		client
 	};
 };
 

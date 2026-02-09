@@ -1,14 +1,11 @@
 import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
-import { requirePermission, checkPermission } from '$lib/server/access-control';
+import { requirePermission } from '$lib/server/access-control';
 import { fail } from '@sveltejs/kit';
-import { logDelete, logAction } from '$lib/server/audit';
+import { logDelete } from '$lib/server/audit';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'vendors', 'read');
-
-	// Check if user is admin (can see deleted vendors)
-	const isAdmin = checkPermission(locals, '*', '*');
 
 	const search = url.searchParams.get('search') || '';
 	const sortBy = url.searchParams.get('sortBy') || 'name';
@@ -20,7 +17,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	// Build where clause
 	type WhereClause = {
-		deletedAt?: null | { not: null };
 		status?: string;
 		category?: string;
 		OR?: Array<{
@@ -32,18 +28,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	let where: WhereClause = {};
 
-	if (status === 'deleted' && isAdmin) {
-		where.deletedAt = { not: null };
-	} else if (status === 'all' && isAdmin) {
-		// Show all records including deleted — explicitly mark deletedAt as handled
-		// so the soft-delete extension doesn't auto-filter
-		where.deletedAt = undefined as any;
-	} else if (status === 'active' || status === 'inactive') {
-		where.deletedAt = null;
+	if (status === 'active' || status === 'inactive') {
 		where.status = status;
 	} else {
 		// Default: show active vendors
-		where.deletedAt = null;
 		where.status = 'active';
 	}
 
@@ -76,7 +64,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				status: true,
 				category: true,
 				createdAt: true,
-				deletedAt: true,
 				_count: {
 					select: {
 						expenses: true,
@@ -88,7 +75,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		prisma.vendor.count({ where }),
 		// Get distinct categories for filter dropdown
 		prisma.vendor.findMany({
-			where: { deletedAt: null, category: { not: null } },
+			where: { category: { not: null } },
 			select: { category: true },
 			distinct: ['category']
 		})
@@ -113,8 +100,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			status,
 			category
 		},
-		categories: categories.map(c => c.category).filter(Boolean) as string[],
-		isAdmin
+		categories: categories.map(c => c.category).filter(Boolean) as string[]
 	};
 };
 
@@ -142,67 +128,14 @@ export const actions: Actions = {
 			return fail(404, { error: 'Vendor not found' });
 		}
 
-		// Soft delete
-		await prisma.vendor.update({
-			where: { id },
-			data: { deletedAt: new Date() }
-		});
-
+		// Log before hard delete
 		await logDelete(locals.user!.id, 'vendors', String(id), 'Vendor', {
 			name: vendor.name,
 			companyName: vendor.companyName
 		});
 
-		return { success: true };
-	},
-
-	restore: async ({ locals, request }) => {
-		await requirePermission(locals, 'vendors', 'update');
-
-		// Only admins can restore vendors
-		const isAdmin = checkPermission(locals, '*', '*');
-		if (!isAdmin) {
-			return fail(403, { error: 'Only administrators can restore deleted vendors' });
-		}
-
-		const formData = await request.formData();
-		const idStr = formData.get('id') as string;
-
-		if (!idStr) {
-			return fail(400, { error: 'Vendor ID is required' });
-		}
-		const id = parseInt(idStr);
-		if (isNaN(id)) {
-			return fail(400, { error: 'Invalid vendor ID' });
-		}
-
-		const vendor = await prisma.vendor.findUnique({
-			where: { id },
-			select: { id: true, name: true, deletedAt: true }
-		});
-
-		if (!vendor) {
-			return fail(404, { error: 'Vendor not found' });
-		}
-
-		if (!vendor.deletedAt) {
-			return fail(400, { error: 'Vendor is not deleted' });
-		}
-
-		// Restore vendor
-		await prisma.vendor.update({
-			where: { id },
-			data: { deletedAt: null }
-		});
-
-		await logAction({
-			userId: locals.user!.id,
-			action: 'restored',
-			module: 'vendors',
-			entityId: String(id),
-			entityType: 'Vendor',
-			oldValues: { deletedAt: vendor.deletedAt },
-			newValues: { deletedAt: null }
+		await prisma.vendor.delete({
+			where: { id }
 		});
 
 		return { success: true };

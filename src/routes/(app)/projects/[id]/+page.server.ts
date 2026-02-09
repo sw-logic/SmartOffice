@@ -52,7 +52,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				orderBy: { assignedAt: 'asc' }
 			},
 			milestones: {
-				where: { deletedAt: null },
 				orderBy: { date: 'asc' },
 				select: {
 					id: true,
@@ -64,7 +63,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				}
 			},
 			tasks: {
-				where: { deletedAt: null },
 				orderBy: { createdAt: 'desc' },
 				take: 5,
 				select: {
@@ -83,7 +81,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				}
 			},
 			kanbanBoards: {
-				where: { deletedAt: null },
 				orderBy: { createdAt: 'desc' },
 				take: 5,
 				select: {
@@ -106,12 +103,12 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			},
 			_count: {
 				select: {
-					tasks: { where: { deletedAt: null } },
-					milestones: { where: { deletedAt: null } },
-					kanbanBoards: { where: { deletedAt: null } },
+					tasks: true,
+					milestones: true,
+					kanbanBoards: true,
 					assignedEmployees: true,
-					income: { where: { deletedAt: null } },
-					expenses: { where: { deletedAt: null } }
+					income: true,
+					expenses: true
 				}
 			}
 		}
@@ -119,10 +116,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	if (!project) {
 		error(404, 'Project not found');
-	}
-
-	if (project.deletedAt && !isAdmin) {
-		error(403, 'Access denied');
 	}
 
 	// Determine if user can manage project (admin or project manager)
@@ -143,8 +136,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		allEmployees = await prisma.person.findMany({
 			where: {
 				personType: 'company_employee',
-				employeeStatus: 'active',
-				deletedAt: null
+				employeeStatus: 'active'
 			},
 			select: {
 				id: true,
@@ -158,7 +150,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	// Aggregate spent minutes from materialized spentTime on tasks (visible to all)
 	const minutesAgg = await prisma.task.aggregate({
-		where: { projectId, deletedAt: null },
+		where: { projectId },
 		_sum: { spentTime: true }
 	});
 	const spentMinutes = minutesAgg._sum.spentTime ?? 0;
@@ -170,11 +162,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	if (canViewBudget) {
 		const [incomeAgg, expenseAgg] = await Promise.all([
 			prisma.income.aggregate({
-				where: { projectId, deletedAt: null },
+				where: { projectId },
 				_sum: { amount: true }
 			}),
 			prisma.expense.aggregate({
-				where: { projectId, deletedAt: null },
+				where: { projectId },
 				_sum: { amount: true }
 			})
 		]);
@@ -187,12 +179,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			...project,
 			budgetEstimate: canViewBudget ? Number(project.budgetEstimate || 0) : null,
 			estimatedHours: Number(project.estimatedHours || 0),
-			isDeleted: project.deletedAt !== null,
 			totalIncome,
 			totalExpenses,
 			spentMinutes
 		},
-		isAdmin,
 		canViewBudget,
 		canManageProject,
 		allEmployees
@@ -324,15 +314,9 @@ export const actions: Actions = {
 
 		// Verify milestone belongs to this project
 		const milestone = await prisma.milestone.findFirst({
-			where: { id: milestoneId, projectId, deletedAt: null }
+			where: { id: milestoneId, projectId }
 		});
 		if (!milestone) return fail(404, { error: 'Milestone not found' });
-
-		// Soft delete
-		await prisma.milestone.update({
-			where: { id: milestoneId },
-			data: { deletedAt: new Date() }
-		});
 
 		await logDelete(
 			locals.user!.id,
@@ -341,6 +325,10 @@ export const actions: Actions = {
 			'Milestone',
 			{ name: milestone.name, projectId }
 		);
+
+		await prisma.milestone.delete({
+			where: { id: milestoneId }
+		});
 
 		return { success: true };
 	}

@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
+	import EnumBadge from '$lib/components/shared/EnumBadge.svelte';
 	import * as Card from '$lib/components/ui/card';
-	import * as Alert from '$lib/components/ui/alert';
 	import {
 		ArrowLeft,
 		Pencil,
@@ -11,19 +11,11 @@
 		FileText,
 		User,
 		Briefcase,
-		RefreshCw,
-		AlertTriangle
+		RefreshCw
 	} from 'lucide-svelte';
 	import { formatDate } from '$lib/utils/date';
 
 	let { data } = $props();
-
-	const statusLabels: Record<string, string> = {
-		paid: 'Paid',
-		pending: 'Pending',
-		late: 'Late',
-		suspended: 'Suspended'
-	};
 
 	const categoryLabels: Record<string, string> = {
 		project_payment: 'Project Payment',
@@ -41,23 +33,6 @@
 		quarterly: 'Quarterly',
 		yearly: 'Yearly'
 	};
-
-	function getStatusBadgeVariant(
-		status: string
-	): 'default' | 'secondary' | 'destructive' | 'outline' {
-		switch (status) {
-			case 'paid':
-				return 'default';
-			case 'pending':
-				return 'secondary';
-			case 'late':
-				return 'destructive';
-			case 'suspended':
-				return 'outline';
-			default:
-				return 'outline';
-		}
-	}
 
 	function formatCurrency(amount: number, currency: string = 'USD'): string {
 		return new Intl.NumberFormat('en-US', {
@@ -87,23 +62,12 @@
 				</p>
 			</div>
 		</div>
-		{#if !data.income.isDeleted}
-			<Button href="/finances/income/{data.income.id}/edit">
-				<Pencil class="mr-2 h-4 w-4" />
-				Edit
-			</Button>
-		{/if}
+		<Button href="/finances/income/{data.income.id}/edit">
+			<Pencil class="mr-2 h-4 w-4" />
+			Edit
+		</Button>
 	</div>
 
-	{#if data.income.isDeleted}
-		<Alert.Root variant="destructive" class="max-w-4xl">
-			<AlertTriangle class="h-4 w-4" />
-			<Alert.Title>Deleted Record</Alert.Title>
-			<Alert.Description>
-				This income record has been deleted. Only administrators can view this record.
-			</Alert.Description>
-		</Alert.Root>
-	{/if}
 
 	<div class="grid gap-6 md:grid-cols-3">
 		<!-- Main Info -->
@@ -122,9 +86,7 @@
 					<div>
 						<div class="text-sm text-muted-foreground">Status</div>
 						<div class="mt-1">
-							<Badge variant={getStatusBadgeVariant(data.income.status)}>
-								{statusLabels[data.income.status] || data.income.status}
-							</Badge>
+							<EnumBadge enums={data.enums.income_status} value={data.income.status} />
 						</div>
 					</div>
 				</div>
@@ -201,7 +163,7 @@
 
 		<!-- Side Info -->
 		<div class="space-y-6">
-			{#if data.income.client}
+			{#if data.income.client || data.income.clientName}
 				<Card.Root>
 					<Card.Header>
 						<Card.Title class="text-base flex items-center gap-2">
@@ -210,11 +172,15 @@
 						</Card.Title>
 					</Card.Header>
 					<Card.Content>
-						<a href="/clients/{data.income.client.id}" class="font-medium hover:underline">
-							{data.income.client.name}
-						</a>
-						{#if data.income.client.email}
-							<div class="text-sm text-muted-foreground">{data.income.client.email}</div>
+						{#if data.income.client}
+							<a href="/clients/{data.income.client.id}" class="font-medium hover:underline">
+								{data.income.client.name}
+							</a>
+							{#if data.income.client.email}
+								<div class="text-sm text-muted-foreground">{data.income.client.email}</div>
+							{/if}
+						{:else}
+							<span class="text-muted-foreground">{data.income.clientName}</span>
 						{/if}
 					</Card.Content>
 				</Card.Root>

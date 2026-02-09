@@ -33,6 +33,14 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	const parsedAmount = parseFloat(body.amount);
 	const parsedTax = parseFloat(body.tax);
 	const taxValue = parsedAmount * (parsedTax / 100);
+	const clientId = body.clientId ? parseInt(body.clientId) : null;
+
+	// Denormalize client name
+	let clientName: string | null = null;
+	if (clientId) {
+		const client = await prisma.client.findUnique({ where: { id: clientId }, select: { name: true } });
+		clientName = client?.name ?? null;
+	}
 
 	const income = await prisma.income.create({
 		data: {
@@ -49,7 +57,8 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 			isRecurring: body.isRecurring || false,
 			recurringPeriod: body.isRecurring ? body.recurringPeriod : null,
 			recurringEndDate: body.isRecurring && body.recurringEndDate ? new Date(body.recurringEndDate) : null,
-			clientId: body.clientId ? parseInt(body.clientId) : null,
+			clientId,
+			clientName,
 			projectId: body.projectId ? parseInt(body.projectId) : null,
 			invoiceReference: body.invoiceReference?.trim() || null,
 			taxRate: body.taxRate ? parseFloat(body.taxRate) : null,

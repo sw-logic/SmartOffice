@@ -189,7 +189,7 @@ export async function getUserPermissions(userId: string): Promise<Array<{ id: nu
  */
 export async function getPersonForUser(userId: string): Promise<{ id: number } | null> {
 	return prisma.person.findFirst({
-		where: { userId, deletedAt: null },
+		where: { userId },
 		select: { id: true }
 	});
 }
@@ -212,7 +212,6 @@ export async function canAccessProject(locals: Locals, projectId: number): Promi
 	const project = await prisma.project.findFirst({
 		where: {
 			id: projectId,
-			deletedAt: null,
 			OR: [
 				{ projectManagerId: person.id },
 				{ assignedEmployees: { some: { personId: person.id } } }
@@ -234,7 +233,7 @@ export async function isProjectManager(locals: Locals, projectId: number): Promi
 	if (!person) return false;
 
 	const project = await prisma.project.findFirst({
-		where: { id: projectId, projectManagerId: person.id, deletedAt: null },
+		where: { id: projectId, projectManagerId: person.id },
 		select: { id: true }
 	});
 

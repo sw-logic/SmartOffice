@@ -155,8 +155,17 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 		oldValues.taxRate = existing.taxRate;
 	}
 	if ('clientId' in body) {
-		data.clientId = body.clientId ? parseInt(body.clientId) : null;
+		const newClientId = body.clientId ? parseInt(body.clientId) : null;
+		data.clientId = newClientId;
 		oldValues.clientId = existing.clientId;
+
+		// Denormalize client name
+		if (newClientId && newClientId !== existing.clientId) {
+			const client = await prisma.client.findUnique({ where: { id: newClientId }, select: { name: true } });
+			data.clientName = client?.name ?? null;
+		} else if (!newClientId) {
+			data.clientName = null;
+		}
 	}
 	if ('projectId' in body) {
 		data.projectId = body.projectId ? parseInt(body.projectId) : null;
@@ -196,8 +205,7 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 		await prisma.income.deleteMany({
 			where: {
 				parentId: id,
-				status: 'projected',
-				deletedAt: null
+				status: 'projected'
 			}
 		});
 	}

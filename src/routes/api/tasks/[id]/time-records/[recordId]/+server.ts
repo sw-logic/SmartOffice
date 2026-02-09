@@ -157,17 +157,14 @@ export const DELETE: RequestHandler = async ({ locals, params }) => {
 		}
 	}
 
-	await prisma.timeRecord.update({
-		where: { id: recordId },
-		data: { deletedAt: new Date() }
-	});
-
-	await recalcTaskSpentTime(taskId);
-
 	await logDelete(locals.user!.id, 'projects', String(recordId), 'TimeRecord', {
 		minutes: existing.minutes,
 		date: existing.date
 	});
+
+	await prisma.timeRecord.delete({ where: { id: recordId } });
+
+	await recalcTaskSpentTime(taskId);
 
 	return json({ success: true });
 };

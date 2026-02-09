@@ -140,7 +140,7 @@ const authorizationHandle: Handle = async ({ event, resolve }) => {
 		redirect(303, `/login?callbackUrl=${encodeURIComponent(event.url.pathname)}`);
 	}
 
-	// Validate session - check if user still exists and is not deleted.
+	// Validate session - check if user still exists.
 	// Uses an in-memory cache (5-min TTL) so the DB is only hit once per user
 	// per TTL window instead of on every single request.
 	let isValidSession = false;
@@ -154,9 +154,9 @@ const authorizationHandle: Handle = async ({ event, resolve }) => {
 			try {
 				const user = await prisma.user.findUnique({
 					where: { id: userId },
-					select: { id: true, deletedAt: true }
+					select: { id: true }
 				});
-				isValidSession = !!(user && !user.deletedAt);
+				isValidSession = !!user;
 				setCachedUserValidity(userId, isValidSession);
 			} catch (err) {
 				// Re-throw redirects (they're thrown as exceptions in SvelteKit)

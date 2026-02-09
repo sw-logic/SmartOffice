@@ -57,8 +57,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	const dateFilter = { gte: startDate, lte: endDate };
 
-	const incomeWhere = { date: dateFilter, deletedAt: null };
-	const expenseWhere = { date: dateFilter, deletedAt: null };
+	const incomeWhere = { date: dateFilter };
+	const expenseWhere = { date: dateFilter };
 
 	const [incomes, expenses, employees, incomeAgg, expenseAgg] = await Promise.all([
 		canReadIncome
@@ -76,6 +76,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 						status: true,
 						isRecurring: true,
 						recurringPeriod: true,
+						clientName: true,
 						client: { select: { id: true, name: true } }
 					},
 					orderBy: { date: 'desc' }
@@ -96,6 +97,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 						status: true,
 						isRecurring: true,
 						recurringPeriod: true,
+						vendorName: true,
 						vendor: { select: { id: true, name: true } }
 					},
 					orderBy: { date: 'desc' }
@@ -106,7 +108,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					where: {
 						personType: 'company_employee',
 						employeeStatus: 'active',
-						deletedAt: null,
 						salary: { not: null, gt: 0 }
 					},
 					select: {

@@ -66,8 +66,7 @@ export const actions: Actions = {
 			const existingEmployee = await prisma.person.findFirst({
 				where: {
 					email: email.trim(),
-					personType: 'company_employee',
-					deletedAt: null
+					personType: 'company_employee'
 				}
 			});
 			if (existingEmployee) {

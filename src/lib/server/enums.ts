@@ -45,10 +45,10 @@ export async function getEnumValues(typeCode: string): Promise<EnumOption[]> {
 
 	// Fetch from database
 	const enumType = await prisma.enumType.findUnique({
-		where: { code: typeCode, deletedAt: null },
+		where: { code: typeCode },
 		include: {
 			values: {
-				where: { isActive: true, deletedAt: null },
+				where: { isActive: true },
 				orderBy: { sortOrder: 'asc' }
 			}
 		}
@@ -98,12 +98,11 @@ export async function getEnumValuesBatch(
 	if (uncachedCodes.length > 0) {
 		const enumTypes = await prisma.enumType.findMany({
 			where: {
-				code: { in: uncachedCodes },
-				deletedAt: null
+				code: { in: uncachedCodes }
 			},
 			include: {
 				values: {
-					where: { isActive: true, deletedAt: null },
+					where: { isActive: true },
 					orderBy: { sortOrder: 'asc' }
 				}
 			}
@@ -115,6 +114,7 @@ export async function getEnumValuesBatch(
 				label: v.label,
 				description: v.description,
 				isDefault: v.isDefault,
+				color: v.color,
 				metadata: v.metadata as Record<string, unknown> | null
 			}));
 
@@ -150,7 +150,6 @@ export function clearEnumCache(typeCode?: string): void {
  */
 export async function getAllEnumTypes(): Promise<EnumType[]> {
 	const types = await prisma.enumType.findMany({
-		where: { deletedAt: null },
 		orderBy: { name: 'asc' }
 	});
 

@@ -10,9 +10,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	// Check if user can manage salary
 	const canManageSalary = checkPermission(locals, 'employees', 'salary');
 
-	// Check if current user is admin (can edit deleted employees)
-	const isAdmin = checkPermission(locals, '*', '*');
-
 	// Parse employee ID
 	const employeeId = parseInt(params.id);
 	if (isNaN(employeeId)) {
@@ -52,18 +49,12 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			employeeStatus: true,
 			emergencyContact: true,
 			notes: true,
-			deletedAt: true,
 			...salarySelect
 		}
 	});
 
 	if (!employee) {
 		error(404, 'Employee not found');
-	}
-
-	// If employee is deleted and user is not admin, deny access
-	if (employee.deletedAt && !isAdmin) {
-		error(403, 'Only administrators can edit deleted employees');
 	}
 
 	// Convert Decimal fields to numbers for serialization
@@ -73,15 +64,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			salary: employee.salary ? Number(employee.salary) : null,
 			salary_tax: employee.salary_tax ? Number(employee.salary_tax) : null,
 			salary_bonus: employee.salary_bonus ? Number(employee.salary_bonus) : null,
-			isDeleted: employee.deletedAt !== null,
 			// Format dates for input fields
 			dateOfBirth: employee.dateOfBirth
 				? new Date(employee.dateOfBirth).toISOString().split('T')[0]
 				: '',
 			hireDate: employee.hireDate ? new Date(employee.hireDate).toISOString().split('T')[0] : ''
 		},
-		canManageSalary,
-		isAdmin
+		canManageSalary
 	};
 };
 
@@ -143,7 +132,6 @@ export const actions: Actions = {
 				where: {
 					email: email.trim(),
 					personType: 'company_employee',
-					deletedAt: null,
 					id: { not: employeeId }
 				}
 			});

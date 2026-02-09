@@ -1,14 +1,12 @@
 import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
-import { requirePermission, checkPermission } from '$lib/server/access-control';
+import { requirePermission } from '$lib/server/access-control';
 import { fail } from '@sveltejs/kit';
 import { logDelete, logUpdate } from '$lib/server/audit';
 import { promoteProjectedRecords } from '$lib/server/recurring';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'finances.expenses', 'read');
-
-	const isAdmin = checkPermission(locals, '*', '*');
 
 	// Promote projected records whose date has arrived
 	await promoteProjectedRecords();
@@ -56,7 +54,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	// Build where clause
 	const where: any = {
-		deletedAt: null,
 		date: {
 			gte: startDate,
 			lte: endDate
@@ -116,6 +113,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			parentId: true,
 			receiptPath: true,
 			notes: true,
+			vendorName: true,
 			vendor: {
 				select: {
 					id: true,
@@ -146,7 +144,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	// Get vendors for filter dropdown
 	const vendors = await prisma.vendor.findMany({
-		where: { deletedAt: null },
 		select: { id: true, name: true, paymentTerms: true },
 		orderBy: { name: 'asc' }
 	});
@@ -177,7 +174,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	// Load data needed for the form modal
 	const projects = await prisma.project.findMany({
-		where: { deletedAt: null, status: { in: ['planning', 'active'] } },
+		where: { status: { in: ['planning', 'active'] } },
 		select: {
 			id: true,
 			name: true,
@@ -198,11 +195,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 		const [ytdIncome, ytdExpenses] = await Promise.all([
 			prisma.income.aggregate({
-				where: { date: ytdDateFilter, deletedAt: null },
+				where: { date: ytdDateFilter },
 				_sum: { amount: true }
 			}),
 			prisma.expense.aggregate({
-				where: { date: ytdDateFilter, deletedAt: null },
+				where: { date: ytdDateFilter },
 				_sum: { amount: true }
 			})
 		]);
@@ -241,8 +238,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			isRecurring,
 			sortBy,
 			sortOrder
-		},
-		isAdmin
+		}
 	};
 };
 
@@ -261,8 +257,8 @@ export const actions: Actions = {
 			return fail(400, { error: 'Invalid expense ID' });
 		}
 
-		const expense = await prisma.expense.findFirst({
-			where: { id, deletedAt: null },
+		const expense = await prisma.expense.findUnique({
+			where: { id },
 			select: {
 				id: true,
 				amount: true,
@@ -278,30 +274,26 @@ export const actions: Actions = {
 			return fail(404, { error: 'Expense not found' });
 		}
 
-		const now = new Date();
-
-		await prisma.expense.update({
-			where: { id },
-			data: { deletedAt: now }
-		});
-
-		// If this is a recurring parent, also delete all projected children
-		if (expense.isRecurring && !expense.parentId) {
-			await prisma.expense.updateMany({
-				where: {
-					parentId: id,
-					status: 'projected',
-					deletedAt: null
-				},
-				data: { deletedAt: now }
-			});
-		}
-
+		// Log BEFORE hard delete
 		await logDelete(locals.user!.id, 'finances.expenses', String(id), 'Expense', {
 			amount: expense.amount,
 			description: expense.description,
 			category: expense.category,
 			date: expense.date
+		});
+
+		// If this is a recurring parent, also delete all projected children
+		if (expense.isRecurring && !expense.parentId) {
+			await prisma.expense.deleteMany({
+				where: {
+					parentId: id,
+					status: 'projected'
+				}
+			});
+		}
+
+		await prisma.expense.delete({
+			where: { id }
 		});
 
 		return { success: true };
@@ -324,8 +316,7 @@ export const actions: Actions = {
 
 		const expenses = await prisma.expense.findMany({
 			where: {
-				id: { in: ids },
-				deletedAt: null
+				id: { in: ids }
 			},
 			select: {
 				id: true,
@@ -342,30 +333,7 @@ export const actions: Actions = {
 			return fail(404, { error: 'No expense records found' });
 		}
 
-		const now = new Date();
-
-		// Soft delete all selected expenses
-		await prisma.expense.updateMany({
-			where: { id: { in: expenses.map(e => e.id) } },
-			data: { deletedAt: now }
-		});
-
-		// For recurring parents, also delete projected children
-		const recurringParentIds = expenses
-			.filter(e => e.isRecurring && !e.parentId)
-			.map(e => e.id);
-
-		if (recurringParentIds.length > 0) {
-			await prisma.expense.updateMany({
-				where: {
-					parentId: { in: recurringParentIds },
-					status: 'projected',
-					deletedAt: null
-				},
-				data: { deletedAt: now }
-			});
-		}
-
+		// Log BEFORE hard delete
 		for (const expense of expenses) {
 			await logDelete(locals.user!.id, 'finances.expenses', String(expense.id), 'Expense', {
 				amount: expense.amount,
@@ -374,6 +342,25 @@ export const actions: Actions = {
 				date: expense.date
 			});
 		}
+
+		// For recurring parents, also delete projected children
+		const recurringParentIds = expenses
+			.filter(e => e.isRecurring && !e.parentId)
+			.map(e => e.id);
+
+		if (recurringParentIds.length > 0) {
+			await prisma.expense.deleteMany({
+				where: {
+					parentId: { in: recurringParentIds },
+					status: 'projected'
+				}
+			});
+		}
+
+		// Hard delete all selected expenses
+		await prisma.expense.deleteMany({
+			where: { id: { in: expenses.map(e => e.id) } }
+		});
 
 		return { success: true, count: expenses.length };
 	},
@@ -393,8 +380,8 @@ export const actions: Actions = {
 			return fail(400, { error: 'Invalid expense ID' });
 		}
 
-		const expense = await prisma.expense.findFirst({
-			where: { id, deletedAt: null },
+		const expense = await prisma.expense.findUnique({
+			where: { id },
 			select: { id: true, status: true }
 		});
 

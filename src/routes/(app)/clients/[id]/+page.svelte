@@ -2,8 +2,8 @@
 	import { invalidateAll } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
+	import EnumBadge from '$lib/components/shared/EnumBadge.svelte';
 	import * as Card from '$lib/components/ui/card';
-	import * as Alert from '$lib/components/ui/alert';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import ContactFormModal from '$lib/components/shared/ContactFormModal.svelte';
@@ -23,7 +23,6 @@
 		Briefcase,
 		Users,
 		FileText,
-		AlertTriangle,
 		ExternalLink,
 		Plus,
 		Trash2
@@ -138,50 +137,6 @@
 		}
 	}
 
-	function getStatusBadgeVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-		switch (status) {
-			case 'active':
-				return 'default';
-			case 'inactive':
-				return 'secondary';
-			case 'archived':
-				return 'outline';
-			default:
-				return 'secondary';
-		}
-	}
-
-	function getProjectStatusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-		switch (status) {
-			case 'active':
-				return 'default';
-			case 'completed':
-				return 'secondary';
-			case 'on_hold':
-				return 'outline';
-			case 'cancelled':
-				return 'destructive';
-			default:
-				return 'outline';
-		}
-	}
-
-	function getOfferStatusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-		switch (status) {
-			case 'accepted':
-				return 'default';
-			case 'sent':
-				return 'secondary';
-			case 'draft':
-				return 'outline';
-			case 'rejected':
-			case 'expired':
-				return 'destructive';
-			default:
-				return 'outline';
-		}
-	}
-
 	function formatCurrency(amount: number | string, currency: string): string {
 		const num = typeof amount === 'string' ? parseFloat(amount) : amount;
 		return new Intl.NumberFormat('en-US', {
@@ -201,13 +156,7 @@
 			<div>
 				<div class="flex items-center gap-3">
 					<h1 class="text-3xl font-bold tracking-tight">{data.client.name}</h1>
-					{#if data.client.isDeleted}
-						<Badge variant="destructive">Deleted</Badge>
-					{:else}
-						<Badge variant={getStatusBadgeVariant(data.client.status)}>
-							{data.client.status.charAt(0).toUpperCase() + data.client.status.slice(1)}
-						</Badge>
-					{/if}
+					<EnumBadge enums={data.enums.entity_status} value={data.client.status} />
 				</div>
 				{#if data.client.companyName}
 					<p class="text-muted-foreground flex items-center gap-1">
@@ -217,23 +166,12 @@
 				{/if}
 			</div>
 		</div>
-		{#if !data.client.isDeleted || data.isAdmin}
-			<Button href="/clients/{data.client.id}/edit">
-				<Pencil class="mr-2 h-4 w-4" />
-				Edit Client
-			</Button>
-		{/if}
+		<Button href="/clients/{data.client.id}/edit">
+			<Pencil class="mr-2 h-4 w-4" />
+			Edit Client
+		</Button>
 	</div>
 
-	{#if data.client.isDeleted}
-		<Alert.Root variant="destructive">
-			<AlertTriangle class="h-4 w-4" />
-			<Alert.Title>Deleted Client</Alert.Title>
-			<Alert.Description>
-				This client has been deleted. Only administrators can view and edit this record.
-			</Alert.Description>
-		</Alert.Root>
-	{/if}
 
 	<div class="grid gap-6 md:grid-cols-3">
 		<!-- Main Info Card -->
@@ -493,9 +431,7 @@
 											</p>
 										{/if}
 									</div>
-									<Badge variant={getProjectStatusVariant(project.status)}>
-										{project.status.replace('_', ' ')}
-									</Badge>
+									<EnumBadge enums={data.enums.project_status} value={project.status} />
 								</a>
 							{/each}
 						</div>
@@ -539,9 +475,7 @@
 										<p class="font-medium">
 											{formatCurrency(Number(offer.grandTotal), offer.currency)}
 										</p>
-										<Badge variant={getOfferStatusVariant(offer.status)}>
-											{offer.status}
-										</Badge>
+										<EnumBadge enums={data.enums.offer_status} value={offer.status} />
 									</div>
 								</a>
 							{/each}
@@ -617,7 +551,7 @@
 		<AlertDialog.Header>
 			<AlertDialog.Title>Delete Contact</AlertDialog.Title>
 			<AlertDialog.Description>
-				Are you sure you want to delete <strong>{contactToDelete?.name}</strong>? This action can be undone by an administrator.
+				Are you sure you want to delete <strong>{contactToDelete?.name}</strong>? This action cannot be undone.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>

@@ -47,9 +47,6 @@ model User {
   // Person profile (if user is linked to a person record)
   person Person?
 
-  // Soft delete
-  deletedAt DateTime?
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -100,9 +97,8 @@ model UserGroup {
   users       UserGroupUser[]
   permissions GroupPermission[]
 
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([name])
 }
@@ -127,9 +123,8 @@ model Permission {
 
   groups GroupPermission[]
 
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([module, action])
   @@index([module, action])
@@ -206,9 +201,8 @@ model Company {
   projects  Project[]
   employees Person[]  @relation("CompanyEmployees")
 
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ============================================================================
@@ -237,9 +231,9 @@ model Person {
 
   // Company Employee (if personType = "company_employee")
   companyId      Int?
-  company        Company?  @relation("CompanyEmployees", fields: [companyId], references: [id])
+  company        Company?  @relation("CompanyEmployees", fields: [companyId], references: [id], onDelete: SetNull)
   userId         String?   @unique
-  user           User?     @relation(fields: [userId], references: [id])
+  user           User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
   hireDate       DateTime?
   employmentType String? // "full-time", "part-time", "contractor"
   department     String?
@@ -252,12 +246,12 @@ model Person {
 
   // Client Contact (if personType = "client_contact")
   clientId         Int?
-  client           Client? @relation(fields: [clientId], references: [id])
+  client           Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
   isPrimaryContact Boolean @default(false)
 
   // Vendor Contact (if personType = "vendor_contact")
   vendorId Int?
-  vendor   Vendor? @relation(fields: [vendorId], references: [id])
+  vendor   Vendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
 
   // Additional Info
   position         String? // Job position/title (for all types)
@@ -271,9 +265,8 @@ model Person {
   kanbanBoardMemberships KanbanBoardMember[]
   timeRecords            TimeRecord[]        @relation("TimeRecordPerson")
 
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([email])
   @@index([personType])
@@ -328,9 +321,8 @@ model Client {
   createdById String
   createdBy   User   @relation("CreatedBy", fields: [createdById], references: [id])
 
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([companyId])
   @@index([email])
@@ -375,9 +367,8 @@ model Vendor {
   contacts Person[] // Vendor contacts/employees
   expenses Expense[]
 
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([email])
   @@index([status])
@@ -415,7 +406,7 @@ model Project {
 
   // Relations
   projectManagerId Int?
-  projectManager   Person? @relation("ProjectManager", fields: [projectManagerId], references: [id])
+  projectManager   Person? @relation("ProjectManager", fields: [projectManagerId], references: [id], onDelete: SetNull)
 
   assignedEmployees ProjectEmployee[]
   tasks             Task[]
@@ -427,9 +418,8 @@ model Project {
   createdById String
   createdBy   User   @relation("CreatedBy", fields: [createdById], references: [id])
 
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([companyId])
   @@index([clientId])
@@ -466,19 +456,19 @@ model Task {
 
   // Kanban board placement (optional - task may not be on a board yet)
   kanbanBoardId Int?
-  kanbanBoard   KanbanBoard? @relation(fields: [kanbanBoardId], references: [id])
+  kanbanBoard   KanbanBoard? @relation(fields: [kanbanBoardId], references: [id], onDelete: SetNull)
 
   columnId Int?
-  column   KanbanColumn? @relation(fields: [columnId], references: [id])
+  column   KanbanColumn? @relation(fields: [columnId], references: [id], onDelete: SetNull)
 
   swimlaneId Int?
-  swimlane   KanbanSwimlane? @relation(fields: [swimlaneId], references: [id])
+  swimlane   KanbanSwimlane? @relation(fields: [swimlaneId], references: [id], onDelete: SetNull)
 
   order Int @default(0) // Ordering within column/swimlane
 
   // People
   assignedToId Int?
-  assignedTo   Person? @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  assignedTo   Person? @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
 
   reviewerIds Int[] // Person IDs
   followerIds Int[] // Person IDs
@@ -487,6 +477,7 @@ model Task {
   createdBy   User   @relation("TaskCreatedBy", fields: [createdById], references: [id])
 
   // Time tracking
+  startDate     DateTime?
   dueDate       DateTime?
   estimatedTime Int? // Estimated duration in minutes
   spentTime     Int          @default(0) // Total minutes from timeRecords (materialized aggregate)
@@ -494,14 +485,14 @@ model Task {
 
   notes String? @db.Text
 
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([projectId])
   @@index([kanbanBoardId])
   @@index([status])
   @@index([assignedToId])
+  @@index([startDate])
   @@index([columnId])
   @@index([swimlaneId])
 }
@@ -526,15 +517,14 @@ model TimeRecord {
 
   // Person who did the work (defaults to creator's linked person)
   personId Int?
-  person   Person? @relation("TimeRecordPerson", fields: [personId], references: [id])
+  person   Person? @relation("TimeRecordPerson", fields: [personId], references: [id], onDelete: SetNull)
 
   // Creator (editable by creator, admins, and project manager)
   createdById String
   createdBy   User   @relation(fields: [createdById], references: [id])
 
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([taskId])
   @@index([createdById])
@@ -559,9 +549,8 @@ model Milestone {
   completed   Boolean   @default(false)
   completedAt DateTime?
 
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([projectId])
 }
@@ -585,9 +574,8 @@ model KanbanBoard {
   tasks       Task[]
   preferences UserBoardPreference[]
 
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([projectId])
 }
@@ -616,9 +604,8 @@ model KanbanColumn {
 
   tasks Task[]
 
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([kanbanBoardId])
 }
@@ -634,9 +621,8 @@ model KanbanSwimlane {
 
   tasks Task[]
 
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([kanbanBoardId])
 }
@@ -671,15 +657,14 @@ model Note {
 
   content String @db.Text // Markdown format
 
-  authorId String
-  author   User   @relation(fields: [authorId], references: [id])
+  authorId String?
+  author   User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
 
   priority String  @default("normal") // "low", "normal", "high", "urgent"
   color    String? // Hex color for visual categorization
 
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([entityType, entityId])
   @@index([authorId])
@@ -733,18 +718,19 @@ model Income {
   recurringPeriod  String? // "weekly", "monthly", "quarterly", "yearly" - only when isRecurring is true
   recurringEndDate DateTime? // "Generate projections until" date
   parentId         Int?      // Self-reference: links generated occurrences to the parent
-  parent           Income?   @relation("IncomeRecurring", fields: [parentId], references: [id])
+  parent           Income?   @relation("IncomeRecurring", fields: [parentId], references: [id], onDelete: Cascade)
   children         Income[]  @relation("IncomeRecurring")
 
   // Relations
-  clientId Int?
-  client   Client? @relation(fields: [clientId], references: [id])
+  clientId   Int?
+  clientName String? // Denormalized: preserved when client is deleted
+  client     Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
   projectId Int?
-  project   Project? @relation(fields: [projectId], references: [id])
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   paymentId Int?     @unique
-  payment   Payment? @relation(fields: [paymentId], references: [id])
+  payment   Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
 
   invoiceReference String? // External invoice number/reference
   taxRate          Decimal? @db.Decimal(5, 2)
@@ -754,9 +740,8 @@ model Income {
   createdById String
   createdBy   User   @relation("CreatedBy", fields: [createdById], references: [id])
 
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([date])
   @@index([clientId])
@@ -789,18 +774,19 @@ model Expense {
   recurringPeriod  String? // "weekly", "monthly", "quarterly", "yearly" - only when isRecurring is true
   recurringEndDate DateTime? // "Generate projections until" date
   parentId         Int?      // Self-reference: links generated occurrences to the parent
-  parent           Expense?  @relation("ExpenseRecurring", fields: [parentId], references: [id])
+  parent           Expense?  @relation("ExpenseRecurring", fields: [parentId], references: [id], onDelete: Cascade)
   children         Expense[] @relation("ExpenseRecurring")
 
   // Relations
   projectId Int?
-  project   Project? @relation(fields: [projectId], references: [id])
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
-  vendorId Int?
-  vendor   Vendor? @relation(fields: [vendorId], references: [id])
+  vendorId   Int?
+  vendorName String? // Denormalized: preserved when vendor is deleted
+  vendor     Vendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
 
   paymentId Int?     @unique
-  payment   Payment? @relation(fields: [paymentId], references: [id])
+  payment   Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
 
   receiptPath String? // File path on own server
 
@@ -809,9 +795,8 @@ model Expense {
   createdById String
   createdBy   User   @relation("CreatedBy", fields: [createdById], references: [id])
 
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([date])
   @@index([projectId])
@@ -835,7 +820,7 @@ model Payment {
 
   // Relations
   clientId Int?
-  client   Client? @relation(fields: [clientId], references: [id])
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
   income  Income?
   expense Expense?
@@ -851,9 +836,8 @@ model Payment {
   createdById String
   createdBy   User   @relation("CreatedBy", fields: [createdById], references: [id])
 
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([date])
   @@index([type])
@@ -886,10 +870,10 @@ model PriceListItem {
   // Relations
   offerItems OfferItem[]
 
-  notes     String?
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([active])
   @@index([category])
@@ -938,9 +922,8 @@ model Offer {
   createdById String
   createdBy   User   @relation("CreatedBy", fields: [createdById], references: [id])
 
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([offerNumber])
   @@index([clientId])
@@ -991,9 +974,8 @@ model EnumType {
 
   values EnumValue[]
 
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([code])
   @@index([group])
@@ -1018,9 +1000,8 @@ model EnumValue {
   // Relations
   entityTags EntityTag[]
 
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([enumTypeId, value])
   @@index([enumTypeId, isActive])

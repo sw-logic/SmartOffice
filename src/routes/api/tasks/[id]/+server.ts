@@ -22,17 +22,14 @@ export const GET: RequestHandler = async ({ locals, params }) => {
 					clientId: true,
 					client: { select: { id: true, name: true } },
 					kanbanBoards: {
-						where: { deletedAt: null },
 						select: {
 							id: true,
 							name: true,
 							columns: {
-								where: { deletedAt: null },
 								orderBy: { order: 'asc' },
 								select: { id: true, name: true }
 							},
 							swimlanes: {
-								where: { deletedAt: null },
 								orderBy: { order: 'asc' },
 								select: { id: true, name: true }
 							}
@@ -56,7 +53,6 @@ export const GET: RequestHandler = async ({ locals, params }) => {
 				select: { id: true, name: true }
 			},
 			timeRecords: {
-				where: { deletedAt: null },
 				orderBy: { date: 'desc' },
 				select: {
 					id: true,
@@ -91,7 +87,7 @@ export const GET: RequestHandler = async ({ locals, params }) => {
 
 	// Load notes (polymorphic)
 	const notes = await prisma.note.findMany({
-		where: { entityType: 'Task', entityId: String(id), deletedAt: null },
+		where: { entityType: 'Task', entityId: String(id) },
 		orderBy: { createdAt: 'desc' },
 		select: {
 			id: true,
@@ -169,6 +165,7 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 			columnId: true,
 			swimlaneId: true,
 			assignedToId: true,
+			startDate: true,
 			dueDate: true,
 			estimatedTime: true,
 			reviewerIds: true,
@@ -204,6 +201,10 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 	}
 
 	// Handle special fields
+	if ('startDate' in body) {
+		data.startDate = body.startDate ? new Date(body.startDate) : null;
+		oldValues.startDate = existing.startDate;
+	}
 	if ('dueDate' in body) {
 		data.dueDate = body.dueDate ? new Date(body.dueDate) : null;
 		oldValues.dueDate = existing.dueDate;
@@ -257,13 +258,12 @@ export const DELETE: RequestHandler = async ({ locals, params }) => {
 		return json({ error: 'Forbidden' }, { status: 403 });
 	}
 
-	await prisma.task.update({
-		where: { id },
-		data: { deletedAt: new Date() }
-	});
-
 	await logDelete(locals.user!.id, 'projects', String(id), 'Task', {
 		name: task.name
+	});
+
+	await prisma.task.delete({
+		where: { id }
 	});
 
 	return json({ success: true });

@@ -8,17 +8,14 @@ import bcrypt from 'bcryptjs';
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'settings', 'users');
 
-	// Check if current user is admin (can edit deleted users)
 	const isAdmin = checkPermission(locals, '*', '*');
 
-	// First find the user without deletedAt filter
 	const user = await prisma.user.findUnique({
 		where: { id: params.id },
 		select: {
 			id: true,
 			name: true,
 			email: true,
-			deletedAt: true,
 			userGroups: {
 				select: {
 					userGroupId: true
@@ -31,13 +28,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		error(404, 'User not found');
 	}
 
-	// If user is deleted and current user is not admin, deny access
-	if (user.deletedAt && !isAdmin) {
-		error(403, 'Only administrators can edit deleted users');
-	}
-
 	const userGroups = await prisma.userGroup.findMany({
-		where: { deletedAt: null },
 		orderBy: { name: 'asc' },
 		select: {
 			id: true,
@@ -49,8 +40,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	return {
 		user: {
 			...user,
-			groupIds: user.userGroups.map(ug => ug.userGroupId),
-			isDeleted: user.deletedAt !== null
+			groupIds: user.userGroups.map(ug => ug.userGroupId)
 		},
 		userGroups,
 		isAdmin

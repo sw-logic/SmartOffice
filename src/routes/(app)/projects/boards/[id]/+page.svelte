@@ -2,7 +2,6 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
-	import * as Alert from '$lib/components/ui/alert';
 	import * as Select from '$lib/components/ui/select';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Command from '$lib/components/ui/command';
@@ -13,7 +12,6 @@
 	import { flip } from 'svelte/animate';
 	import {
 		ArrowLeft,
-		AlertTriangle,
 		SearchIcon,
 		ChevronDown,
 		ChevronRight,
@@ -375,16 +373,6 @@
 		</div>
 	</div>
 
-	{#if data.board.isDeleted}
-		<Alert.Root variant="destructive">
-			<AlertTriangle class="h-4 w-4" />
-			<Alert.Title>Deleted Board</Alert.Title>
-			<Alert.Description>
-				This board has been deleted. Only administrators can view this record.
-			</Alert.Description>
-		</Alert.Root>
-	{/if}
-
 	<!-- Kanban board -->
 	{#if data.board.columns.length === 0 || data.board.swimlanes.length === 0}
 		<div class="flex-1 flex items-center justify-center text-muted-foreground">
@@ -489,7 +477,7 @@
 											>
 												{#each cellTasks[swimlane.id]?.[column.id] || [] as task (task.id)}
 													<div animate:flip={{ duration: flipDurationMs }}>
-														<TaskCard {task} onclick={() => { if (!isDragging) openTaskModal(task.id); }} />
+														<TaskCard {task} priorityEnums={data.enums.priority} onclick={() => { if (!isDragging) openTaskModal(task.id); }} />
 													</div>
 												{/each}
 											</div>
@@ -514,16 +502,12 @@
 		employees={modalData.employees}
 		taskTypes={data.enums.task_type}
 		taskCategories={data.enums.task_category}
-		taskPriorities={[
-			{ value: 'low', label: 'Low' },
-			{ value: 'medium', label: 'Medium' },
-			{ value: 'high', label: 'High' },
-			{ value: 'urgent', label: 'Urgent' }
-		]}
+		taskPriorities={data.enums.priority}
 		availableTags={modalData.availableTags}
 		timeRecordTypes={data.enums.time_record_type}
 		timeRecordCategories={data.enums.time_record_category}
 		currentPersonId={data.user?.personId}
+		notePriorities={data.enums.note_priority}
 		defaults={modalDefaults}
 		onTaskCreated={() => invalidateAll()}
 		onTaskUpdated={() => invalidateAll()}

@@ -15,13 +15,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	const [clients, persons] = await Promise.all([
 		prisma.client.findMany({
-			where: { deletedAt: null, status: 'active' },
+			where: { status: 'active' },
 			select: { id: true, name: true },
 			orderBy: { name: 'asc' }
 		}),
 		prisma.person.findMany({
 			where: {
-				deletedAt: null,
 				personType: 'company_employee',
 				employeeStatus: 'active'
 			},

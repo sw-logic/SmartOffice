@@ -9,7 +9,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 	await requirePermission(locals, 'settings', 'users');
 
 	const userGroups = await prisma.userGroup.findMany({
-		where: { deletedAt: null },
 		orderBy: { name: 'asc' },
 		select: {
 			id: true,

@@ -26,10 +26,10 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 
 	const existing = await prisma.note.findUnique({
 		where: { id },
-		select: { id: true, content: true, priority: true, color: true, deletedAt: true, entityType: true }
+		select: { id: true, content: true, priority: true, color: true, entityType: true }
 	});
 
-	if (!existing || existing.deletedAt) {
+	if (!existing) {
 		return json({ error: 'Note not found' }, { status: 404 });
 	}
 
@@ -86,23 +86,23 @@ export const DELETE: RequestHandler = async ({ locals, params }) => {
 
 	const note = await prisma.note.findUnique({
 		where: { id },
-		select: { id: true, content: true, deletedAt: true, entityType: true }
+		select: { id: true, content: true, entityType: true }
 	});
 
-	if (!note || note.deletedAt) {
+	if (!note) {
 		return json({ error: 'Note not found' }, { status: 404 });
 	}
 
 	const permModule = ENTITY_PERMISSION_MAP[note.entityType] || 'projects';
 	await requirePermission(locals, permModule, 'update');
 
-	await prisma.note.update({
-		where: { id },
-		data: { deletedAt: new Date() }
-	});
-
+	// Audit log before hard delete
 	await logDelete(locals.user!.id, 'projects', String(id), 'Note', {
 		content: note.content
+	});
+
+	await prisma.note.delete({
+		where: { id }
 	});
 
 	return json({ success: true });

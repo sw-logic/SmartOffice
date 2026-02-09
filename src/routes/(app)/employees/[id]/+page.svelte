@@ -2,12 +2,12 @@
 	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
+	import EnumBadge from '$lib/components/shared/EnumBadge.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Card from '$lib/components/ui/card';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as Table from '$lib/components/ui/table';
 	import * as Select from '$lib/components/ui/select';
-	import * as Alert from '$lib/components/ui/alert';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as Avatar from '$lib/components/ui/avatar';
 	import {
@@ -21,12 +21,10 @@
 		Briefcase,
 		User,
 		Shield,
-		AlertTriangle,
 		DollarSign,
 		X,
 		Plus,
-		Trash2,
-		RotateCcw
+		Trash2
 	} from 'lucide-svelte';
 	import { formatDate } from '$lib/utils/date';
 
@@ -36,7 +34,6 @@
 	let removeGroupDialogOpen = $state(false);
 	let groupToRemove = $state<{ id: number; name: string } | null>(null);
 	let deleteDialogOpen = $state(false);
-	let restoreDialogOpen = $state(false);
 	let deactivateUser = $state(false);
 
 	const employmentTypes: Record<string, string> = {
@@ -44,51 +41,6 @@
 		'part-time': 'Part-time',
 		contractor: 'Contractor'
 	};
-
-	const statusLabels: Record<string, string> = {
-		active: 'Active',
-		on_leave: 'On Leave',
-		terminated: 'Terminated'
-	};
-
-	const projectStatusLabels: Record<string, string> = {
-		planning: 'Planning',
-		active: 'Active',
-		on_hold: 'On Hold',
-		completed: 'Completed',
-		cancelled: 'Cancelled'
-	};
-
-	function getStatusBadgeVariant(
-		status: string | null
-	): 'default' | 'secondary' | 'destructive' | 'outline' {
-		switch (status) {
-			case 'active':
-				return 'default';
-			case 'on_leave':
-				return 'secondary';
-			case 'terminated':
-				return 'destructive';
-			default:
-				return 'outline';
-		}
-	}
-
-	function getProjectStatusBadgeVariant(
-		status: string
-	): 'default' | 'secondary' | 'destructive' | 'outline' {
-		switch (status) {
-			case 'active':
-				return 'default';
-			case 'completed':
-				return 'secondary';
-			case 'cancelled':
-				return 'destructive';
-			default:
-				return 'outline';
-		}
-	}
-
 
 	function formatCurrency(amount: number | null): string {
 		if (amount === null) return '-';
@@ -143,37 +95,18 @@
 			</div>
 		</div>
 		<div class="flex items-center gap-2">
-			{#if data.employee.isDeleted}
-				{#if data.isAdmin}
-					<Button variant="outline" onclick={() => (restoreDialogOpen = true)}>
-						<RotateCcw class="mr-2 h-4 w-4" />
-						Restore Employee
-					</Button>
-				{/if}
-			{:else}
-				<Button href="/employees/{data.employee.id}/edit">
-					<Pencil class="mr-2 h-4 w-4" />
-					Edit Employee
+			<Button href="/employees/{data.employee.id}/edit">
+				<Pencil class="mr-2 h-4 w-4" />
+				Edit Employee
+			</Button>
+			{#if data.canDelete}
+				<Button variant="destructive" onclick={() => { deactivateUser = false; deleteDialogOpen = true; }}>
+					<Trash2 class="mr-2 h-4 w-4" />
+					Delete Employee
 				</Button>
-				{#if data.canDelete}
-					<Button variant="destructive" onclick={() => { deactivateUser = false; deleteDialogOpen = true; }}>
-						<Trash2 class="mr-2 h-4 w-4" />
-						Delete Employee
-					</Button>
-				{/if}
 			{/if}
 		</div>
 	</div>
-
-	{#if data.employee.isDeleted}
-		<Alert.Root variant="destructive" class="max-w-4xl">
-			<AlertTriangle class="h-4 w-4" />
-			<Alert.Title>Deleted Employee</Alert.Title>
-			<Alert.Description>
-				This employee has been deleted. Only administrators can view this record.
-			</Alert.Description>
-		</Alert.Root>
-	{/if}
 
 	<div class="grid gap-6 md:grid-cols-3">
 		<!-- Main Info Card -->
@@ -245,9 +178,7 @@
 							<div class="text-sm text-muted-foreground">Status</div>
 							<div>
 								{#if data.employee.employeeStatus}
-									<Badge variant={getStatusBadgeVariant(data.employee.employeeStatus)}>
-										{statusLabels[data.employee.employeeStatus] || data.employee.employeeStatus}
-									</Badge>
+									<EnumBadge enums={data.enums.employee_status} value={data.employee.employeeStatus} />
 								{:else}
 									-
 								{/if}
@@ -294,12 +225,8 @@
 				</Card.Header>
 				<Card.Content>
 					<div class="flex items-center gap-2">
-						{#if data.employee.isDeleted}
-							<Badge variant="destructive">Deleted</Badge>
-						{:else if data.employee.employeeStatus}
-							<Badge variant={getStatusBadgeVariant(data.employee.employeeStatus)}>
-								{statusLabels[data.employee.employeeStatus] || data.employee.employeeStatus}
-							</Badge>
+						{#if data.employee.employeeStatus}
+							<EnumBadge enums={data.enums.employee_status} value={data.employee.employeeStatus} />
 						{:else}
 							<Badge variant="outline">Unknown</Badge>
 						{/if}
@@ -419,9 +346,7 @@
 											<Badge variant="default">Project Manager</Badge>
 										</Table.Cell>
 										<Table.Cell>
-											<Badge variant={getProjectStatusBadgeVariant(project.status)}>
-												{projectStatusLabels[project.status] || project.status}
-											</Badge>
+											<EnumBadge enums={data.enums.project_status} value={project.status} />
 										</Table.Cell>
 									</Table.Row>
 								{/each}
@@ -447,10 +372,7 @@
 											{assignment.role || 'Team Member'}
 										</Table.Cell>
 										<Table.Cell>
-											<Badge variant={getProjectStatusBadgeVariant(assignment.project.status)}>
-												{projectStatusLabels[assignment.project.status] ||
-													assignment.project.status}
-											</Badge>
+											<EnumBadge enums={data.enums.project_status} value={assignment.project.status} />
 										</Table.Cell>
 									</Table.Row>
 								{/each}
@@ -543,7 +465,7 @@
 			<AlertDialog.Title>Delete Employee</AlertDialog.Title>
 			<AlertDialog.Description>
 				Are you sure you want to delete {data.employee.firstName}
-				{data.employee.lastName}? This action can be undone by an administrator.
+				{data.employee.lastName}? This action cannot be undone.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		{#if data.employee.user}
@@ -567,34 +489,6 @@
 			>
 				<input type="hidden" name="deactivateUser" value={deactivateUser.toString()} />
 				<Button type="submit" variant="destructive">Delete</Button>
-			</form>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
-
-<!-- Restore Confirmation Dialog -->
-<AlertDialog.Root bind:open={restoreDialogOpen}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Restore Employee</AlertDialog.Title>
-			<AlertDialog.Description>
-				Are you sure you want to restore {data.employee.firstName}
-				{data.employee.lastName}?
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-			<form
-				method="POST"
-				action="?/restore"
-				use:enhance={() => {
-					return async ({ update }) => {
-						await update();
-						restoreDialogOpen = false;
-					};
-				}}
-			>
-				<Button type="submit">Restore</Button>
 			</form>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>

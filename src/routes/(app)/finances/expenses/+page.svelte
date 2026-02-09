@@ -2,9 +2,12 @@
 	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { browser } from '$app/environment';
+	import { saveListState, restoreListState } from '$lib/utils/list-state';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
+	import EnumBadge from '$lib/components/shared/EnumBadge.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import * as Table from '$lib/components/ui/table';
 	import * as Tabs from '$lib/components/ui/tabs';
@@ -32,6 +35,21 @@
 	import { formatDate } from '$lib/utils/date';
 
 	let { data } = $props();
+
+	// Persist/restore list view state
+	const LIST_ROUTE = '/finances/expenses';
+	let _stateRestored = false;
+	$effect(() => {
+		if (!browser) return;
+		if (!_stateRestored) {
+			_stateRestored = true;
+			if (!$page.url.search) {
+				const saved = restoreListState(LIST_ROUTE);
+				if (saved) { goto(LIST_ROUTE + saved, { replaceState: true }); return; }
+			}
+		}
+		saveListState(LIST_ROUTE, $page.url.search);
+	});
 
 	let searchInput = $state(data.filters.search);
 	let deleteDialogOpen = $state(false);
@@ -230,25 +248,6 @@
 	function openDeleteDialog(expense: { id: number; description: string }) {
 		selectedExpense = expense;
 		deleteDialogOpen = true;
-	}
-
-	function getStatusBadgeVariant(
-		status: string
-	): 'default' | 'secondary' | 'destructive' | 'outline' {
-		switch (status) {
-			case 'paid':
-				return 'default';
-			case 'pending':
-				return 'secondary';
-			case 'late':
-				return 'destructive';
-			case 'projected':
-				return 'outline';
-			case 'suspended':
-				return 'outline';
-			default:
-				return 'outline';
-		}
 	}
 
 	function formatCurrency(amount: number, currency: string = 'USD'): string {
@@ -549,6 +548,8 @@
 								<a href="/vendors/{expense.vendor.id}" class="hover:underline">
 									{expense.vendor.name}
 								</a>
+							{:else if expense.vendorName}
+								<span class="text-muted-foreground">{expense.vendorName}</span>
 							{:else}
 								<span class="text-muted-foreground">-</span>
 							{/if}
@@ -559,12 +560,7 @@
 						<Table.Cell>
 							<DropdownMenu.Root>
 								<DropdownMenu.Trigger>
-									<Badge
-										variant={getStatusBadgeVariant(expense.status)}
-										class="cursor-pointer hover:opacity-80"
-									>
-										{statusOptions.find((s) => s.value === expense.status)?.label || expense.status}
-									</Badge>
+									<EnumBadge enums={data.enums.expense_status} value={expense.status} class="cursor-pointer hover:opacity-80" />
 								</DropdownMenu.Trigger>
 								<DropdownMenu.Content>
 									{#each statusOptions as option}

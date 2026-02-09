@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { browser } from '$app/environment';
+	import { saveListState, restoreListState } from '$lib/utils/list-state';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
+	import EnumBadge from '$lib/components/shared/EnumBadge.svelte';
 	import * as Table from '$lib/components/ui/table';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as Select from '$lib/components/ui/select';
@@ -18,7 +21,6 @@
 		Trash2,
 		ChevronLeft,
 		ChevronRight,
-		RotateCcw,
 		Eye,
 		Building2,
 		Users,
@@ -29,26 +31,31 @@
 
 	let { data } = $props();
 
+	// Persist/restore list view state
+	const LIST_ROUTE = '/clients';
+	let _stateRestored = false;
+	$effect(() => {
+		if (!browser) return;
+		if (!_stateRestored) {
+			_stateRestored = true;
+			if (!$page.url.search) {
+				const saved = restoreListState(LIST_ROUTE);
+				if (saved) { goto(LIST_ROUTE + saved, { replaceState: true }); return; }
+			}
+		}
+		saveListState(LIST_ROUTE, $page.url.search);
+	});
+
 	let search = $state(data.filters.search);
 	let deleteDialogOpen = $state(false);
-	let restoreDialogOpen = $state(false);
 	let clientToDelete = $state<{ id: number; name: string } | null>(null);
-	let clientToRestore = $state<{ id: number; name: string } | null>(null);
 	let isDeleting = $state(false);
-	let isRestoring = $state(false);
 
 	const statusOptions = [
 		{ value: 'active', label: 'Active clients' },
 		{ value: 'inactive', label: 'Inactive clients' },
-		{ value: 'archived', label: 'Archived clients' },
-		{ value: 'deleted', label: 'Deleted clients' },
-		{ value: 'all', label: 'All clients' }
+		{ value: 'archived', label: 'Archived clients' }
 	];
-
-	// Filter out deleted option for non-admins
-	const availableStatusOptions = $derived(
-		data.isAdmin ? statusOptions : statusOptions.filter(o => o.value !== 'deleted' && o.value !== 'all')
-	);
 
 	function updateSearch() {
 		const url = new URL($page.url);
@@ -99,11 +106,6 @@
 		deleteDialogOpen = true;
 	}
 
-	function confirmRestore(client: { id: number; name: string }) {
-		clientToRestore = client;
-		restoreDialogOpen = true;
-	}
-
 	async function handleDelete() {
 		if (!clientToDelete) return;
 
@@ -130,55 +132,6 @@
 		clientToDelete = null;
 	}
 
-	async function handleRestore() {
-		if (!clientToRestore) return;
-
-		isRestoring = true;
-		const formData = new FormData();
-		formData.append('id', String(clientToRestore.id));
-
-		const response = await fetch('?/restore', {
-			method: 'POST',
-			body: formData
-		});
-
-		const result = await response.json();
-
-		if (result.type === 'success') {
-			toast.success('Client restored successfully');
-			invalidateAll();
-		} else {
-			toast.error(result.data?.error || 'Failed to restore client');
-		}
-
-		isRestoring = false;
-		restoreDialogOpen = false;
-		clientToRestore = null;
-	}
-
-	function isClientDeleted(client: { deletedAt: string | Date | null }): boolean {
-		return client.deletedAt !== null;
-	}
-
-	function canEditClient(client: { deletedAt: string | Date | null }): boolean {
-		if (isClientDeleted(client)) {
-			return data.isAdmin;
-		}
-		return true;
-	}
-
-	function getStatusBadgeVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-		switch (status) {
-			case 'active':
-				return 'default';
-			case 'inactive':
-				return 'secondary';
-			case 'archived':
-				return 'outline';
-			default:
-				return 'secondary';
-		}
-	}
 </script>
 
 <div class="space-y-6">
@@ -226,10 +179,11 @@
 			onValueChange={updateStatus}
 		>
 			<Select.Trigger class="w-[180px]">
-				{availableStatusOptions.find(o => o.value === data.filters.status)?.label || 'Active clients'}
+				{statusOptions.find(o => o.value === data.filters.status)?.label || 'All clients'}
 			</Select.Trigger>
 			<Select.Content>
-				{#each availableStatusOptions as option}
+				<Select.Item value="all">All clients</Select.Item>
+				{#each statusOptions as option}
 					<Select.Item value={option.value}>{option.label}</Select.Item>
 				{/each}
 			</Select.Content>
@@ -280,7 +234,7 @@
 				{:else}
 					{#each data.clients as client}
 						<Table.Row
-							class="cursor-pointer hover:bg-muted/50 {isClientDeleted(client) ? 'opacity-60' : ''}"
+							class="cursor-pointer hover:bg-muted/50"
 							onclick={() => goto(`/clients/${client.id}`)}
 						>
 							<Table.Cell>
@@ -291,9 +245,6 @@
 									<div class="flex flex-col">
 										<span class="font-medium">
 											{client.name}
-											{#if isClientDeleted(client)}
-												<span class="text-muted-foreground text-xs ml-2">(deleted)</span>
-											{/if}
 										</span>
 										{#if client.companyName}
 											<span class="text-sm text-muted-foreground flex items-center gap-1">
@@ -328,13 +279,7 @@
 								{/if}
 							</Table.Cell>
 							<Table.Cell>
-								{#if isClientDeleted(client)}
-									<Badge variant="destructive">Deleted</Badge>
-								{:else}
-									<Badge variant={getStatusBadgeVariant(client.status)}>
-										{client.status.charAt(0).toUpperCase() + client.status.slice(1)}
-									</Badge>
-								{/if}
+								<EnumBadge enums={data.enums.entity_status} value={client.status} />
 							</Table.Cell>
 							<Table.Cell class="text-center">
 								<div class="flex items-center justify-center gap-2 text-sm text-muted-foreground">
@@ -356,32 +301,17 @@
 									<Button variant="ghost" size="icon" href="/clients/{client.id}" title="View client">
 										<Eye class="h-4 w-4" />
 									</Button>
-									{#if canEditClient(client)}
-										<Button variant="ghost" size="icon" href="/clients/{client.id}/edit" title="Edit client">
-											<Pencil class="h-4 w-4" />
-										</Button>
-									{/if}
-									{#if isClientDeleted(client)}
-										{#if data.isAdmin}
-											<Button
-												variant="ghost"
-												size="icon"
-												onclick={() => confirmRestore({ id: client.id, name: client.name })}
-												title="Restore client"
-											>
-												<RotateCcw class="h-4 w-4" />
-											</Button>
-										{/if}
-									{:else}
-										<Button
-											variant="ghost"
-											size="icon"
-											onclick={() => confirmDelete({ id: client.id, name: client.name })}
-											title="Delete client"
-										>
-											<Trash2 class="h-4 w-4" />
-										</Button>
-									{/if}
+									<Button variant="ghost" size="icon" href="/clients/{client.id}/edit" title="Edit client">
+										<Pencil class="h-4 w-4" />
+									</Button>
+									<Button
+										variant="ghost"
+										size="icon"
+										onclick={() => confirmDelete({ id: client.id, name: client.name })}
+										title="Delete client"
+									>
+										<Trash2 class="h-4 w-4" />
+									</Button>
 								</div>
 							</Table.Cell>
 						</Table.Row>
@@ -432,8 +362,7 @@
 		<AlertDialog.Header>
 			<AlertDialog.Title>Delete Client</AlertDialog.Title>
 			<AlertDialog.Description>
-				Are you sure you want to delete <strong>{clientToDelete?.name}</strong>? This action can be
-				undone by an administrator.
+				Are you sure you want to delete <strong>{clientToDelete?.name}</strong>? This action cannot be undone.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>
@@ -444,27 +373,6 @@
 				disabled={isDeleting}
 			>
 				{isDeleting ? 'Deleting...' : 'Delete'}
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
-
-<!-- Restore Confirmation Dialog -->
-<AlertDialog.Root bind:open={restoreDialogOpen}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Restore Client</AlertDialog.Title>
-			<AlertDialog.Description>
-				Are you sure you want to restore <strong>{clientToRestore?.name}</strong>?
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-			<AlertDialog.Action
-				onclick={handleRestore}
-				disabled={isRestoring}
-			>
-				{isRestoring ? 'Restoring...' : 'Restore'}
 			</AlertDialog.Action>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>

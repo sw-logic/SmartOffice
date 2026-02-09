@@ -527,10 +527,10 @@ async function main() {
 			group: 'Generic',
 			isSystem: true,
 			values: [
-				{ value: 'low', label: 'Low', sortOrder: 1 },
-				{ value: 'medium', label: 'Medium', sortOrder: 2, isDefault: true },
-				{ value: 'high', label: 'High', sortOrder: 3 },
-				{ value: 'urgent', label: 'Urgent', sortOrder: 4 }
+				{ value: 'low', label: 'Low', sortOrder: 1, color: '#6B7280' },
+				{ value: 'medium', label: 'Medium', sortOrder: 2, isDefault: true, color: '#3B82F6' },
+				{ value: 'high', label: 'High', sortOrder: 3, color: '#F97316' },
+				{ value: 'urgent', label: 'Urgent', sortOrder: 4, color: '#EF4444' }
 			]
 		},
 		{
@@ -540,9 +540,9 @@ async function main() {
 			group: 'Generic',
 			isSystem: true,
 			values: [
-				{ value: 'active', label: 'Active', sortOrder: 1, isDefault: true },
-				{ value: 'inactive', label: 'Inactive', sortOrder: 2 },
-				{ value: 'archived', label: 'Archived', sortOrder: 3 }
+				{ value: 'active', label: 'Active', sortOrder: 1, isDefault: true, color: '#10B981' },
+				{ value: 'inactive', label: 'Inactive', sortOrder: 2, color: '#6B7280' },
+				{ value: 'archived', label: 'Archived', sortOrder: 3, color: '#8B5CF6' }
 			]
 		},
 		{
@@ -568,11 +568,11 @@ async function main() {
 			group: 'Finances',
 			isSystem: true,
 			values: [
-				{ value: 'projected', label: 'Projected', sortOrder: 0 },
-				{ value: 'pending', label: 'Pending', sortOrder: 1, isDefault: true },
-				{ value: 'paid', label: 'Paid', sortOrder: 2 },
-				{ value: 'late', label: 'Late', sortOrder: 3 },
-				{ value: 'suspended', label: 'Suspended', sortOrder: 4 }
+				{ value: 'projected', label: 'Projected', sortOrder: 0, color: '#8B5CF6' },
+				{ value: 'pending', label: 'Pending', sortOrder: 1, isDefault: true, color: '#F59E0B' },
+				{ value: 'paid', label: 'Paid', sortOrder: 2, color: '#10B981' },
+				{ value: 'late', label: 'Late', sortOrder: 3, color: '#EF4444' },
+				{ value: 'suspended', label: 'Suspended', sortOrder: 4, color: '#6B7280' }
 			]
 		},
 		{
@@ -602,11 +602,11 @@ async function main() {
 			group: 'Finances',
 			isSystem: true,
 			values: [
-				{ value: 'projected', label: 'Projected', sortOrder: 0 },
-				{ value: 'pending', label: 'Pending', sortOrder: 1, isDefault: true },
-				{ value: 'paid', label: 'Paid', sortOrder: 2 },
-				{ value: 'late', label: 'Late', sortOrder: 3 },
-				{ value: 'suspended', label: 'Suspended', sortOrder: 4 }
+				{ value: 'projected', label: 'Projected', sortOrder: 0, color: '#8B5CF6' },
+				{ value: 'pending', label: 'Pending', sortOrder: 1, isDefault: true, color: '#F59E0B' },
+				{ value: 'paid', label: 'Paid', sortOrder: 2, color: '#10B981' },
+				{ value: 'late', label: 'Late', sortOrder: 3, color: '#EF4444' },
+				{ value: 'suspended', label: 'Suspended', sortOrder: 4, color: '#6B7280' }
 			]
 		},
 		{
@@ -632,10 +632,10 @@ async function main() {
 			group: 'Finances',
 			isSystem: true,
 			values: [
-				{ value: 'pending', label: 'Pending', sortOrder: 1, isDefault: true },
-				{ value: 'completed', label: 'Completed', sortOrder: 2 },
-				{ value: 'failed', label: 'Failed', sortOrder: 3 },
-				{ value: 'cancelled', label: 'Cancelled', sortOrder: 4 }
+				{ value: 'pending', label: 'Pending', sortOrder: 1, isDefault: true, color: '#F59E0B' },
+				{ value: 'completed', label: 'Completed', sortOrder: 2, color: '#10B981' },
+				{ value: 'failed', label: 'Failed', sortOrder: 3, color: '#EF4444' },
+				{ value: 'cancelled', label: 'Cancelled', sortOrder: 4, color: '#6B7280' }
 			]
 		},
 		{
@@ -729,11 +729,11 @@ async function main() {
 			group: 'Employees',
 			isSystem: true,
 			values: [
-				{ value: 'full-time', label: 'Full-time', sortOrder: 1, isDefault: true },
-				{ value: 'part-time', label: 'Part-time', sortOrder: 2 },
-				{ value: 'contractor', label: 'Contractor', sortOrder: 3 },
-				{ value: 'intern', label: 'Intern', sortOrder: 4 },
-				{ value: 'temporary', label: 'Temporary', sortOrder: 5 }
+				{ value: 'full-time', label: 'Full-time', sortOrder: 1, isDefault: true, color: '#10B981' },
+				{ value: 'part-time', label: 'Part-time', sortOrder: 2, color: '#3B82F6' },
+				{ value: 'contractor', label: 'Contractor', sortOrder: 3, color: '#F59E0B' },
+				{ value: 'intern', label: 'Intern', sortOrder: 4, color: '#8B5CF6' },
+				{ value: 'temporary', label: 'Temporary', sortOrder: 5, color: '#6B7280' }
 			]
 		},
 		{
@@ -743,10 +743,10 @@ async function main() {
 			group: 'Employees',
 			isSystem: true,
 			values: [
-				{ value: 'active', label: 'Active', sortOrder: 1, isDefault: true },
-				{ value: 'on_leave', label: 'On Leave', sortOrder: 2 },
-				{ value: 'terminated', label: 'Terminated', sortOrder: 3 },
-				{ value: 'retired', label: 'Retired', sortOrder: 4 }
+				{ value: 'active', label: 'Active', sortOrder: 1, isDefault: true, color: '#10B981' },
+				{ value: 'on_leave', label: 'On Leave', sortOrder: 2, color: '#F59E0B' },
+				{ value: 'terminated', label: 'Terminated', sortOrder: 3, color: '#EF4444' },
+				{ value: 'retired', label: 'Retired', sortOrder: 4, color: '#6B7280' }
 			]
 		},
 		{
@@ -756,12 +756,12 @@ async function main() {
 			group: 'Projects',
 			isSystem: true,
 			values: [
-				{ value: 'planning', label: 'Planning', sortOrder: 1, isDefault: true },
-				{ value: 'active', label: 'Active', sortOrder: 2 },
-				{ value: 'on_hold', label: 'On Hold', sortOrder: 3 },
-				{ value: 'completed', label: 'Completed', sortOrder: 4 },
-				{ value: 'cancelled', label: 'Cancelled', sortOrder: 5 },
-				{ value: 'archived', label: 'Archived', sortOrder: 6 }
+				{ value: 'planning', label: 'Planning', sortOrder: 1, isDefault: true, color: '#8B5CF6' },
+				{ value: 'active', label: 'Active', sortOrder: 2, color: '#10B981' },
+				{ value: 'on_hold', label: 'On Hold', sortOrder: 3, color: '#F59E0B' },
+				{ value: 'completed', label: 'Completed', sortOrder: 4, color: '#3B82F6' },
+				{ value: 'cancelled', label: 'Cancelled', sortOrder: 5, color: '#EF4444' },
+				{ value: 'archived', label: 'Archived', sortOrder: 6, color: '#6B7280' }
 			]
 		},
 		{
@@ -771,12 +771,12 @@ async function main() {
 			group: 'Projects',
 			isSystem: true,
 			values: [
-				{ value: 'backlog', label: 'Backlog', sortOrder: 1 },
-				{ value: 'todo', label: 'To Do', sortOrder: 2, isDefault: true },
-				{ value: 'in_progress', label: 'In Progress', sortOrder: 3 },
-				{ value: 'review', label: 'Review', sortOrder: 4 },
-				{ value: 'client_review', label: 'Client Review', sortOrder: 5 },
-				{ value: 'done', label: 'Done', sortOrder: 6 }
+				{ value: 'backlog', label: 'Backlog', sortOrder: 1, color: '#6B7280' },
+				{ value: 'todo', label: 'To Do', sortOrder: 2, isDefault: true, color: '#8B5CF6' },
+				{ value: 'in_progress', label: 'In Progress', sortOrder: 3, color: '#3B82F6' },
+				{ value: 'review', label: 'Review', sortOrder: 4, color: '#F59E0B' },
+				{ value: 'client_review', label: 'Client Review', sortOrder: 5, color: '#F97316' },
+				{ value: 'done', label: 'Done', sortOrder: 6, color: '#10B981' }
 			]
 		},
 		{
@@ -786,11 +786,11 @@ async function main() {
 			group: 'Offers',
 			isSystem: true,
 			values: [
-				{ value: 'draft', label: 'Draft', sortOrder: 1, isDefault: true },
-				{ value: 'sent', label: 'Sent', sortOrder: 2 },
-				{ value: 'accepted', label: 'Accepted', sortOrder: 3 },
-				{ value: 'rejected', label: 'Rejected', sortOrder: 4 },
-				{ value: 'expired', label: 'Expired', sortOrder: 5 }
+				{ value: 'draft', label: 'Draft', sortOrder: 1, isDefault: true, color: '#6B7280' },
+				{ value: 'sent', label: 'Sent', sortOrder: 2, color: '#3B82F6' },
+				{ value: 'accepted', label: 'Accepted', sortOrder: 3, color: '#10B981' },
+				{ value: 'rejected', label: 'Rejected', sortOrder: 4, color: '#EF4444' },
+				{ value: 'expired', label: 'Expired', sortOrder: 5, color: '#F59E0B' }
 			]
 		},
 		{
@@ -838,12 +838,12 @@ async function main() {
 			group: 'Projects',
 			isSystem: false,
 			values: [
-				{ value: 'bug', label: 'Bug', sortOrder: 1 },
-				{ value: 'feature', label: 'Feature', sortOrder: 2, isDefault: true },
-				{ value: 'task', label: 'Task', sortOrder: 3 },
-				{ value: 'improvement', label: 'Improvement', sortOrder: 4 },
-				{ value: 'research', label: 'Research', sortOrder: 5 },
-				{ value: 'documentation', label: 'Documentation', sortOrder: 6 }
+				{ value: 'bug', label: 'Bug', sortOrder: 1, color: '#EF4444' },
+				{ value: 'feature', label: 'Feature', sortOrder: 2, isDefault: true, color: '#10B981' },
+				{ value: 'task', label: 'Task', sortOrder: 3, color: '#3B82F6' },
+				{ value: 'improvement', label: 'Improvement', sortOrder: 4, color: '#F59E0B' },
+				{ value: 'research', label: 'Research', sortOrder: 5, color: '#8B5CF6' },
+				{ value: 'documentation', label: 'Documentation', sortOrder: 6, color: '#6B7280' }
 			]
 		},
 		{
@@ -898,10 +898,10 @@ async function main() {
 			group: 'Generic',
 			isSystem: true,
 			values: [
-				{ value: 'low', label: 'Low', sortOrder: 1 },
-				{ value: 'normal', label: 'Normal', sortOrder: 2, isDefault: true },
-				{ value: 'high', label: 'High', sortOrder: 3 },
-				{ value: 'urgent', label: 'Urgent', sortOrder: 4 }
+				{ value: 'low', label: 'Low', sortOrder: 1, color: '#6B7280' },
+				{ value: 'normal', label: 'Normal', sortOrder: 2, isDefault: true, color: '#3B82F6' },
+				{ value: 'high', label: 'High', sortOrder: 3, color: '#F97316' },
+				{ value: 'urgent', label: 'Urgent', sortOrder: 4, color: '#EF4444' }
 			]
 		},
 		{

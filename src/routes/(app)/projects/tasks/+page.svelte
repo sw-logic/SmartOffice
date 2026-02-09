@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { browser } from '$app/environment';
+	import { saveListState, restoreListState } from '$lib/utils/list-state';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
+	import EnumBadge from '$lib/components/shared/EnumBadge.svelte';
 	import * as Table from '$lib/components/ui/table';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as Select from '$lib/components/ui/select';
@@ -17,7 +20,6 @@
 		ArrowUp,
 		ArrowDown,
 		Trash2,
-		RotateCcw,
 		Filter,
 		X,
 		Group
@@ -27,22 +29,33 @@
 
 	let { data } = $props();
 
+	// Persist/restore list view state
+	const LIST_ROUTE = '/projects/tasks';
+	let _stateRestored = false;
+	$effect(() => {
+		if (!browser) return;
+		if (!_stateRestored) {
+			_stateRestored = true;
+			if (!$page.url.search) {
+				const saved = restoreListState(LIST_ROUTE);
+				if (saved) { goto(LIST_ROUTE + saved, { replaceState: true }); return; }
+			}
+		}
+		saveListState(LIST_ROUTE, $page.url.search);
+	});
+
 	let search = $state(data.filters.search);
 	let deleteDialogOpen = $state(false);
-	let restoreDialogOpen = $state(false);
 	let taskToDelete = $state<{ id: number; name: string } | null>(null);
-	let taskToRestore = $state<{ id: number; name: string } | null>(null);
 	let isDeleting = $state(false);
-	let isRestoring = $state(false);
 
 	// Selection state
 	let selectedIds = $state<Set<number>>(new Set());
 	let bulkDeleteDialogOpen = $state(false);
 	let isBulkDeleting = $state(false);
 
-	const selectableTasks = $derived(data.tasks.filter(t => !isTaskDeleted(t)));
 	const allSelected = $derived(
-		selectableTasks.length > 0 && selectableTasks.every(t => selectedIds.has(t.id))
+		data.tasks.length > 0 && data.tasks.every(t => selectedIds.has(t.id))
 	);
 	const someSelected = $derived(selectedIds.size > 0);
 
@@ -50,7 +63,7 @@
 		if (allSelected) {
 			selectedIds = new Set();
 		} else {
-			selectedIds = new Set(selectableTasks.map(t => t.id));
+			selectedIds = new Set(data.tasks.map(t => t.id));
 		}
 	}
 
@@ -161,16 +174,6 @@
 		return groups;
 	})());
 
-	const deletedStatusOptions = [
-		{ value: 'active', label: 'Active tasks' },
-		{ value: 'deleted', label: 'Deleted tasks' },
-		{ value: 'all', label: 'All tasks' }
-	];
-
-	const availableDeletedStatusOptions = $derived(
-		data.isAdmin ? deletedStatusOptions : deletedStatusOptions.filter(o => o.value !== 'deleted' && o.value !== 'all')
-	);
-
 	function updateUrl(params: Record<string, string | null>) {
 		const url = new URL($page.url);
 		for (const [key, value] of Object.entries(params)) {
@@ -243,12 +246,6 @@
 		deleteDialogOpen = true;
 	}
 
-	function confirmRestore(task: { id: number; name: string }, e: Event) {
-		e.stopPropagation();
-		taskToRestore = task;
-		restoreDialogOpen = true;
-	}
-
 	async function handleDelete() {
 		if (!taskToDelete) return;
 		isDeleting = true;
@@ -274,60 +271,9 @@
 		taskToDelete = null;
 	}
 
-	async function handleRestore() {
-		if (!taskToRestore) return;
-		isRestoring = true;
-
-		const formData = new FormData();
-		formData.append('id', String(taskToRestore.id));
-
-		const response = await fetch('?/restore', {
-			method: 'POST',
-			body: formData
-		});
-		const result = await response.json();
-
-		if (result.type === 'success') {
-			toast.success('Task restored successfully');
-			invalidateAll();
-		} else {
-			toast.error(result.data?.error || 'Failed to restore task');
-		}
-
-		isRestoring = false;
-		restoreDialogOpen = false;
-		taskToRestore = null;
-	}
-
-	function isTaskDeleted(task: { deletedAt: string | Date | null }): boolean {
-		return task.deletedAt !== null;
-	}
-
-	function getStatusBadgeVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-		switch (status) {
-			case 'done': return 'default';
-			case 'in_progress':
-			case 'review': return 'secondary';
-			case 'todo':
-			case 'backlog': return 'outline';
-			default: return 'outline';
-		}
-	}
-
-	function getPriorityBadgeVariant(priority: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-		switch (priority) {
-			case 'urgent': return 'destructive';
-			case 'high': return 'default';
-			case 'medium': return 'secondary';
-			case 'low': return 'outline';
-			default: return 'outline';
-		}
-	}
-
 	function formatStatus(s: string): string {
 		return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 	}
-
 
 	function getInitials(firstName: string, lastName: string): string {
 		return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
@@ -382,23 +328,6 @@
 				</Button>
 			{/if}
 		</div>
-
-		{#if data.isAdmin}
-			<Select.Root
-				type="single"
-				value={data.filters.status}
-				onValueChange={(v) => updateFilter('status', v)}
-			>
-				<Select.Trigger class="w-[160px]">
-					{availableDeletedStatusOptions.find(o => o.value === data.filters.status)?.label || 'Active tasks'}
-				</Select.Trigger>
-				<Select.Content>
-					{#each availableDeletedStatusOptions as option}
-						<Select.Item value={option.value}>{option.label}</Select.Item>
-					{/each}
-				</Select.Content>
-			</Select.Root>
-		{/if}
 
 		<!-- Group by -->
 		<Select.Root
@@ -643,24 +572,19 @@
 					<Table.Body>
 						{#each group.tasks as task}
 							<Table.Row
-								class="cursor-pointer hover:bg-muted/50 {isTaskDeleted(task) ? 'opacity-60' : ''}"
+								class="cursor-pointer hover:bg-muted/50"
 								onclick={() => openTaskModal(task.id)}
 							>
 								<Table.Cell onclick={(e) => e.stopPropagation()}>
-									{#if !isTaskDeleted(task)}
-										<Checkbox
-											checked={selectedIds.has(task.id)}
-											onCheckedChange={() => toggleSelect(task.id)}
-										/>
-									{/if}
+									<Checkbox
+										checked={selectedIds.has(task.id)}
+										onCheckedChange={() => toggleSelect(task.id)}
+									/>
 								</Table.Cell>
 								<Table.Cell>
 									<div class="flex flex-col">
 										<span class="font-medium truncate max-w-[230px]">
 											{task.name}
-											{#if isTaskDeleted(task)}
-												<span class="text-muted-foreground text-xs ml-1">(deleted)</span>
-											{/if}
 										</span>
 										{#if task.type}
 											<span class="text-xs text-muted-foreground">
@@ -672,18 +596,10 @@
 								<Table.Cell class="text-sm">{task.project.name}</Table.Cell>
 								<Table.Cell class="text-sm">{task.project.client.name}</Table.Cell>
 								<Table.Cell>
-									{#if isTaskDeleted(task)}
-										<Badge variant="destructive">Deleted</Badge>
-									{:else}
-										<Badge variant={getStatusBadgeVariant(task.status)}>
-											{formatStatus(task.status)}
-										</Badge>
-									{/if}
+									<EnumBadge enums={data.enums.task_status} value={task.status} />
 								</Table.Cell>
 								<Table.Cell>
-									<Badge variant={getPriorityBadgeVariant(task.priority)}>
-										{formatStatus(task.priority)}
-									</Badge>
+									<EnumBadge enums={data.enums.priority} value={task.priority} />
 								</Table.Cell>
 								<Table.Cell>
 									{#if task.assignedTo}
@@ -716,29 +632,15 @@
 								</Table.Cell>
 								<Table.Cell>
 									<div class="flex items-center gap-1">
-										{#if isTaskDeleted(task)}
-											{#if data.isAdmin}
-												<Button
-													variant="ghost"
-													size="icon"
-													class="h-8 w-8"
-													onclick={(e) => confirmRestore({ id: task.id, name: task.name }, e)}
-													title="Restore task"
-												>
-													<RotateCcw class="h-4 w-4" />
-												</Button>
-											{/if}
-										{:else}
-											<Button
-												variant="ghost"
-												size="icon"
-												class="h-8 w-8"
-												onclick={(e) => confirmDelete({ id: task.id, name: task.name }, e)}
-												title="Delete task"
-											>
-												<Trash2 class="h-4 w-4" />
-											</Button>
-										{/if}
+										<Button
+											variant="ghost"
+											size="icon"
+											class="h-8 w-8"
+											onclick={(e) => confirmDelete({ id: task.id, name: task.name }, e)}
+											title="Delete task"
+										>
+											<Trash2 class="h-4 w-4" />
+										</Button>
 									</div>
 								</Table.Cell>
 							</Table.Row>
@@ -789,6 +691,7 @@
 	timeRecordTypes={data.enums.time_record_type}
 	timeRecordCategories={data.enums.time_record_category}
 	currentPersonId={data.user?.personId}
+	notePriorities={data.enums.note_priority}
 	defaults={undefined}
 	onTaskCreated={() => invalidateAll()}
 	onTaskUpdated={() => invalidateAll()}
@@ -800,8 +703,7 @@
 		<AlertDialog.Header>
 			<AlertDialog.Title>Delete Task</AlertDialog.Title>
 			<AlertDialog.Description>
-				Are you sure you want to delete <strong>{taskToDelete?.name}</strong>? This action can be
-				undone by an administrator.
+				Are you sure you want to delete <strong>{taskToDelete?.name}</strong>? This action cannot be undone.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>
@@ -817,34 +719,13 @@
 	</AlertDialog.Content>
 </AlertDialog.Root>
 
-<!-- Restore Confirmation Dialog -->
-<AlertDialog.Root bind:open={restoreDialogOpen}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Restore Task</AlertDialog.Title>
-			<AlertDialog.Description>
-				Are you sure you want to restore <strong>{taskToRestore?.name}</strong>?
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-			<AlertDialog.Action
-				onclick={handleRestore}
-				disabled={isRestoring}
-			>
-				{isRestoring ? 'Restoring...' : 'Restore'}
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
-
 <!-- Bulk Delete Confirmation Dialog -->
 <AlertDialog.Root bind:open={bulkDeleteDialogOpen}>
 	<AlertDialog.Content>
 		<AlertDialog.Header>
 			<AlertDialog.Title>Delete {selectedIds.size} Tasks</AlertDialog.Title>
 			<AlertDialog.Description>
-				Are you sure you want to delete {selectedIds.size} tasks? This action can be undone by an administrator.
+				Are you sure you want to delete {selectedIds.size} tasks? This action cannot be undone.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>

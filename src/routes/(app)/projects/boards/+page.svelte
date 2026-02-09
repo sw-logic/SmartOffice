@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { browser } from '$app/environment';
+	import { saveListState, restoreListState } from '$lib/utils/list-state';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
@@ -18,7 +20,6 @@
 		ChevronRight,
 		ChevronDown,
 		ChevronRight as ChevronRightIcon,
-		RotateCcw,
 		Eye,
 		Users,
 		ListChecks,
@@ -29,24 +30,26 @@
 
 	let { data } = $props();
 
+	// Persist/restore list view state
+	const LIST_ROUTE = '/projects/boards';
+	let _stateRestored = false;
+	$effect(() => {
+		if (!browser) return;
+		if (!_stateRestored) {
+			_stateRestored = true;
+			if (!$page.url.search) {
+				const saved = restoreListState(LIST_ROUTE);
+				if (saved) { goto(LIST_ROUTE + saved, { replaceState: true }); return; }
+			}
+		}
+		saveListState(LIST_ROUTE, $page.url.search);
+	});
+
 	let search = $state(data.filters.search);
 	let deleteDialogOpen = $state(false);
-	let restoreDialogOpen = $state(false);
 	let boardToDelete = $state<{ id: number; name: string } | null>(null);
-	let boardToRestore = $state<{ id: number; name: string } | null>(null);
 	let isDeleting = $state(false);
-	let isRestoring = $state(false);
 	let expandedGroups = $state<Record<string, boolean>>({});
-
-	const statusOptions = [
-		{ value: 'active', label: 'Active boards' },
-		{ value: 'deleted', label: 'Deleted boards' },
-		{ value: 'all', label: 'All boards' }
-	];
-
-	const availableStatusOptions = $derived(
-		data.isAdmin ? statusOptions : statusOptions.filter(o => o.value !== 'deleted' && o.value !== 'all')
-	);
 
 	// Group boards by client name for grouped view
 	let groupedBoards = $derived(() => {
@@ -95,13 +98,6 @@
 		goto(url.toString(), { replaceState: true });
 	}
 
-	function updateStatus(value: string | undefined) {
-		if (!value) return;
-		const url = new URL($page.url);
-		url.searchParams.set('status', value);
-		url.searchParams.set('page', '1');
-		goto(url.toString(), { replaceState: true });
-	}
 
 	function updateClient(value: string | undefined) {
 		const url = new URL($page.url);
@@ -154,11 +150,6 @@
 		deleteDialogOpen = true;
 	}
 
-	function confirmRestore(board: { id: number; name: string }) {
-		boardToRestore = board;
-		restoreDialogOpen = true;
-	}
-
 	async function handleDelete() {
 		if (!boardToDelete) return;
 
@@ -185,35 +176,7 @@
 		boardToDelete = null;
 	}
 
-	async function handleRestore() {
-		if (!boardToRestore) return;
 
-		isRestoring = true;
-		const formData = new FormData();
-		formData.append('id', String(boardToRestore.id));
-
-		const response = await fetch('?/restore', {
-			method: 'POST',
-			body: formData
-		});
-
-		const result = await response.json();
-
-		if (result.type === 'success') {
-			toast.success('Board restored successfully');
-			invalidateAll();
-		} else {
-			toast.error(result.data?.error || 'Failed to restore board');
-		}
-
-		isRestoring = false;
-		restoreDialogOpen = false;
-		boardToRestore = null;
-	}
-
-	function isBoardDeleted(board: { deletedAt: string | Date | null }): boolean {
-		return board.deletedAt !== null;
-	}
 </script>
 
 <div class="space-y-6">
@@ -277,20 +240,6 @@
 			Group by client
 		</label>
 
-		<Select.Root
-			type="single"
-			value={data.filters.status}
-			onValueChange={updateStatus}
-		>
-			<Select.Trigger class="w-[180px]">
-				{availableStatusOptions.find(o => o.value === data.filters.status)?.label || 'Active boards'}
-			</Select.Trigger>
-			<Select.Content>
-				{#each availableStatusOptions as option}
-					<Select.Item value={option.value}>{option.label}</Select.Item>
-				{/each}
-			</Select.Content>
-		</Select.Root>
 	</div>
 
 	{#if data.filters.groupByClient}
@@ -335,15 +284,12 @@
 									<Table.Body>
 										{#each group.boards as board}
 											<Table.Row
-												class="cursor-pointer hover:bg-muted/50 {isBoardDeleted(board) ? 'opacity-60' : ''}"
+												class="cursor-pointer hover:bg-muted/50"
 												onclick={() => goto(`/projects/boards/${board.id}`)}
 											>
 												<Table.Cell>
 													<span class="font-medium">
 														{board.name}
-														{#if isBoardDeleted(board)}
-															<span class="text-muted-foreground text-xs ml-2">(deleted)</span>
-														{/if}
 													</span>
 												</Table.Cell>
 												<Table.Cell>{board.projectName}</Table.Cell>
@@ -367,27 +313,14 @@
 														<Button variant="ghost" size="icon" href="/projects/boards/{board.id}" title="View board">
 															<Eye class="h-4 w-4" />
 														</Button>
-														{#if isBoardDeleted(board)}
-															{#if data.isAdmin}
-																<Button
-																	variant="ghost"
-																	size="icon"
-																	onclick={(e) => { e.stopPropagation(); confirmRestore({ id: board.id, name: board.name }); }}
-																	title="Restore board"
-																>
-																	<RotateCcw class="h-4 w-4" />
-																</Button>
-															{/if}
-														{:else}
 															<Button
-																variant="ghost"
-																size="icon"
-																onclick={(e) => { e.stopPropagation(); confirmDelete({ id: board.id, name: board.name }); }}
-																title="Delete board"
-															>
-																<Trash2 class="h-4 w-4" />
-															</Button>
-														{/if}
+															variant="ghost"
+															size="icon"
+															onclick={(e) => { e.stopPropagation(); confirmDelete({ id: board.id, name: board.name }); }}
+															title="Delete board"
+														>
+															<Trash2 class="h-4 w-4" />
+														</Button>
 													</div>
 												</Table.Cell>
 											</Table.Row>
@@ -445,15 +378,12 @@
 					{:else}
 						{#each data.boards as board}
 							<Table.Row
-								class="cursor-pointer hover:bg-muted/50 {isBoardDeleted(board) ? 'opacity-60' : ''}"
+								class="cursor-pointer hover:bg-muted/50"
 								onclick={() => goto(`/projects/boards/${board.id}`)}
 							>
 								<Table.Cell>
 									<span class="font-medium">
 										{board.name}
-										{#if isBoardDeleted(board)}
-											<span class="text-muted-foreground text-xs ml-2">(deleted)</span>
-										{/if}
 									</span>
 								</Table.Cell>
 								<Table.Cell>{board.projectName}</Table.Cell>
@@ -478,27 +408,14 @@
 										<Button variant="ghost" size="icon" href="/projects/boards/{board.id}" title="View board">
 											<Eye class="h-4 w-4" />
 										</Button>
-										{#if isBoardDeleted(board)}
-											{#if data.isAdmin}
-												<Button
-													variant="ghost"
-													size="icon"
-													onclick={(e) => { e.stopPropagation(); confirmRestore({ id: board.id, name: board.name }); }}
-													title="Restore board"
-												>
-													<RotateCcw class="h-4 w-4" />
-												</Button>
-											{/if}
-										{:else}
-											<Button
-												variant="ghost"
-												size="icon"
-												onclick={(e) => { e.stopPropagation(); confirmDelete({ id: board.id, name: board.name }); }}
-												title="Delete board"
-											>
-												<Trash2 class="h-4 w-4" />
-											</Button>
-										{/if}
+										<Button
+											variant="ghost"
+											size="icon"
+											onclick={(e) => { e.stopPropagation(); confirmDelete({ id: board.id, name: board.name }); }}
+											title="Delete board"
+										>
+											<Trash2 class="h-4 w-4" />
+										</Button>
 									</div>
 								</Table.Cell>
 							</Table.Row>
@@ -550,8 +467,7 @@
 		<AlertDialog.Header>
 			<AlertDialog.Title>Delete Board</AlertDialog.Title>
 			<AlertDialog.Description>
-				Are you sure you want to delete <strong>{boardToDelete?.name}</strong>? This action can be
-				undone by an administrator.
+				Are you sure you want to delete <strong>{boardToDelete?.name}</strong>? This action cannot be undone.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>
@@ -567,23 +483,3 @@
 	</AlertDialog.Content>
 </AlertDialog.Root>
 
-<!-- Restore Confirmation Dialog -->
-<AlertDialog.Root bind:open={restoreDialogOpen}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Restore Board</AlertDialog.Title>
-			<AlertDialog.Description>
-				Are you sure you want to restore <strong>{boardToRestore?.name}</strong>?
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-			<AlertDialog.Action
-				onclick={handleRestore}
-				disabled={isRestoring}
-			>
-				{isRestoring ? 'Restoring...' : 'Restore'}
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>

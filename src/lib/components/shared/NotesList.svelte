@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
-	import { Badge } from '$lib/components/ui/badge';
+	import EnumBadge from './EnumBadge.svelte';
 	import * as Avatar from '$lib/components/ui/avatar';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import NoteFormModal from './NoteFormModal.svelte';
@@ -18,12 +18,19 @@
 		author: { id: string; name: string };
 	}
 
+	interface EnumOption {
+		value: string;
+		label: string;
+		color?: string | null;
+	}
+
 	interface Props {
 		entityType: string;
 		entityId: string;
+		notePriorities?: EnumOption[];
 	}
 
-	let { entityType, entityId }: Props = $props();
+	let { entityType, entityId, notePriorities = [] }: Props = $props();
 
 	let notes = $state<Note[]>([]);
 	let loading = $state(true);
@@ -132,17 +139,6 @@
 		}
 	}
 
-	function getPriorityVariant(p: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-		switch (p) {
-			case 'urgent': return 'destructive';
-			case 'high': return 'default';
-			case 'low': return 'secondary';
-			default: return 'outline';
-		}
-	}
-
-
-
 	function getInitials(name: string): string {
 		return name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
 	}
@@ -177,9 +173,7 @@
 							<span class="text-sm font-medium">{note.author.name}</span>
 							<span class="text-xs text-muted-foreground">{formatDateTime(note.createdAt)}</span>
 							{#if note.priority !== 'normal'}
-								<Badge variant={getPriorityVariant(note.priority)} class="text-xs">
-									{note.priority}
-								</Badge>
+								<EnumBadge enums={notePriorities} value={note.priority} class="text-xs" />
 							{/if}
 						</div>
 						<div class="flex items-center gap-1">

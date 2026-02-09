@@ -33,6 +33,14 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	const parsedAmount = parseFloat(body.amount);
 	const parsedTax = parseFloat(body.tax);
 	const taxValue = parsedAmount * (parsedTax / 100);
+	const vendorId = body.vendorId ? parseInt(body.vendorId) : null;
+
+	// Denormalize vendor name
+	let vendorName: string | null = null;
+	if (vendorId) {
+		const vendor = await prisma.vendor.findUnique({ where: { id: vendorId }, select: { name: true } });
+		vendorName = vendor?.name ?? null;
+	}
 
 	const expense = await prisma.expense.create({
 		data: {
@@ -49,7 +57,8 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 			isRecurring: body.isRecurring || false,
 			recurringPeriod: body.isRecurring ? body.recurringPeriod : null,
 			recurringEndDate: body.isRecurring && body.recurringEndDate ? new Date(body.recurringEndDate) : null,
-			vendorId: body.vendorId ? parseInt(body.vendorId) : null,
+			vendorId,
+			vendorName,
 			projectId: body.projectId ? parseInt(body.projectId) : null,
 			notes: body.notes?.trim() || null,
 			createdById: locals.user!.id

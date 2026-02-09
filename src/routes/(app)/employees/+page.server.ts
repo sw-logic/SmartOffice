@@ -2,16 +2,13 @@ import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
 import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { fail } from '@sveltejs/kit';
-import { logDelete, logUpdate } from '$lib/server/audit';
+import { logDelete } from '$lib/server/audit';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'employees', 'read');
 
 	// Check if user can view salary info
 	const canViewSalary = checkPermission(locals, 'employees', 'salary');
-
-	// Check if current user is admin (can view deleted employees)
-	const isAdmin = checkPermission(locals, '*', '*');
 
 	// Get query parameters
 	const search = url.searchParams.get('search') || '';
@@ -28,18 +25,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		personType: 'company_employee'
 	};
 
-	// Handle deleted filter (admin only)
-	if (status === 'deleted' && isAdmin) {
-		where.deletedAt = { not: null };
-	} else if (status && status !== 'all') {
-		where.deletedAt = null;
+	// Employee status filter
+	if (status && status !== 'all') {
 		where.employeeStatus = status;
-	} else if (isAdmin) {
-		// Admin viewing all records — explicitly mark deletedAt as handled
-		// so the soft-delete extension doesn't auto-filter
-		where.deletedAt = undefined;
-	} else {
-		where.deletedAt = null;
 	}
 
 	// Search filter
@@ -98,7 +86,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			employmentType: true,
 			employeeStatus: true,
 			hireDate: true,
-			deletedAt: true,
 			user: {
 				select: {
 					id: true,
@@ -123,8 +110,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const departmentsRaw = await prisma.person.findMany({
 		where: {
 			personType: 'company_employee',
-			department: { not: null },
-			deletedAt: null
+			department: { not: null }
 		},
 		select: { department: true },
 		distinct: ['department']
@@ -157,7 +143,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			sortBy,
 			sortOrder
 		},
-		isAdmin,
 		canViewSalary
 	};
 };
@@ -181,8 +166,7 @@ export const actions: Actions = {
 		const employee = await prisma.person.findFirst({
 			where: {
 				id,
-				personType: 'company_employee',
-				deletedAt: null
+				personType: 'company_employee'
 			},
 			select: {
 				id: true,
@@ -198,12 +182,7 @@ export const actions: Actions = {
 			return fail(404, { error: 'Employee not found' });
 		}
 
-		// Soft delete
-		await prisma.person.update({
-			where: { id },
-			data: { deletedAt: new Date() }
-		});
-
+		// Log BEFORE hard delete (record won't exist after)
 		await logDelete(locals.user!.id, 'employees', String(id), 'Person', {
 			firstName: employee.firstName,
 			lastName: employee.lastName,
@@ -211,18 +190,22 @@ export const actions: Actions = {
 			jobTitle: employee.jobTitle
 		});
 
-		// Optionally deactivate the linked user account
+		// Optionally delete the linked user account
 		if (deactivateUser && employee.userId) {
-			await prisma.user.update({
-				where: { id: employee.userId },
-				data: { deletedAt: new Date() }
-			});
-
 			await logDelete(locals.user!.id, 'users', employee.userId, 'User', {
-				reason: 'Deactivated with employee deletion',
+				reason: 'Deleted with employee deletion',
 				employeeId: id
 			});
+
+			await prisma.user.delete({
+				where: { id: employee.userId }
+			});
 		}
+
+		// Hard delete the employee
+		await prisma.person.delete({
+			where: { id }
+		});
 
 		return { success: true };
 	},
@@ -246,8 +229,7 @@ export const actions: Actions = {
 		const employees = await prisma.person.findMany({
 			where: {
 				id: { in: ids },
-				personType: 'company_employee',
-				deletedAt: null
+				personType: 'company_employee'
 			},
 			select: {
 				id: true,
@@ -263,13 +245,7 @@ export const actions: Actions = {
 			return fail(404, { error: 'No employees found' });
 		}
 
-		// Soft delete all employees
-		await prisma.person.updateMany({
-			where: { id: { in: employees.map(e => e.id) } },
-			data: { deletedAt: new Date() }
-		});
-
-		// Log each deletion
+		// Log each deletion BEFORE hard delete (records won't exist after)
 		for (const employee of employees) {
 			await logDelete(locals.user!.id, 'employees', String(employee.id), 'Person', {
 				firstName: employee.firstName,
@@ -279,73 +255,28 @@ export const actions: Actions = {
 			});
 		}
 
-		// Optionally deactivate linked user accounts
+		// Optionally delete linked user accounts
 		if (deactivateUsers) {
 			const userIds = employees.map(e => e.userId).filter((id): id is string => id !== null);
 			if (userIds.length > 0) {
-				await prisma.user.updateMany({
-					where: { id: { in: userIds } },
-					data: { deletedAt: new Date() }
-				});
-
 				for (const employee of employees.filter(e => e.userId)) {
 					await logDelete(locals.user!.id, 'users', employee.userId!, 'User', {
-						reason: 'Deactivated with bulk employee deletion',
+						reason: 'Deleted with bulk employee deletion',
 						employeeId: employee.id
 					});
 				}
+
+				await prisma.user.deleteMany({
+					where: { id: { in: userIds } }
+				});
 			}
 		}
+
+		// Hard delete all employees
+		await prisma.person.deleteMany({
+			where: { id: { in: employees.map(e => e.id) } }
+		});
 
 		return { success: true, count: employees.length };
-	},
-
-	restore: async ({ locals, request }) => {
-		await requirePermission(locals, 'employees', 'update');
-
-		// Only admins can restore
-		const isAdmin = checkPermission(locals, '*', '*');
-		if (!isAdmin) {
-			return fail(403, { error: 'Only administrators can restore deleted employees' });
-		}
-
-		const formData = await request.formData();
-		const idStr = formData.get('id') as string;
-
-		if (!idStr) {
-			return fail(400, { error: 'Employee ID is required' });
-		}
-		const id = parseInt(idStr);
-		if (isNaN(id)) {
-			return fail(400, { error: 'Invalid employee ID' });
-		}
-
-		const employee = await prisma.person.findFirst({
-			where: {
-				id,
-				personType: 'company_employee',
-				deletedAt: { not: null }
-			}
-		});
-
-		if (!employee) {
-			return fail(404, { error: 'Deleted employee not found' });
-		}
-
-		await prisma.person.update({
-			where: { id },
-			data: { deletedAt: null }
-		});
-
-		await logUpdate(
-			locals.user!.id,
-			'employees',
-			String(id),
-			'Person',
-			{ deletedAt: employee.deletedAt },
-			{ deletedAt: null }
-		);
-
-		return { success: true };
 	}
 };

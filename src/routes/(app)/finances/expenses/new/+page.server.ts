@@ -10,13 +10,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const [vendors, projects] = await Promise.all([
 		// Get vendors for dropdown
 		prisma.vendor.findMany({
-			where: { deletedAt: null, status: 'active' },
+			where: { status: 'active' },
 			select: { id: true, name: true, paymentTerms: true },
 			orderBy: { name: 'asc' }
 		}),
 		// Get projects for dropdown
 		prisma.project.findMany({
-			where: { deletedAt: null, status: { in: ['planning', 'active'] } },
+			where: { status: { in: ['planning', 'active'] } },
 			select: {
 				id: true,
 				name: true,
@@ -97,6 +97,15 @@ export const actions: Actions = {
 
 		// Create expense
 		const parsedAmount = parseFloat(amount);
+		const parsedVendorId = vendorId ? parseInt(vendorId) : null;
+
+		// Denormalize vendor name
+		let vendorName: string | null = null;
+		if (parsedVendorId) {
+			const vendor = await prisma.vendor.findUnique({ where: { id: parsedVendorId }, select: { name: true } });
+			vendorName = vendor?.name ?? null;
+		}
+
 		const expense = await prisma.expense.create({
 			data: {
 				amount: parsedAmount,
@@ -111,7 +120,8 @@ export const actions: Actions = {
 				dueDate: paymentTermDays && date ? new Date(new Date(date).getTime() + paymentTermDays * 86400000) : null,
 				isRecurring,
 				recurringPeriod: isRecurring ? recurringPeriod : null,
-				vendorId: vendorId ? parseInt(vendorId) : null,
+				vendorId: parsedVendorId,
+				vendorName,
 				projectId: projectId ? parseInt(projectId) : null,
 				notes: notes?.trim() || null,
 				createdById: locals.user!.id

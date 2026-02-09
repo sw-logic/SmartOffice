@@ -46,6 +46,7 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 			columnId: body.columnId || null,
 			swimlaneId: body.swimlaneId || null,
 			assignedToId: body.assignedToId || null,
+			startDate: body.startDate ? new Date(body.startDate) : null,
 			dueDate: body.dueDate ? new Date(body.dueDate) : null,
 			estimatedTime: body.estimatedTime ? Math.round(Number(body.estimatedTime)) : null,
 			reviewerIds: body.reviewerIds || [],

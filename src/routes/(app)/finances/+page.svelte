@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { Button } from '$lib/components/ui/button';
-	import { Badge } from '$lib/components/ui/badge';
+	import EnumBadge from '$lib/components/shared/EnumBadge.svelte';
 	import * as Avatar from '$lib/components/ui/avatar';
 	import * as Card from '$lib/components/ui/card';
 	import * as Table from '$lib/components/ui/table';
@@ -62,23 +62,6 @@
 		late: 'Late',
 		suspended: 'Suspended'
 	};
-
-	function getStatusBadgeVariant(
-		status: string
-	): 'default' | 'secondary' | 'destructive' | 'outline' {
-		switch (status) {
-			case 'paid':
-				return 'default';
-			case 'pending':
-				return 'secondary';
-			case 'late':
-				return 'destructive';
-			case 'suspended':
-				return 'outline';
-			default:
-				return 'outline';
-		}
-	}
 
 	function formatCurrency(amount: number, currency: string = 'USD'): string {
 		return new Intl.NumberFormat('en-US', {
@@ -271,6 +254,8 @@
 									<div class="text-xs text-muted-foreground">
 										{#if income.client}
 											{income.client.name}
+										{:else if income.clientName}
+											{income.clientName}
 										{/if}
 										{#if income.isRecurring}
 											<RefreshCw class="inline h-3 w-3 ml-1" />
@@ -278,9 +263,7 @@
 									</div>
 								</Table.Cell>
 								<Table.Cell>
-									<Badge variant={getStatusBadgeVariant(income.status)} class="text-xs">
-										{statusOptions[income.status] || income.status}
-									</Badge>
+									<EnumBadge enums={data.enums.income_status} value={income.status} class="text-xs" />
 								</Table.Cell>
 								<Table.Cell class="text-right font-medium text-green-600 whitespace-nowrap">
 									{formatCurrency(income.amount, income.currency)}
@@ -338,6 +321,8 @@
 									<div class="text-xs text-muted-foreground">
 										{#if expense.vendor}
 											{expense.vendor.name}
+										{:else if expense.vendorName}
+											{expense.vendorName}
 										{/if}
 										{#if expense.isRecurring}
 											<RefreshCw class="inline h-3 w-3 ml-1" />
@@ -345,9 +330,7 @@
 									</div>
 								</Table.Cell>
 								<Table.Cell>
-									<Badge variant={getStatusBadgeVariant(expense.status)} class="text-xs">
-										{statusOptions[expense.status] || expense.status}
-									</Badge>
+									<EnumBadge enums={data.enums.expense_status} value={expense.status} class="text-xs" />
 								</Table.Cell>
 								<Table.Cell class="text-right font-medium text-red-600 whitespace-nowrap">
 									{formatCurrency(expense.amount, expense.currency)}

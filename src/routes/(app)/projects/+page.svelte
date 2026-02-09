@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { browser } from '$app/environment';
+	import { saveListState, restoreListState } from '$lib/utils/list-state';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
+	import EnumBadge from '$lib/components/shared/EnumBadge.svelte';
 	import * as Table from '$lib/components/ui/table';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as Select from '$lib/components/ui/select';
@@ -18,7 +21,6 @@
 		Trash2,
 		ChevronLeft,
 		ChevronRight,
-		RotateCcw,
 		Eye,
 		Users,
 		ListChecks
@@ -28,13 +30,25 @@
 
 	let { data } = $props();
 
+	// Persist/restore list view state
+	const LIST_ROUTE = '/projects';
+	let _stateRestored = false;
+	$effect(() => {
+		if (!browser) return;
+		if (!_stateRestored) {
+			_stateRestored = true;
+			if (!$page.url.search) {
+				const saved = restoreListState(LIST_ROUTE);
+				if (saved) { goto(LIST_ROUTE + saved, { replaceState: true }); return; }
+			}
+		}
+		saveListState(LIST_ROUTE, $page.url.search);
+	});
+
 	let search = $state(data.filters.search);
 	let deleteDialogOpen = $state(false);
-	let restoreDialogOpen = $state(false);
 	let projectToDelete = $state<{ id: number; name: string } | null>(null);
-	let projectToRestore = $state<{ id: number; name: string } | null>(null);
 	let isDeleting = $state(false);
-	let isRestoring = $state(false);
 
 	const statusOptions = [
 		{ value: 'active', label: 'Active projects' },
@@ -43,13 +57,8 @@
 		{ value: 'completed', label: 'Completed' },
 		{ value: 'cancelled', label: 'Cancelled' },
 		{ value: 'archived', label: 'Archived' },
-		{ value: 'deleted', label: 'Deleted projects' },
 		{ value: 'all', label: 'All projects' }
 	];
-
-	const availableStatusOptions = $derived(
-		data.isAdmin ? statusOptions : statusOptions.filter(o => o.value !== 'deleted' && o.value !== 'all')
-	);
 
 	function updateSearch() {
 		const url = new URL($page.url);
@@ -100,11 +109,6 @@
 		deleteDialogOpen = true;
 	}
 
-	function confirmRestore(project: { id: number; name: string }) {
-		projectToRestore = project;
-		restoreDialogOpen = true;
-	}
-
 	async function handleDelete() {
 		if (!projectToDelete) return;
 
@@ -131,79 +135,6 @@
 		projectToDelete = null;
 	}
 
-	async function handleRestore() {
-		if (!projectToRestore) return;
-
-		isRestoring = true;
-		const formData = new FormData();
-		formData.append('id', String(projectToRestore.id));
-
-		const response = await fetch('?/restore', {
-			method: 'POST',
-			body: formData
-		});
-
-		const result = await response.json();
-
-		if (result.type === 'success') {
-			toast.success('Project restored successfully');
-			invalidateAll();
-		} else {
-			toast.error(result.data?.error || 'Failed to restore project');
-		}
-
-		isRestoring = false;
-		restoreDialogOpen = false;
-		projectToRestore = null;
-	}
-
-	function isProjectDeleted(project: { deletedAt: string | Date | null }): boolean {
-		return project.deletedAt !== null;
-	}
-
-	function canEditProject(project: { deletedAt: string | Date | null }): boolean {
-		if (isProjectDeleted(project)) {
-			return data.isAdmin;
-		}
-		return true;
-	}
-
-	function getStatusBadgeVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-		switch (status) {
-			case 'active':
-				return 'default';
-			case 'completed':
-				return 'secondary';
-			case 'planning':
-				return 'outline';
-			case 'on_hold':
-				return 'outline';
-			case 'cancelled':
-				return 'destructive';
-			case 'archived':
-				return 'secondary';
-			default:
-				return 'outline';
-		}
-	}
-
-	function getPriorityBadgeVariant(priority: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-		switch (priority) {
-			case 'high':
-			case 'urgent':
-				return 'destructive';
-			case 'medium':
-				return 'default';
-			case 'low':
-				return 'secondary';
-			default:
-				return 'outline';
-		}
-	}
-
-	function formatStatus(status: string): string {
-		return status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-	}
 </script>
 
 <div class="space-y-6">
@@ -253,10 +184,10 @@
 			onValueChange={updateStatus}
 		>
 			<Select.Trigger class="w-[180px]">
-				{availableStatusOptions.find(o => o.value === data.filters.status)?.label || 'Active projects'}
+				{statusOptions.find(o => o.value === data.filters.status)?.label || 'Active projects'}
 			</Select.Trigger>
 			<Select.Content>
-				{#each availableStatusOptions as option}
+				{#each statusOptions as option}
 					<Select.Item value={option.value}>{option.label}</Select.Item>
 				{/each}
 			</Select.Content>
@@ -323,16 +254,13 @@
 				{:else}
 					{#each data.projects as project}
 						<Table.Row
-							class="cursor-pointer hover:bg-muted/50 {isProjectDeleted(project) ? 'opacity-60' : ''}"
+							class="cursor-pointer hover:bg-muted/50"
 							onclick={() => goto(`/projects/${project.id}`)}
 						>
 							<Table.Cell>
 								<div class="flex flex-col">
 									<span class="font-medium">
 										{project.name}
-										{#if isProjectDeleted(project)}
-											<span class="text-muted-foreground text-xs ml-2">(deleted)</span>
-										{/if}
 									</span>
 									{#if project.projectManager}
 										<span class="text-sm text-muted-foreground flex items-center gap-1">
@@ -348,18 +276,10 @@
 								{project.client.name}
 							</Table.Cell>
 							<Table.Cell>
-								{#if isProjectDeleted(project)}
-									<Badge variant="destructive">Deleted</Badge>
-								{:else}
-									<Badge variant={getStatusBadgeVariant(project.status)}>
-										{formatStatus(project.status)}
-									</Badge>
-								{/if}
+								<EnumBadge enums={data.enums.project_status} value={project.status} />
 							</Table.Cell>
 							<Table.Cell>
-								<Badge variant={getPriorityBadgeVariant(project.priority)}>
-									{formatStatus(project.priority)}
-								</Badge>
+								<EnumBadge enums={data.enums.priority} value={project.priority} />
 							</Table.Cell>
 							<Table.Cell>
 								{#if project.startDate}
@@ -395,32 +315,17 @@
 									<Button variant="ghost" size="icon" href="/projects/{project.id}" title="View project">
 										<Eye class="h-4 w-4" />
 									</Button>
-									{#if canEditProject(project)}
-										<Button variant="ghost" size="icon" href="/projects/{project.id}/edit" title="Edit project">
-											<Pencil class="h-4 w-4" />
-										</Button>
-									{/if}
-									{#if isProjectDeleted(project)}
-										{#if data.isAdmin}
-											<Button
-												variant="ghost"
-												size="icon"
-												onclick={() => confirmRestore({ id: project.id, name: project.name })}
-												title="Restore project"
-											>
-												<RotateCcw class="h-4 w-4" />
-											</Button>
-										{/if}
-									{:else}
-										<Button
-											variant="ghost"
-											size="icon"
-											onclick={() => confirmDelete({ id: project.id, name: project.name })}
-											title="Delete project"
-										>
-											<Trash2 class="h-4 w-4" />
-										</Button>
-									{/if}
+									<Button variant="ghost" size="icon" href="/projects/{project.id}/edit" title="Edit project">
+										<Pencil class="h-4 w-4" />
+									</Button>
+									<Button
+										variant="ghost"
+										size="icon"
+										onclick={() => confirmDelete({ id: project.id, name: project.name })}
+										title="Delete project"
+									>
+										<Trash2 class="h-4 w-4" />
+									</Button>
 								</div>
 							</Table.Cell>
 						</Table.Row>
@@ -471,8 +376,7 @@
 		<AlertDialog.Header>
 			<AlertDialog.Title>Delete Project</AlertDialog.Title>
 			<AlertDialog.Description>
-				Are you sure you want to delete <strong>{projectToDelete?.name}</strong>? This action can be
-				undone by an administrator.
+				Are you sure you want to delete <strong>{projectToDelete?.name}</strong>? This action cannot be undone.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>
@@ -483,27 +387,6 @@
 				disabled={isDeleting}
 			>
 				{isDeleting ? 'Deleting...' : 'Delete'}
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
-
-<!-- Restore Confirmation Dialog -->
-<AlertDialog.Root bind:open={restoreDialogOpen}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Restore Project</AlertDialog.Title>
-			<AlertDialog.Description>
-				Are you sure you want to restore <strong>{projectToRestore?.name}</strong>?
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-			<AlertDialog.Action
-				onclick={handleRestore}
-				disabled={isRestoring}
-			>
-				{isRestoring ? 'Restoring...' : 'Restore'}
 			</AlertDialog.Action>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>

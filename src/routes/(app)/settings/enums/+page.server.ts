@@ -12,7 +12,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const sortOrder = (url.searchParams.get('sortOrder') || 'asc') as 'asc' | 'desc';
 
 	const where = {
-		deletedAt: null,
 		...(search
 			? {
 					OR: [
@@ -34,9 +33,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			include: {
 				_count: {
 					select: {
-						values: {
-							where: { deletedAt: null }
-						}
+						values: true
 					}
 				}
 			}

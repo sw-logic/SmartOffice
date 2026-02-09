@@ -2,45 +2,6 @@ import { PrismaClient } from '@prisma/client';
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 
-// Models that support soft delete (have a deletedAt field)
-const softDeleteModels = new Set([
-	'User',
-	'UserGroup',
-	'Permission',
-	'Company',
-	'Person',
-	'Client',
-	'Vendor',
-	'Project',
-	'Task',
-	'TimeRecord',
-	'Milestone',
-	'KanbanBoard',
-	'KanbanColumn',
-	'KanbanSwimlane',
-	'Note',
-	'Income',
-	'Expense',
-	'Payment',
-	'PriceListItem',
-	'Offer',
-	'EnumType',
-	'EnumValue'
-]);
-
-// Read operations that should auto-filter soft-deleted records
-const readOperations = new Set([
-	'findMany',
-	'findFirst',
-	'findUnique',
-	'findFirstOrThrow',
-	'findUniqueOrThrow',
-	'count',
-	'aggregate',
-	'groupBy'
-]);
-
-// Instantiate Prisma Client with soft-delete extension
 const createPrismaClient = () => {
 	const pool = new Pool({
 		connectionString: process.env.DATABASE_URL,
@@ -52,37 +13,17 @@ const createPrismaClient = () => {
 
 	const adapter = new PrismaPg(pool);
 
-	const base = new PrismaClient({
+	return new PrismaClient({
 		adapter,
 		log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
 	});
-
-	// Extend with automatic soft-delete filtering on read operations.
-	// If a query explicitly includes 'deletedAt' in its where clause (even as undefined),
-	// the extension will NOT override it. This allows admin "show all" views to work
-	// by setting: where.deletedAt = undefined
-	return base.$extends({
-		query: {
-			$allModels: {
-				async $allOperations({ model, operation, args, query }) {
-					if (readOperations.has(operation) && softDeleteModels.has(model)) {
-						const where = (args as any).where ?? {};
-						if (!('deletedAt' in where)) {
-							(args as any).where = { ...where, deletedAt: null };
-						}
-					}
-					return query(args);
-				}
-			}
-		}
-	});
 };
 
-type ExtendedPrismaClient = ReturnType<typeof createPrismaClient>;
+type PrismaClientInstance = ReturnType<typeof createPrismaClient>;
 
 // Global declaration for development hot reload
 declare const globalThis: {
-	prismaGlobal: ExtendedPrismaClient;
+	prismaGlobal: PrismaClientInstance;
 } & typeof global;
 
 // Force fresh client if enumType is missing (schema changed)

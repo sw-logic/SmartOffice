@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { browser } from '$app/environment';
+	import { saveListState, restoreListState } from '$lib/utils/list-state';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
+	import EnumBadge from '$lib/components/shared/EnumBadge.svelte';
 	import * as Table from '$lib/components/ui/table';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as Select from '$lib/components/ui/select';
@@ -18,7 +21,6 @@
 		Trash2,
 		ChevronLeft,
 		ChevronRight,
-		RotateCcw,
 		Eye,
 		Building2,
 		Users,
@@ -29,25 +31,30 @@
 
 	let { data } = $props();
 
+	// Persist/restore list view state
+	const LIST_ROUTE = '/vendors';
+	let _stateRestored = false;
+	$effect(() => {
+		if (!browser) return;
+		if (!_stateRestored) {
+			_stateRestored = true;
+			if (!$page.url.search) {
+				const saved = restoreListState(LIST_ROUTE);
+				if (saved) { goto(LIST_ROUTE + saved, { replaceState: true }); return; }
+			}
+		}
+		saveListState(LIST_ROUTE, $page.url.search);
+	});
+
 	let search = $state(data.filters.search);
 	let deleteDialogOpen = $state(false);
-	let restoreDialogOpen = $state(false);
 	let vendorToDelete = $state<{ id: number; name: string } | null>(null);
-	let vendorToRestore = $state<{ id: number; name: string } | null>(null);
 	let isDeleting = $state(false);
-	let isRestoring = $state(false);
 
 	const statusOptions = [
 		{ value: 'active', label: 'Active vendors' },
-		{ value: 'inactive', label: 'Inactive vendors' },
-		{ value: 'deleted', label: 'Deleted vendors' },
-		{ value: 'all', label: 'All vendors' }
+		{ value: 'inactive', label: 'Inactive vendors' }
 	];
-
-	// Filter out deleted option for non-admins
-	const availableStatusOptions = $derived(
-		data.isAdmin ? statusOptions : statusOptions.filter(o => o.value !== 'deleted' && o.value !== 'all')
-	);
 
 	function updateSearch() {
 		const url = new URL($page.url);
@@ -109,11 +116,6 @@
 		deleteDialogOpen = true;
 	}
 
-	function confirmRestore(vendor: { id: number; name: string }) {
-		vendorToRestore = vendor;
-		restoreDialogOpen = true;
-	}
-
 	async function handleDelete() {
 		if (!vendorToDelete) return;
 
@@ -140,53 +142,6 @@
 		vendorToDelete = null;
 	}
 
-	async function handleRestore() {
-		if (!vendorToRestore) return;
-
-		isRestoring = true;
-		const formData = new FormData();
-		formData.append('id', String(vendorToRestore.id));
-
-		const response = await fetch('?/restore', {
-			method: 'POST',
-			body: formData
-		});
-
-		const result = await response.json();
-
-		if (result.type === 'success') {
-			toast.success('Vendor restored successfully');
-			invalidateAll();
-		} else {
-			toast.error(result.data?.error || 'Failed to restore vendor');
-		}
-
-		isRestoring = false;
-		restoreDialogOpen = false;
-		vendorToRestore = null;
-	}
-
-	function isVendorDeleted(vendor: { deletedAt: string | Date | null }): boolean {
-		return vendor.deletedAt !== null;
-	}
-
-	function canEditVendor(vendor: { deletedAt: string | Date | null }): boolean {
-		if (isVendorDeleted(vendor)) {
-			return data.isAdmin;
-		}
-		return true;
-	}
-
-	function getStatusBadgeVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-		switch (status) {
-			case 'active':
-				return 'default';
-			case 'inactive':
-				return 'secondary';
-			default:
-				return 'secondary';
-		}
-	}
 </script>
 
 <div class="space-y-6">
@@ -234,10 +189,11 @@
 			onValueChange={updateStatus}
 		>
 			<Select.Trigger class="w-[180px]">
-				{availableStatusOptions.find(o => o.value === data.filters.status)?.label || 'Active vendors'}
+				{statusOptions.find(o => o.value === data.filters.status)?.label || 'All vendors'}
 			</Select.Trigger>
 			<Select.Content>
-				{#each availableStatusOptions as option}
+				<Select.Item value="all">All vendors</Select.Item>
+				{#each statusOptions as option}
 					<Select.Item value={option.value}>{option.label}</Select.Item>
 				{/each}
 			</Select.Content>
@@ -306,7 +262,7 @@
 				{:else}
 					{#each data.vendors as vendor}
 						<Table.Row
-							class="cursor-pointer hover:bg-muted/50 {isVendorDeleted(vendor) ? 'opacity-60' : ''}"
+							class="cursor-pointer hover:bg-muted/50"
 							onclick={() => goto(`/vendors/${vendor.id}`)}
 						>
 							<Table.Cell>
@@ -317,9 +273,6 @@
 									<div class="flex flex-col">
 										<span class="font-medium">
 											{vendor.name}
-											{#if isVendorDeleted(vendor)}
-												<span class="text-muted-foreground text-xs ml-2">(deleted)</span>
-											{/if}
 										</span>
 										{#if vendor.companyName}
 											<span class="text-sm text-muted-foreground flex items-center gap-1">
@@ -354,13 +307,7 @@
 								{/if}
 							</Table.Cell>
 							<Table.Cell>
-								{#if isVendorDeleted(vendor)}
-									<Badge variant="destructive">Deleted</Badge>
-								{:else}
-									<Badge variant={getStatusBadgeVariant(vendor.status)}>
-										{vendor.status.charAt(0).toUpperCase() + vendor.status.slice(1)}
-									</Badge>
-								{/if}
+								<EnumBadge enums={data.enums.entity_status} value={vendor.status} />
 							</Table.Cell>
 							<Table.Cell class="text-center">
 								<div class="flex items-center justify-center gap-2 text-sm text-muted-foreground">
@@ -382,32 +329,17 @@
 									<Button variant="ghost" size="icon" href="/vendors/{vendor.id}" title="View vendor">
 										<Eye class="h-4 w-4" />
 									</Button>
-									{#if canEditVendor(vendor)}
-										<Button variant="ghost" size="icon" href="/vendors/{vendor.id}/edit" title="Edit vendor">
-											<Pencil class="h-4 w-4" />
-										</Button>
-									{/if}
-									{#if isVendorDeleted(vendor)}
-										{#if data.isAdmin}
-											<Button
-												variant="ghost"
-												size="icon"
-												onclick={() => confirmRestore({ id: vendor.id, name: vendor.name })}
-												title="Restore vendor"
-											>
-												<RotateCcw class="h-4 w-4" />
-											</Button>
-										{/if}
-									{:else}
-										<Button
-											variant="ghost"
-											size="icon"
-											onclick={() => confirmDelete({ id: vendor.id, name: vendor.name })}
-											title="Delete vendor"
-										>
-											<Trash2 class="h-4 w-4" />
-										</Button>
-									{/if}
+									<Button variant="ghost" size="icon" href="/vendors/{vendor.id}/edit" title="Edit vendor">
+										<Pencil class="h-4 w-4" />
+									</Button>
+									<Button
+										variant="ghost"
+										size="icon"
+										onclick={() => confirmDelete({ id: vendor.id, name: vendor.name })}
+										title="Delete vendor"
+									>
+										<Trash2 class="h-4 w-4" />
+									</Button>
 								</div>
 							</Table.Cell>
 						</Table.Row>
@@ -458,8 +390,7 @@
 		<AlertDialog.Header>
 			<AlertDialog.Title>Delete Vendor</AlertDialog.Title>
 			<AlertDialog.Description>
-				Are you sure you want to delete <strong>{vendorToDelete?.name}</strong>? This action can be
-				undone by an administrator.
+				Are you sure you want to delete <strong>{vendorToDelete?.name}</strong>? This action cannot be undone.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>
@@ -470,27 +401,6 @@
 				disabled={isDeleting}
 			>
 				{isDeleting ? 'Deleting...' : 'Delete'}
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
-
-<!-- Restore Confirmation Dialog -->
-<AlertDialog.Root bind:open={restoreDialogOpen}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Restore Vendor</AlertDialog.Title>
-			<AlertDialog.Description>
-				Are you sure you want to restore <strong>{vendorToRestore?.name}</strong>?
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-			<AlertDialog.Action
-				onclick={handleRestore}
-				disabled={isRestoring}
-			>
-				{isRestoring ? 'Restoring...' : 'Restore'}
 			</AlertDialog.Action>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>

@@ -148,8 +148,17 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 		oldValues.dueDate = existing.dueDate;
 	}
 	if ('vendorId' in body) {
-		data.vendorId = body.vendorId ? parseInt(body.vendorId) : null;
+		const newVendorId = body.vendorId ? parseInt(body.vendorId) : null;
+		data.vendorId = newVendorId;
 		oldValues.vendorId = existing.vendorId;
+
+		// Denormalize vendor name
+		if (newVendorId && newVendorId !== existing.vendorId) {
+			const vendor = await prisma.vendor.findUnique({ where: { id: newVendorId }, select: { name: true } });
+			data.vendorName = vendor?.name ?? null;
+		} else if (!newVendorId) {
+			data.vendorName = null;
+		}
 	}
 	if ('projectId' in body) {
 		data.projectId = body.projectId ? parseInt(body.projectId) : null;
@@ -189,8 +198,7 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 		await prisma.expense.deleteMany({
 			where: {
 				parentId: id,
-				status: 'projected',
-				deletedAt: null
+				status: 'projected'
 			}
 		});
 	}

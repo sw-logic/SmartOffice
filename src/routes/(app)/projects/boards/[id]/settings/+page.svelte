@@ -15,7 +15,6 @@
 		Plus,
 		Pencil,
 		Trash2,
-		RotateCcw,
 		GripVertical,
 		Check,
 		X,
@@ -76,7 +75,6 @@
 		name: string;
 		order: number;
 		color: string | null;
-		deletedAt: Date | string | null;
 		taskCount: number;
 	};
 
@@ -85,7 +83,6 @@
 		name: string;
 		order: number;
 		color: string | null;
-		deletedAt: Date | string | null;
 		taskCount: number;
 	};
 
@@ -93,14 +90,12 @@
 	let draggableSwimlanes = $state<SwimlaneItem[]>([]);
 
 	$effect(() => {
-		draggableColumns = data.columns.filter((c) => !c.deletedAt).map((c) => ({ ...c }));
+		draggableColumns = data.columns.map((c) => ({ ...c }));
 	});
 	$effect(() => {
-		draggableSwimlanes = data.swimlanes.filter((s) => !s.deletedAt).map((s) => ({ ...s }));
+		draggableSwimlanes = data.swimlanes.map((s) => ({ ...s }));
 	});
 
-	let deletedColumns = $derived(data.columns.filter((c) => c.deletedAt));
-	let deletedSwimlanes = $derived(data.swimlanes.filter((s) => s.deletedAt));
 
 	// ── Helper: fetch form action ──
 	async function postAction(
@@ -241,30 +236,6 @@
 		deleteTarget = null;
 	}
 
-	// ── Restore ──
-	async function restoreColumn(id: number) {
-		isProcessing = true;
-		const result = await postAction('restoreColumn', { id: String(id) });
-		if (result.type === 'success') {
-			toast.success('Column restored');
-			invalidateAll();
-		} else {
-			toast.error(result.data?.error || 'Failed to restore column');
-		}
-		isProcessing = false;
-	}
-
-	async function restoreSwimlane(id: number) {
-		isProcessing = true;
-		const result = await postAction('restoreSwimlane', { id: String(id) });
-		if (result.type === 'success') {
-			toast.success('Swimlane restored');
-			invalidateAll();
-		} else {
-			toast.error(result.data?.error || 'Failed to restore swimlane');
-		}
-		isProcessing = false;
-	}
 
 	// ── DnD handlers ──
 	function handleColumnDndConsider(e: CustomEvent<{ items: ColumnItem[] }>) {
@@ -500,34 +471,6 @@
 					<p class="text-sm text-muted-foreground text-center py-4">No columns yet.</p>
 				{/if}
 
-				{#if data.isAdmin && deletedColumns.length > 0}
-					<div class="pt-3 border-t mt-3">
-						<p class="text-xs text-muted-foreground font-medium mb-2">
-							Deleted ({deletedColumns.length})
-						</p>
-						{#each deletedColumns as col (col.id)}
-							<div class="flex items-center gap-2 p-2 rounded-md opacity-60">
-								{#if col.color}
-									<span
-										class="inline-block h-3 w-3 rounded-full shrink-0"
-										style="background-color: {col.color}"
-									></span>
-								{/if}
-								<span class="text-sm flex-1 truncate">{col.name}</span>
-								<Button
-									variant="ghost"
-									size="icon"
-									class="h-7 w-7 shrink-0"
-									onclick={() => restoreColumn(col.id)}
-									disabled={isProcessing}
-									title="Restore"
-								>
-									<RotateCcw class="h-3.5 w-3.5" />
-								</Button>
-							</div>
-						{/each}
-					</div>
-				{/if}
 			</Card.Content>
 		</Card.Root>
 
@@ -667,34 +610,6 @@
 					<p class="text-sm text-muted-foreground text-center py-4">No swimlanes yet.</p>
 				{/if}
 
-				{#if data.isAdmin && deletedSwimlanes.length > 0}
-					<div class="pt-3 border-t mt-3">
-						<p class="text-xs text-muted-foreground font-medium mb-2">
-							Deleted ({deletedSwimlanes.length})
-						</p>
-						{#each deletedSwimlanes as sl (sl.id)}
-							<div class="flex items-center gap-2 p-2 rounded-md opacity-60">
-								{#if sl.color}
-									<span
-										class="inline-block h-3 w-3 rounded-full shrink-0"
-										style="background-color: {sl.color}"
-									></span>
-								{/if}
-								<span class="text-sm flex-1 truncate">{sl.name}</span>
-								<Button
-									variant="ghost"
-									size="icon"
-									class="h-7 w-7 shrink-0"
-									onclick={() => restoreSwimlane(sl.id)}
-									disabled={isProcessing}
-									title="Restore"
-								>
-									<RotateCcw class="h-3.5 w-3.5" />
-								</Button>
-							</div>
-						{/each}
-					</div>
-				{/if}
 			</Card.Content>
 		</Card.Root>
 
@@ -819,7 +734,7 @@
 				Delete {deleteTarget?.type === 'column' ? 'Column' : 'Swimlane'}
 			</AlertDialog.Title>
 			<AlertDialog.Description>
-				Delete <strong>{deleteTarget?.name}</strong>? This can be undone by an administrator.
+				Delete <strong>{deleteTarget?.name}</strong>? This action cannot be undone.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>

@@ -17,6 +17,7 @@ import {
 	List,
 	Kanban,
 	ClipboardList,
+	CalendarDays,
 	FolderOpen
 } from 'lucide-svelte';
 import type { ComponentType } from 'svelte';
@@ -95,6 +96,14 @@ export const modules: Module[] = [
 				route: '/projects/tasks',
 				permissions: ['projects.read'],
 				description: 'Task management'
+			},
+			{
+				id: 'projects.planning',
+				name: 'Planning',
+				icon: CalendarDays,
+				route: '/projects/planning',
+				permissions: ['projects.read'],
+				description: 'Resource planning'
 			}
 		]
 	},

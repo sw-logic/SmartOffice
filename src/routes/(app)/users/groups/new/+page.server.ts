@@ -9,7 +9,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	// Get all permissions for selection
 	const permissions = await prisma.permission.findMany({
-		where: { deletedAt: null },
 		orderBy: [{ module: 'asc' }, { action: 'asc' }],
 		select: {
 			id: true,

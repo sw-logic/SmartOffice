@@ -1,6 +1,6 @@
 import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
-import { requirePermission, checkPermission } from '$lib/server/access-control';
+import { requirePermission } from '$lib/server/access-control';
 import { error, fail } from '@sveltejs/kit';
 import { logCreate, logUpdate, logDelete } from '$lib/server/audit';
 
@@ -13,14 +13,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		error(400, 'Invalid vendor ID');
 	}
 
-	// Check if user is admin (can view deleted vendors)
-	const isAdmin = checkPermission(locals, '*', '*');
-
 	const vendor = await prisma.vendor.findUnique({
 		where: { id: vendorId },
 		include: {
 			contacts: {
-				where: { deletedAt: null },
 				orderBy: [{ lastName: 'asc' }],
 				select: {
 					id: true,
@@ -33,7 +29,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				}
 			},
 			expenses: {
-				where: { deletedAt: null },
 				orderBy: { date: 'desc' },
 				take: 5,
 				select: {
@@ -47,8 +42,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			},
 			_count: {
 				select: {
-					expenses: { where: { deletedAt: null } },
-					contacts: { where: { deletedAt: null } }
+					expenses: true,
+					contacts: true
 				}
 			}
 		}
@@ -58,16 +53,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		error(404, 'Vendor not found');
 	}
 
-	// If vendor is deleted and user is not admin, deny access
-	if (vendor.deletedAt && !isAdmin) {
-		error(403, 'Access denied');
-	}
-
 	// Calculate total expenses
 	const totalExpenses = await prisma.expense.aggregate({
 		where: {
-			vendorId: vendorId,
-			deletedAt: null
+			vendorId: vendorId
 		},
 		_sum: {
 			amount: true
@@ -83,10 +72,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				amount: Number(exp.amount)
 			})),
 			_count: vendor._count,
-			isDeleted: vendor.deletedAt !== null,
 			totalExpenses: Number(totalExpenses._sum.amount || 0)
-		},
-		isAdmin
+		}
 	};
 };
 
@@ -187,8 +174,7 @@ export const actions: Actions = {
 		const existingContact = await prisma.person.findFirst({
 			where: {
 				id: contactId,
-				vendorId: vendorId,
-				deletedAt: null
+				vendorId: vendorId
 			}
 		});
 
@@ -245,8 +231,7 @@ export const actions: Actions = {
 		const contact = await prisma.person.findFirst({
 			where: {
 				id: contactId,
-				vendorId: vendorId,
-				deletedAt: null
+				vendorId: vendorId
 			},
 			select: {
 				id: true,
@@ -260,16 +245,15 @@ export const actions: Actions = {
 			return fail(404, { error: 'Contact not found' });
 		}
 
-		// Soft delete
-		await prisma.person.update({
-			where: { id: contactId },
-			data: { deletedAt: new Date() }
-		});
-
+		// Log before hard delete
 		await logDelete(locals.user!.id, 'vendors', String(contactId), 'Person', {
 			firstName: contact.firstName,
 			lastName: contact.lastName,
 			email: contact.email
+		});
+
+		await prisma.person.delete({
+			where: { id: contactId }
 		});
 
 		return { success: true };

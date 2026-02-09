@@ -5,8 +5,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Card from '$lib/components/ui/card';
-	import * as Alert from '$lib/components/ui/alert';
-	import { ArrowLeft, AlertTriangle } from 'lucide-svelte';
+	import { ArrowLeft } from 'lucide-svelte';
 
 	let { data, form } = $props();
 
@@ -41,15 +40,6 @@
 		</div>
 	</div>
 
-	{#if data.user.isDeleted}
-		<Alert.Root variant="destructive" class="max-w-2xl">
-			<AlertTriangle class="h-4 w-4" />
-			<Alert.Title>Deleted User</Alert.Title>
-			<Alert.Description>
-				This user has been deleted. You can edit their details, but they won't be able to log in until restored.
-			</Alert.Description>
-		</Alert.Root>
-	{/if}
 
 	<Card.Root class="max-w-2xl">
 		<Card.Header>

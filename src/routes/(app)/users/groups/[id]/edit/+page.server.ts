@@ -13,7 +13,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		error(400, 'Invalid group ID');
 	}
 
-	// Check if current user is admin (can edit deleted groups)
 	const isAdmin = checkPermission(locals, '*', '*');
 
 	// Find the group
@@ -23,7 +22,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			id: true,
 			name: true,
 			description: true,
-			deletedAt: true,
 			permissions: {
 				select: {
 					permissionId: true
@@ -36,14 +34,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		error(404, 'Group not found');
 	}
 
-	// If group is deleted and current user is not admin, deny access
-	if (group.deletedAt && !isAdmin) {
-		error(403, 'Only administrators can edit deleted groups');
-	}
-
 	// Get all permissions for selection
 	const permissions = await prisma.permission.findMany({
-		where: { deletedAt: null },
 		orderBy: [{ module: 'asc' }, { action: 'asc' }],
 		select: {
 			id: true,
@@ -65,8 +57,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	return {
 		group: {
 			...group,
-			permissionIds: group.permissions.map(p => p.permissionId),
-			isDeleted: group.deletedAt !== null
+			permissionIds: group.permissions.map(p => p.permissionId)
 		},
 		permissions,
 		groupedPermissions,

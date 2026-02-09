@@ -2,12 +2,15 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { browser } from '$app/environment';
+	import { saveListState, restoreListState } from '$lib/utils/list-state';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import * as Table from '$lib/components/ui/table';
 	import * as Select from '$lib/components/ui/select';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Badge } from '$lib/components/ui/badge';
+	import EnumBadge from '$lib/components/shared/EnumBadge.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Avatar from '$lib/components/ui/avatar';
 	import {
@@ -15,7 +18,6 @@
 		Search,
 		ArrowUpDown,
 		Trash2,
-		RotateCcw,
 		Eye,
 		Pencil,
 		User,
@@ -25,33 +27,44 @@
 
 	let { data } = $props();
 
+	// Persist/restore list view state
+	const LIST_ROUTE = '/employees';
+	let _stateRestored = false;
+	$effect(() => {
+		if (!browser) return;
+		if (!_stateRestored) {
+			_stateRestored = true;
+			if (!$page.url.search) {
+				const saved = restoreListState(LIST_ROUTE);
+				if (saved) { goto(LIST_ROUTE + saved, { replaceState: true }); return; }
+			}
+		}
+		saveListState(LIST_ROUTE, $page.url.search);
+	});
+
 	let searchInput = $state(data.filters.search);
 	let deleteDialogOpen = $state(false);
-	let restoreDialogOpen = $state(false);
 	let bulkDeleteDialogOpen = $state(false);
 	let selectedEmployee = $state<{ id: number; firstName: string; lastName: string; hasUser: boolean } | null>(null);
 	let selectedIds = $state<Set<number>>(new Set());
 	let deactivateUser = $state(false);
 	let deactivateUsers = $state(false);
 
-	// Employees that can be selected (not deleted)
-	const selectableEmployees = $derived(data.employees.filter(e => !e.deletedAt));
-
 	const allSelected = $derived(
-		selectableEmployees.length > 0 && selectableEmployees.every(e => selectedIds.has(e.id))
+		data.employees.length > 0 && data.employees.every((e: { id: number }) => selectedIds.has(e.id))
 	);
 
 	const someSelected = $derived(selectedIds.size > 0);
 
 	const selectedWithUsers = $derived(
-		data.employees.filter(e => selectedIds.has(e.id) && e.user)
+		data.employees.filter((e: { id: number; user: unknown }) => selectedIds.has(e.id) && e.user)
 	);
 
 	function toggleSelectAll() {
 		if (allSelected) {
 			selectedIds = new Set();
 		} else {
-			selectedIds = new Set(selectableEmployees.map(e => e.id));
+			selectedIds = new Set(data.employees.map((e: { id: number }) => e.id));
 		}
 	}
 
@@ -113,41 +126,6 @@
 		deleteDialogOpen = true;
 	}
 
-	function openRestoreDialog(employee: { id: number; firstName: string; lastName: string; hasUser: boolean }) {
-		selectedEmployee = employee;
-		restoreDialogOpen = true;
-	}
-
-	function getStatusBadgeVariant(
-		status: string | null
-	): 'default' | 'secondary' | 'destructive' | 'outline' {
-		switch (status) {
-			case 'active':
-				return 'default';
-			case 'on_leave':
-				return 'secondary';
-			case 'terminated':
-				return 'destructive';
-			default:
-				return 'outline';
-		}
-	}
-
-	function getEmploymentTypeBadgeVariant(
-		type: string | null
-	): 'default' | 'secondary' | 'destructive' | 'outline' {
-		switch (type) {
-			case 'full-time':
-				return 'default';
-			case 'part-time':
-				return 'secondary';
-			case 'contractor':
-				return 'outline';
-			default:
-				return 'outline';
-		}
-	}
-
 	function formatCurrency(amount: number | null): string {
 		if (amount === null) return '-';
 		return new Intl.NumberFormat('en-US', {
@@ -199,17 +177,13 @@
 			onValueChange={(v) => updateFilter('status', v)}
 		>
 			<Select.Trigger class="w-40">
-				{statusOptions.find((o) => o.value === data.filters.status)?.label ||
-					(data.filters.status === 'deleted' ? 'Deleted' : 'All Status')}
+				{statusOptions.find((o) => o.value === data.filters.status)?.label || 'All Status'}
 			</Select.Trigger>
 			<Select.Content>
 				<Select.Item value="all">All Status</Select.Item>
 				{#each statusOptions as option}
 					<Select.Item value={option.value}>{option.label}</Select.Item>
 				{/each}
-				{#if data.isAdmin}
-					<Select.Item value="deleted">Deleted</Select.Item>
-				{/if}
 			</Select.Content>
 		</Select.Root>
 
@@ -286,16 +260,14 @@
 			<Table.Body>
 				{#each data.employees as employee}
 					<Table.Row
-						class="cursor-pointer hover:bg-muted/50 {employee.deletedAt ? 'opacity-60' : ''}"
+						class="cursor-pointer hover:bg-muted/50"
 						onclick={() => goto(`/employees/${employee.id}`)}
 					>
 						<Table.Cell onclick={(e) => e.stopPropagation()}>
-							{#if !employee.deletedAt}
-								<Checkbox
-									checked={selectedIds.has(employee.id)}
-									onCheckedChange={() => toggleSelect(employee.id)}
-								/>
-							{/if}
+							<Checkbox
+								checked={selectedIds.has(employee.id)}
+								onCheckedChange={() => toggleSelect(employee.id)}
+							/>
 						</Table.Cell>
 						<Table.Cell>
 							<div class="flex items-center gap-3">
@@ -330,22 +302,14 @@
 						<Table.Cell>{employee.jobTitle || '-'}</Table.Cell>
 						<Table.Cell>
 							{#if employee.employmentType}
-								<Badge variant={getEmploymentTypeBadgeVariant(employee.employmentType)}>
-									{employmentTypes.find((t) => t.value === employee.employmentType)?.label ||
-										employee.employmentType}
-								</Badge>
+								<EnumBadge enums={data.enums.employment_type} value={employee.employmentType} />
 							{:else}
 								-
 							{/if}
 						</Table.Cell>
 						<Table.Cell>
-							{#if employee.deletedAt}
-								<Badge variant="destructive">Deleted</Badge>
-							{:else if employee.employeeStatus}
-								<Badge variant={getStatusBadgeVariant(employee.employeeStatus)}>
-									{statusOptions.find((s) => s.value === employee.employeeStatus)?.label ||
-										employee.employeeStatus}
-								</Badge>
+							{#if employee.employeeStatus}
+								<EnumBadge enums={data.enums.employee_status} value={employee.employeeStatus} />
 							{:else}
 								-
 							{/if}
@@ -366,38 +330,22 @@
 								<Button variant="ghost" size="icon" href="/employees/{employee.id}">
 									<Eye class="h-4 w-4" />
 								</Button>
-								{#if !employee.deletedAt}
-									<Button variant="ghost" size="icon" href="/employees/{employee.id}/edit">
-										<Pencil class="h-4 w-4" />
-									</Button>
-									<Button
-										variant="ghost"
-										size="icon"
-										onclick={() =>
-											openDeleteDialog({
-												id: employee.id,
-												firstName: employee.firstName,
-												lastName: employee.lastName,
-												hasUser: !!employee.user
-											})}
-									>
-										<Trash2 class="h-4 w-4" />
-									</Button>
-								{:else if data.isAdmin}
-									<Button
-										variant="ghost"
-										size="icon"
-										onclick={() =>
-											openRestoreDialog({
-												id: employee.id,
-												firstName: employee.firstName,
-												lastName: employee.lastName,
-												hasUser: !!employee.user
-											})}
-									>
-										<RotateCcw class="h-4 w-4" />
-									</Button>
-								{/if}
+								<Button variant="ghost" size="icon" href="/employees/{employee.id}/edit">
+									<Pencil class="h-4 w-4" />
+								</Button>
+								<Button
+									variant="ghost"
+									size="icon"
+									onclick={() =>
+										openDeleteDialog({
+											id: employee.id,
+											firstName: employee.firstName,
+											lastName: employee.lastName,
+											hasUser: !!employee.user
+										})}
+								>
+									<Trash2 class="h-4 w-4" />
+								</Button>
 							</div>
 						</Table.Cell>
 					</Table.Row>
@@ -450,7 +398,7 @@
 			<AlertDialog.Title>Delete Employee</AlertDialog.Title>
 			<AlertDialog.Description>
 				Are you sure you want to delete {selectedEmployee?.firstName}
-				{selectedEmployee?.lastName}? This action can be undone by an administrator.
+				{selectedEmployee?.lastName}? This action cannot be undone.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		{#if selectedEmployee?.hasUser}
@@ -492,7 +440,7 @@
 		<AlertDialog.Header>
 			<AlertDialog.Title>Delete {selectedIds.size} Employees</AlertDialog.Title>
 			<AlertDialog.Description>
-				Are you sure you want to delete {selectedIds.size} employees? This action can be undone by an administrator.
+				Are you sure you want to delete {selectedIds.size} employees? This action cannot be undone.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		{#if selectedWithUsers.length > 0}
@@ -523,36 +471,6 @@
 				<input type="hidden" name="ids" value={Array.from(selectedIds).join(',')} />
 				<input type="hidden" name="deactivateUsers" value={deactivateUsers.toString()} />
 				<Button type="submit" variant="destructive">Delete {selectedIds.size} Employees</Button>
-			</form>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
-
-<!-- Restore Confirmation Dialog -->
-<AlertDialog.Root bind:open={restoreDialogOpen}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Restore Employee</AlertDialog.Title>
-			<AlertDialog.Description>
-				Are you sure you want to restore {selectedEmployee?.firstName}
-				{selectedEmployee?.lastName}?
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-			<form
-				method="POST"
-				action="?/restore"
-				use:enhance={() => {
-					return async ({ update }) => {
-						await update();
-						restoreDialogOpen = false;
-						selectedEmployee = null;
-					};
-				}}
-			>
-				<input type="hidden" name="id" value={selectedEmployee?.id} />
-				<Button type="submit">Restore</Button>
 			</form>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>

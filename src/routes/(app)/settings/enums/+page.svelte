@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { browser } from '$app/environment';
+	import { saveListState, restoreListState } from '$lib/utils/list-state';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
@@ -9,8 +11,41 @@
 
 	let { data } = $props();
 
+	// Persist/restore list view state
+	const LIST_ROUTE = '/settings/enums';
+	let _stateRestored = false;
+	$effect(() => {
+		if (!browser) return;
+		if (!_stateRestored) {
+			_stateRestored = true;
+			if (!$page.url.search) {
+				const saved = restoreListState(LIST_ROUTE);
+				if (saved) { goto(LIST_ROUTE + saved, { replaceState: true }); return; }
+			}
+		}
+		saveListState(LIST_ROUTE, $page.url.search);
+	});
+
 	let search = $state('');
-	let expandedGroups = $state<Record<string, boolean>>({});
+
+	const STORAGE_KEY = 'enums-expanded-groups';
+
+	function loadExpandedGroups(): Record<string, boolean> {
+		try {
+			const stored = sessionStorage.getItem(STORAGE_KEY);
+			return stored ? JSON.parse(stored) : {};
+		} catch {
+			return {};
+		}
+	}
+
+	function saveExpandedGroups(groups: Record<string, boolean>) {
+		try {
+			sessionStorage.setItem(STORAGE_KEY, JSON.stringify(groups));
+		} catch { /* ignore */ }
+	}
+
+	let expandedGroups = $state<Record<string, boolean>>(loadExpandedGroups());
 
 	// Sync search with URL params
 	$effect(() => {
@@ -48,16 +83,6 @@
 		return sortedGroups;
 	});
 
-	// Initialize all groups as collapsed
-	$effect(() => {
-		const groups = groupedEnums();
-		for (const group of groups) {
-			if (!(group.name in expandedGroups)) {
-				expandedGroups[group.name] = false;
-			}
-		}
-	});
-
 	function updateSearch() {
 		const url = new URL($page.url);
 		if (search) {
@@ -70,6 +95,7 @@
 
 	function toggleGroup(groupName: string) {
 		expandedGroups[groupName] = !expandedGroups[groupName];
+		saveExpandedGroups(expandedGroups);
 	}
 </script>
 

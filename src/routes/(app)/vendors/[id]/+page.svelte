@@ -2,8 +2,8 @@
 	import { invalidateAll } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
+	import EnumBadge from '$lib/components/shared/EnumBadge.svelte';
 	import * as Card from '$lib/components/ui/card';
-	import * as Alert from '$lib/components/ui/alert';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import ContactFormModal from '$lib/components/shared/ContactFormModal.svelte';
@@ -21,7 +21,6 @@
 		Calendar,
 		DollarSign,
 		Users,
-		AlertTriangle,
 		ExternalLink,
 		Plus,
 		Trash2,
@@ -154,17 +153,6 @@
 		}
 	}
 
-	function getStatusBadgeVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-		switch (status) {
-			case 'active':
-				return 'default';
-			case 'inactive':
-				return 'secondary';
-			default:
-				return 'secondary';
-		}
-	}
-
 	function formatCurrency(amount: number | string, currency: string): string {
 		const num = typeof amount === 'string' ? parseFloat(amount) : amount;
 		return new Intl.NumberFormat('en-US', {
@@ -184,13 +172,7 @@
 			<div>
 				<div class="flex items-center gap-3">
 					<h1 class="text-3xl font-bold tracking-tight">{data.vendor.name}</h1>
-					{#if data.vendor.isDeleted}
-						<Badge variant="destructive">Deleted</Badge>
-					{:else}
-						<Badge variant={getStatusBadgeVariant(data.vendor.status)}>
-							{data.vendor.status.charAt(0).toUpperCase() + data.vendor.status.slice(1)}
-						</Badge>
-					{/if}
+					<EnumBadge enums={data.enums.entity_status} value={data.vendor.status} />
 				</div>
 				{#if data.vendor.companyName}
 					<p class="text-muted-foreground flex items-center gap-1">
@@ -200,23 +182,12 @@
 				{/if}
 			</div>
 		</div>
-		{#if !data.vendor.isDeleted || data.isAdmin}
-			<Button href="/vendors/{data.vendor.id}/edit">
-				<Pencil class="mr-2 h-4 w-4" />
-				Edit Vendor
-			</Button>
-		{/if}
+		<Button href="/vendors/{data.vendor.id}/edit">
+			<Pencil class="mr-2 h-4 w-4" />
+			Edit Vendor
+		</Button>
 	</div>
 
-	{#if data.vendor.isDeleted}
-		<Alert.Root variant="destructive">
-			<AlertTriangle class="h-4 w-4" />
-			<Alert.Title>Deleted Vendor</Alert.Title>
-			<Alert.Description>
-				This vendor has been deleted. Only administrators can view and edit this record.
-			</Alert.Description>
-		</Alert.Root>
-	{/if}
 
 	<div class="grid gap-6 md:grid-cols-3">
 		<!-- Main Info Card -->
@@ -496,7 +467,7 @@
 		<AlertDialog.Header>
 			<AlertDialog.Title>Delete Contact</AlertDialog.Title>
 			<AlertDialog.Description>
-				Are you sure you want to delete <strong>{contactToDelete?.name}</strong>? This action can be undone by an administrator.
+				Are you sure you want to delete <strong>{contactToDelete?.name}</strong>? This action cannot be undone.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>

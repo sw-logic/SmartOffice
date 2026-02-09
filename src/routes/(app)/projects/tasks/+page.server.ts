@@ -2,7 +2,7 @@ import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
 import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { fail } from '@sveltejs/kit';
-import { logDelete, logAction } from '$lib/server/audit';
+import { logDelete } from '$lib/server/audit';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'projects', 'read');
@@ -31,15 +31,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// Build where clause
 	type WhereClause = Record<string, any>;
 	let where: WhereClause = {};
-
-	// Soft delete filter
-	if (status === 'deleted' && isAdmin) {
-		where.deletedAt = { not: null };
-	} else if (status === 'all' && isAdmin) {
-		where.deletedAt = undefined as any;
-	} else {
-		// Default: active records
-	}
 
 	// Search
 	if (search) {
@@ -110,7 +101,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				dueDate: true,
 				estimatedTime: true,
 				spentTime: true,
-				deletedAt: true,
 				createdAt: true,
 				project: {
 					select: {
@@ -144,17 +134,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				clientId: true,
 				client: { select: { id: true, name: true } },
 				kanbanBoards: {
-					where: { deletedAt: null },
 					select: {
 						id: true,
 						name: true,
 						columns: {
-							where: { deletedAt: null },
 							orderBy: { order: 'asc' },
 							select: { id: true, name: true }
 						},
 						swimlanes: {
-							where: { deletedAt: null },
 							orderBy: { order: 'asc' },
 							select: { id: true, name: true }
 						}
@@ -183,7 +170,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		where: { code: 'task_tags' },
 		include: {
 			values: {
-				where: { isActive: true, deletedAt: null },
+				where: { isActive: true },
 				orderBy: { sortOrder: 'asc' },
 				select: { id: true, value: true, label: true, color: true }
 			}
@@ -264,13 +251,12 @@ export const actions: Actions = {
 			return fail(404, { error: 'Task not found' });
 		}
 
-		await prisma.task.update({
-			where: { id },
-			data: { deletedAt: new Date() }
-		});
-
 		await logDelete(locals.user!.id, 'projects', String(id), 'Task', {
 			name: task.name
+		});
+
+		await prisma.task.delete({
+			where: { id }
 		});
 
 		return { success: true };
@@ -293,8 +279,7 @@ export const actions: Actions = {
 
 		const tasks = await prisma.task.findMany({
 			where: {
-				id: { in: ids },
-				deletedAt: null
+				id: { in: ids }
 			},
 			select: { id: true, name: true }
 		});
@@ -303,68 +288,16 @@ export const actions: Actions = {
 			return fail(404, { error: 'No tasks found' });
 		}
 
-		await prisma.task.updateMany({
-			where: { id: { in: tasks.map(t => t.id) } },
-			data: { deletedAt: new Date() }
-		});
-
 		for (const task of tasks) {
 			await logDelete(locals.user!.id, 'projects', String(task.id), 'Task', {
 				name: task.name
 			});
 		}
 
+		await prisma.task.deleteMany({
+			where: { id: { in: tasks.map(t => t.id) } }
+		});
+
 		return { success: true, count: tasks.length };
-	},
-
-	restore: async ({ locals, request }) => {
-		await requirePermission(locals, 'projects', 'update');
-
-		const isAdmin = checkPermission(locals, '*', '*');
-		if (!isAdmin) {
-			return fail(403, { error: 'Only administrators can restore deleted tasks' });
-		}
-
-		const formData = await request.formData();
-		const idStr = formData.get('id') as string;
-
-		if (!idStr) {
-			return fail(400, { error: 'Task ID is required' });
-		}
-
-		const id = parseInt(idStr);
-		if (isNaN(id)) {
-			return fail(400, { error: 'Invalid task ID' });
-		}
-
-		const task = await prisma.task.findUnique({
-			where: { id },
-			select: { id: true, name: true, deletedAt: true }
-		});
-
-		if (!task) {
-			return fail(404, { error: 'Task not found' });
-		}
-
-		if (!task.deletedAt) {
-			return fail(400, { error: 'Task is not deleted' });
-		}
-
-		await prisma.task.update({
-			where: { id },
-			data: { deletedAt: null }
-		});
-
-		await logAction({
-			userId: locals.user!.id,
-			action: 'restored',
-			module: 'projects',
-			entityId: String(id),
-			entityType: 'Task',
-			oldValues: { deletedAt: task.deletedAt },
-			newValues: { deletedAt: null }
-		});
-
-		return { success: true };
 	}
 };

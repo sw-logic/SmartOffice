@@ -1,6 +1,6 @@
 import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
-import { requirePermission, checkPermission } from '$lib/server/access-control';
+import { requirePermission } from '$lib/server/access-control';
 import { fail, redirect, error } from '@sveltejs/kit';
 import { logUpdate } from '$lib/server/audit';
 
@@ -12,8 +12,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	if (isNaN(incomeId)) {
 		error(400, 'Invalid income ID');
 	}
-
-	const isAdmin = checkPermission(locals, '*', '*');
 
 	const [income, clients, projects] = await Promise.all([
 		prisma.income.findUnique({
@@ -34,19 +32,16 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				projectId: true,
 				invoiceReference: true,
 				taxRate: true,
-				notes: true,
-				deletedAt: true
+				notes: true
 			}
 		}),
 		// Get clients for dropdown
 		prisma.client.findMany({
-			where: { deletedAt: null },
 			select: { id: true, name: true, paymentTerms: true },
 			orderBy: { name: 'asc' }
 		}),
 		// Get projects for dropdown
 		prisma.project.findMany({
-			where: { deletedAt: null },
 			select: {
 				id: true,
 				name: true,
@@ -60,10 +55,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		error(404, 'Income not found');
 	}
 
-	if (income.deletedAt && !isAdmin) {
-		error(403, 'Only administrators can edit deleted records');
-	}
-
 	// Convert Decimal fields to numbers for serialization
 	return {
 		income: {
@@ -71,13 +62,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			amount: Number(income.amount),
 			taxRate: income.taxRate ? Number(income.taxRate) : null,
 			paymentTermDays: income.paymentTermDays,
-			isDeleted: income.deletedAt !== null,
 			date: income.date.toISOString().split('T')[0],
 			dueDate: income.dueDate ? income.dueDate.toISOString().split('T')[0] : ''
 		},
 		clients,
-		projects,
-		isAdmin
+		projects
 	};
 };
 
@@ -180,6 +169,14 @@ export const actions: Actions = {
 			}
 		});
 
+		// Denormalize client name
+		const parsedClientId = clientId ? parseInt(clientId) : null;
+		let clientName: string | null = null;
+		if (parsedClientId) {
+			const client = await prisma.client.findUnique({ where: { id: parsedClientId }, select: { name: true } });
+			clientName = client?.name ?? null;
+		}
+
 		// Update income
 		const updatedIncome = await prisma.income.update({
 			where: { id: incomeId },
@@ -194,7 +191,8 @@ export const actions: Actions = {
 				dueDate: paymentTermDays && date ? new Date(new Date(date).getTime() + paymentTermDays * 86400000) : null,
 				isRecurring,
 				recurringPeriod: isRecurring ? recurringPeriod : null,
-				clientId: clientId ? parseInt(clientId) : null,
+				clientId: parsedClientId,
+				clientName,
 				projectId: projectId ? parseInt(projectId) : null,
 				invoiceReference: invoiceReference?.trim() || null,
 				taxRate: taxRate ? parseFloat(taxRate) : null,

@@ -39,8 +39,7 @@ export const { handle, signIn, signOut } = SvelteKitAuth({
 
 					const user = await prisma.user.findFirst({
 						where: {
-							email: String(credentials.email),
-							deletedAt: null
+							email: String(credentials.email)
 						}
 					});
 

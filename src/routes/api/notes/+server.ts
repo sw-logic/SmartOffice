@@ -35,7 +35,7 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 	}
 
 	const notes = await prisma.note.findMany({
-		where: { entityType, entityId, deletedAt: null },
+		where: { entityType, entityId },
 		orderBy: { createdAt: 'desc' },
 		select: {
 			id: true,

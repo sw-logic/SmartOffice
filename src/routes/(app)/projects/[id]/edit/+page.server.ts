@@ -30,18 +30,16 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				endDate: true,
 				budgetEstimate: true,
 				estimatedHours: true,
-				projectManagerId: true,
-				deletedAt: true
+				projectManagerId: true
 			}
 		}),
 		prisma.client.findMany({
-			where: { deletedAt: null, status: 'active' },
+			where: { status: 'active' },
 			select: { id: true, name: true },
 			orderBy: { name: 'asc' }
 		}),
 		prisma.person.findMany({
 			where: {
-				deletedAt: null,
 				personType: 'company_employee',
 				employeeStatus: 'active'
 			},
@@ -54,20 +52,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		error(404, 'Project not found');
 	}
 
-	if (project.deletedAt && !isAdmin) {
-		error(403, 'Only administrators can edit deleted projects');
-	}
-
 	return {
 		project: {
 			...project,
 			budgetEstimate: project.budgetEstimate ? Number(project.budgetEstimate) : null,
-			estimatedHours: project.estimatedHours ? Number(project.estimatedHours) : null,
-			isDeleted: project.deletedAt !== null
+			estimatedHours: project.estimatedHours ? Number(project.estimatedHours) : null
 		},
 		clients,
 		persons,
-		isAdmin,
 		canViewBudget
 	};
 };

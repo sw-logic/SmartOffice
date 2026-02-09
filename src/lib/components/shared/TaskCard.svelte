@@ -4,6 +4,12 @@
 	import { Calendar, Clock } from 'lucide-svelte';
 	import { formatDate } from '$lib/utils/date';
 
+	interface EnumOption {
+		value: string;
+		label: string;
+		color?: string | null;
+	}
+
 	interface Props {
 		task: {
 			id: number;
@@ -15,20 +21,13 @@
 			spentTime: number;
 			assignedTo: { id: number; firstName: string; lastName: string } | null;
 		};
+		priorityEnums?: EnumOption[];
 		onclick?: () => void;
 	}
 
-	let { task, onclick }: Props = $props();
+	let { task, priorityEnums, onclick }: Props = $props();
 
-	function getPriorityColor(priority: string): string {
-		switch (priority) {
-			case 'urgent': return 'border-l-red-600';
-			case 'high': return 'border-l-orange-500';
-			case 'medium': return 'border-l-blue-500';
-			case 'low': return 'border-l-gray-400';
-			default: return 'border-l-gray-300';
-		}
-	}
+	let priorityColor = $derived(priorityEnums?.find(e => e.value === task.priority)?.color || '#D1D5DB');
 
 	function getInitials(firstName: string, lastName: string): string {
 		return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
@@ -48,7 +47,8 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-	class="rounded-sm border bg-card shadow-sm p-2.5 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow border-l-[3px] {getPriorityColor(task.priority)}"
+	class="rounded-sm border bg-card shadow-sm p-2.5 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow border-l-[3px]"
+	style="border-left-color: {priorityColor}"
 	{onclick}
 >
 	<p class="text-sm font-medium leading-snug">{task.name}</p>

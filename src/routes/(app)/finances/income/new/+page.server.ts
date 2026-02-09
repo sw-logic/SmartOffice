@@ -10,13 +10,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const [clients, projects] = await Promise.all([
 		// Get clients for dropdown
 		prisma.client.findMany({
-			where: { deletedAt: null, status: 'active' },
+			where: { status: 'active' },
 			select: { id: true, name: true, paymentTerms: true },
 			orderBy: { name: 'asc' }
 		}),
 		// Get projects for dropdown
 		prisma.project.findMany({
-			where: { deletedAt: null, status: { in: ['planning', 'active'] } },
+			where: { status: { in: ['planning', 'active'] } },
 			select: {
 				id: true,
 				name: true,
@@ -106,6 +106,15 @@ export const actions: Actions = {
 		// Create income
 		const parsedAmount = parseFloat(amount);
 		const parsedTax = taxRate ? parseFloat(taxRate) : 0;
+		const parsedClientId = clientId ? parseInt(clientId) : null;
+
+		// Denormalize client name
+		let clientName: string | null = null;
+		if (parsedClientId) {
+			const client = await prisma.client.findUnique({ where: { id: parsedClientId }, select: { name: true } });
+			clientName = client?.name ?? null;
+		}
+
 		const income = await prisma.income.create({
 			data: {
 				amount: parsedAmount,
@@ -120,7 +129,8 @@ export const actions: Actions = {
 				dueDate: paymentTermDays && date ? new Date(new Date(date).getTime() + paymentTermDays * 86400000) : null,
 				isRecurring,
 				recurringPeriod: isRecurring ? recurringPeriod : null,
-				clientId: clientId ? parseInt(clientId) : null,
+				clientId: parsedClientId,
+				clientName,
 				projectId: projectId ? parseInt(projectId) : null,
 				invoiceReference: invoiceReference?.trim() || null,
 				taxRate: taxRate ? parseFloat(taxRate) : null,

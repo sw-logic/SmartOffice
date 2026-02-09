@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { browser } from '$app/environment';
+	import { saveListState, restoreListState } from '$lib/utils/list-state';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Table from '$lib/components/ui/table';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
-	import * as Select from '$lib/components/ui/select';
 	import * as Avatar from '$lib/components/ui/avatar';
 	import {
 		Plus,
@@ -17,27 +18,32 @@
 		Pencil,
 		Trash2,
 		ChevronLeft,
-		ChevronRight,
-		RotateCcw
+		ChevronRight
 	} from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
 	import { formatDate } from '$lib/utils/date';
 
 	let { data } = $props();
 
+	// Persist/restore list view state
+	const LIST_ROUTE = '/users';
+	let _stateRestored = false;
+	$effect(() => {
+		if (!browser) return;
+		if (!_stateRestored) {
+			_stateRestored = true;
+			if (!$page.url.search) {
+				const saved = restoreListState(LIST_ROUTE);
+				if (saved) { goto(LIST_ROUTE + saved, { replaceState: true }); return; }
+			}
+		}
+		saveListState(LIST_ROUTE, $page.url.search);
+	});
+
 	let search = $state(data.filters.search);
 	let deleteDialogOpen = $state(false);
-	let restoreDialogOpen = $state(false);
 	let userToDelete = $state<{ id: string; name: string } | null>(null);
-	let userToRestore = $state<{ id: string; name: string } | null>(null);
 	let isDeleting = $state(false);
-	let isRestoring = $state(false);
-
-	const statusOptions = [
-		{ value: 'active', label: 'Active users' },
-		{ value: 'deleted', label: 'Deleted users' },
-		{ value: 'all', label: 'All users' }
-	];
 
 	function updateSearch() {
 		const url = new URL($page.url);
@@ -46,14 +52,6 @@
 		} else {
 			url.searchParams.delete('search');
 		}
-		url.searchParams.set('page', '1');
-		goto(url.toString(), { replaceState: true });
-	}
-
-	function updateStatus(value: string | undefined) {
-		if (!value) return;
-		const url = new URL($page.url);
-		url.searchParams.set('status', value);
 		url.searchParams.set('page', '1');
 		goto(url.toString(), { replaceState: true });
 	}
@@ -88,11 +86,6 @@
 		deleteDialogOpen = true;
 	}
 
-	function confirmRestore(user: { id: string; name: string }) {
-		userToRestore = user;
-		restoreDialogOpen = true;
-	}
-
 	async function handleDelete() {
 		if (!userToDelete) return;
 
@@ -117,44 +110,6 @@
 		isDeleting = false;
 		deleteDialogOpen = false;
 		userToDelete = null;
-	}
-
-	async function handleRestore() {
-		if (!userToRestore) return;
-
-		isRestoring = true;
-		const formData = new FormData();
-		formData.append('id', userToRestore.id);
-
-		const response = await fetch('?/restore', {
-			method: 'POST',
-			body: formData
-		});
-
-		const result = await response.json();
-
-		if (result.type === 'success') {
-			toast.success('User restored successfully');
-			invalidateAll();
-		} else {
-			toast.error(result.data?.error || 'Failed to restore user');
-		}
-
-		isRestoring = false;
-		restoreDialogOpen = false;
-		userToRestore = null;
-	}
-
-	function isUserDeleted(user: { deletedAt: string | Date | null }): boolean {
-		return user.deletedAt !== null;
-	}
-
-	function canEditUser(user: { deletedAt: string | Date | null }): boolean {
-		// If user is deleted, only admins can edit
-		if (isUserDeleted(user)) {
-			return data.isAdmin;
-		}
-		return true;
 	}
 </script>
 
@@ -197,23 +152,6 @@
 				</Button>
 			{/if}
 		</div>
-
-		{#if data.isAdmin}
-			<Select.Root
-				type="single"
-				value={data.filters.status}
-				onValueChange={updateStatus}
-			>
-				<Select.Trigger class="w-[180px]">
-					{statusOptions.find(o => o.value === data.filters.status)?.label || 'Active users'}
-				</Select.Trigger>
-				<Select.Content>
-					{#each statusOptions as option}
-						<Select.Item value={option.value}>{option.label}</Select.Item>
-					{/each}
-				</Select.Content>
-			</Select.Root>
-		{/if}
 	</div>
 
 	<div class="rounded-md border">
@@ -233,9 +171,6 @@
 						</Button>
 					</Table.Head>
 					<Table.Head>Groups</Table.Head>
-					{#if data.isAdmin}
-						<Table.Head class="w-[100px]">Status</Table.Head>
-					{/if}
 					<Table.Head>
 						<Button variant="ghost" class="-ml-4" onclick={() => updateSort('createdAt')}>
 							Created
@@ -248,13 +183,13 @@
 			<Table.Body>
 				{#if data.users.length === 0}
 					<Table.Row>
-						<Table.Cell colspan={data.isAdmin ? 6 : 5} class="h-24 text-center">
+						<Table.Cell colspan={5} class="h-24 text-center">
 							No users found.
 						</Table.Cell>
 					</Table.Row>
 				{:else}
 					{#each data.users as user}
-						<Table.Row class={isUserDeleted(user) ? 'opacity-60' : ''}>
+						<Table.Row>
 							<Table.Cell>
 								<div class="flex items-center gap-3">
 									<Avatar.Root>
@@ -262,9 +197,6 @@
 									</Avatar.Root>
 									<span class="font-medium">
 										{user.name}
-										{#if isUserDeleted(user)}
-											<span class="text-muted-foreground text-xs ml-2">(deleted)</span>
-										{/if}
 									</span>
 								</div>
 							</Table.Cell>
@@ -279,46 +211,22 @@
 									{/if}
 								</div>
 							</Table.Cell>
-							{#if data.isAdmin}
-								<Table.Cell>
-									{#if isUserDeleted(user)}
-										<Badge variant="destructive">Deleted</Badge>
-									{:else}
-										<Badge variant="default">Active</Badge>
-									{/if}
-								</Table.Cell>
-							{/if}
 							<Table.Cell>
 								{formatDate(user.createdAt)}
 							</Table.Cell>
 							<Table.Cell>
 								<div class="flex items-center gap-1">
-									{#if canEditUser(user)}
-										<Button variant="ghost" size="icon" href="/users/{user.id}/edit">
-											<Pencil class="h-4 w-4" />
-										</Button>
-									{/if}
-									{#if isUserDeleted(user)}
-										{#if data.isAdmin}
-											<Button
-												variant="ghost"
-												size="icon"
-												onclick={() => confirmRestore({ id: user.id, name: user.name })}
-												title="Restore user"
-											>
-												<RotateCcw class="h-4 w-4" />
-											</Button>
-										{/if}
-									{:else}
-										<Button
-											variant="ghost"
-											size="icon"
-											onclick={() => confirmDelete({ id: user.id, name: user.name })}
-											title="Delete user"
-										>
-											<Trash2 class="h-4 w-4" />
-										</Button>
-									{/if}
+									<Button variant="ghost" size="icon" href="/users/{user.id}/edit">
+										<Pencil class="h-4 w-4" />
+									</Button>
+									<Button
+										variant="ghost"
+										size="icon"
+										onclick={() => confirmDelete({ id: user.id, name: user.name })}
+										title="Delete user"
+									>
+										<Trash2 class="h-4 w-4" />
+									</Button>
 								</div>
 							</Table.Cell>
 						</Table.Row>
@@ -369,8 +277,7 @@
 		<AlertDialog.Header>
 			<AlertDialog.Title>Delete User</AlertDialog.Title>
 			<AlertDialog.Description>
-				Are you sure you want to delete <strong>{userToDelete?.name}</strong>? This action can be
-				undone by an administrator.
+				Are you sure you want to delete <strong>{userToDelete?.name}</strong>? This action cannot be undone.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>
@@ -381,27 +288,6 @@
 				disabled={isDeleting}
 			>
 				{isDeleting ? 'Deleting...' : 'Delete'}
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
-
-<!-- Restore Confirmation Dialog -->
-<AlertDialog.Root bind:open={restoreDialogOpen}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Restore User</AlertDialog.Title>
-			<AlertDialog.Description>
-				Are you sure you want to restore <strong>{userToRestore?.name}</strong>? The user will be able to log in again.
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-			<AlertDialog.Action
-				onclick={handleRestore}
-				disabled={isRestoring}
-			>
-				{isRestoring ? 'Restoring...' : 'Restore'}
 			</AlertDialog.Action>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>

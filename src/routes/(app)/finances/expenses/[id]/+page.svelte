@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
+	import EnumBadge from '$lib/components/shared/EnumBadge.svelte';
 	import * as Card from '$lib/components/ui/card';
-	import * as Alert from '$lib/components/ui/alert';
 	import {
 		ArrowLeft,
 		Pencil,
@@ -11,19 +11,11 @@
 		Building,
 		Briefcase,
 		RefreshCw,
-		AlertTriangle,
 		Receipt
 	} from 'lucide-svelte';
 	import { formatDate } from '$lib/utils/date';
 
 	let { data } = $props();
-
-	const statusLabels: Record<string, string> = {
-		paid: 'Paid',
-		pending: 'Pending',
-		late: 'Late',
-		suspended: 'Suspended'
-	};
 
 	const categoryLabels: Record<string, string> = {
 		salary: 'Salary',
@@ -46,23 +38,6 @@
 		quarterly: 'Quarterly',
 		yearly: 'Yearly'
 	};
-
-	function getStatusBadgeVariant(
-		status: string
-	): 'default' | 'secondary' | 'destructive' | 'outline' {
-		switch (status) {
-			case 'paid':
-				return 'default';
-			case 'pending':
-				return 'secondary';
-			case 'late':
-				return 'destructive';
-			case 'suspended':
-				return 'outline';
-			default:
-				return 'outline';
-		}
-	}
 
 	function formatCurrency(amount: number, currency: string = 'USD'): string {
 		return new Intl.NumberFormat('en-US', {
@@ -87,23 +62,12 @@
 				</p>
 			</div>
 		</div>
-		{#if !data.expense.isDeleted}
-			<Button href="/finances/expenses/{data.expense.id}/edit">
-				<Pencil class="mr-2 h-4 w-4" />
-				Edit
-			</Button>
-		{/if}
+		<Button href="/finances/expenses/{data.expense.id}/edit">
+			<Pencil class="mr-2 h-4 w-4" />
+			Edit
+		</Button>
 	</div>
 
-	{#if data.expense.isDeleted}
-		<Alert.Root variant="destructive" class="max-w-4xl">
-			<AlertTriangle class="h-4 w-4" />
-			<Alert.Title>Deleted Record</Alert.Title>
-			<Alert.Description>
-				This expense record has been deleted. Only administrators can view this record.
-			</Alert.Description>
-		</Alert.Root>
-	{/if}
 
 	<div class="grid gap-6 md:grid-cols-3">
 		<!-- Main Info -->
@@ -122,9 +86,7 @@
 					<div>
 						<div class="text-sm text-muted-foreground">Status</div>
 						<div class="mt-1">
-							<Badge variant={getStatusBadgeVariant(data.expense.status)}>
-								{statusLabels[data.expense.status] || data.expense.status}
-							</Badge>
+							<EnumBadge enums={data.enums.expense_status} value={data.expense.status} />
 						</div>
 					</div>
 				</div>
@@ -182,7 +144,7 @@
 
 		<!-- Side Info -->
 		<div class="space-y-6">
-			{#if data.expense.vendor}
+			{#if data.expense.vendor || data.expense.vendorName}
 				<Card.Root>
 					<Card.Header>
 						<Card.Title class="text-base flex items-center gap-2">
@@ -191,11 +153,15 @@
 						</Card.Title>
 					</Card.Header>
 					<Card.Content>
-						<a href="/vendors/{data.expense.vendor.id}" class="font-medium hover:underline">
-							{data.expense.vendor.name}
-						</a>
-						{#if data.expense.vendor.email}
-							<div class="text-sm text-muted-foreground">{data.expense.vendor.email}</div>
+						{#if data.expense.vendor}
+							<a href="/vendors/{data.expense.vendor.id}" class="font-medium hover:underline">
+								{data.expense.vendor.name}
+							</a>
+							{#if data.expense.vendor.email}
+								<div class="text-sm text-muted-foreground">{data.expense.vendor.email}</div>
+							{/if}
+						{:else}
+							<span class="text-muted-foreground">{data.expense.vendorName}</span>
 						{/if}
 					</Card.Content>
 				</Card.Root>

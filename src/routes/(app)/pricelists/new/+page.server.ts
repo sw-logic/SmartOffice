@@ -12,8 +12,7 @@ export const load: PageServerLoad = async ({ locals, parent }) => {
 		// Get distinct categories from existing items (for backward compatibility)
 		prisma.priceListItem.findMany({
 			where: {
-				category: { not: null },
-				deletedAt: null
+				category: { not: null }
 			},
 			select: { category: true },
 			distinct: ['category']

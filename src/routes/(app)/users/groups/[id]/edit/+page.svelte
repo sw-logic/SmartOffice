@@ -6,8 +6,7 @@
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Card from '$lib/components/ui/card';
-	import * as Alert from '$lib/components/ui/alert';
-	import { ArrowLeft, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-svelte';
+	import { ArrowLeft, ChevronDown, ChevronRight } from 'lucide-svelte';
 
 	let { data, form } = $props();
 
@@ -85,15 +84,6 @@
 		</div>
 	</div>
 
-	{#if data.group.isDeleted}
-		<Alert.Root variant="destructive" class="max-w-2xl">
-			<AlertTriangle class="h-4 w-4" />
-			<Alert.Title>Deleted Group</Alert.Title>
-			<Alert.Description>
-				This group has been deleted. You can edit its details, but it won't be available for assignment until restored.
-			</Alert.Description>
-		</Alert.Root>
-	{/if}
 
 	<form
 		method="POST"

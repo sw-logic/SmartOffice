@@ -2,7 +2,7 @@ import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
 import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { fail } from '@sveltejs/kit';
-import { logDelete, logAction } from '$lib/server/audit';
+import { logDelete } from '$lib/server/audit';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'projects', 'read');
@@ -19,9 +19,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const groupByClient = url.searchParams.get('groupByClient') === 'true';
 
 	type WhereClause = {
-		deletedAt?: null | { not: null };
 		project?: {
-			deletedAt?: null;
 			clientId?: number;
 		};
 		OR?: Array<{
@@ -33,22 +31,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	let where: WhereClause = {};
 
-	if (status === 'deleted' && isAdmin) {
-		where.deletedAt = { not: null };
-	} else if (status === 'all' && isAdmin) {
-		where.deletedAt = undefined as any;
-	} else {
-		where.deletedAt = null;
-	}
-
-	// Always filter to non-deleted projects
-	where.project = { deletedAt: null };
-
 	// Client filter
 	if (clientFilter) {
 		const clientId = parseInt(clientFilter);
 		if (!isNaN(clientId)) {
-			where.project.clientId = clientId;
+			where.project = { ...where.project, clientId };
 		}
 	}
 
@@ -81,7 +68,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				name: true,
 				description: true,
 				createdAt: true,
-				deletedAt: true,
 				project: {
 					select: {
 						id: true,
@@ -108,14 +94,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// Load clients that have projects with boards (for filter dropdown)
 	const clients = await prisma.client.findMany({
 		where: {
-			deletedAt: null,
 			projects: {
 				some: {
-					deletedAt: null,
 					kanbanBoards: {
-						some: {
-							deletedAt: null
-						}
+						some: {}
 					}
 				}
 			}
@@ -133,7 +115,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			name: board.name,
 			description: board.description,
 			createdAt: board.createdAt,
-			deletedAt: board.deletedAt,
 			projectId: board.project.id,
 			projectName: board.project.name,
 			clientId: board.project.client.id,
@@ -185,64 +166,12 @@ export const actions: Actions = {
 			return fail(404, { error: 'Board not found' });
 		}
 
-		await prisma.kanbanBoard.update({
-			where: { id },
-			data: { deletedAt: new Date() }
-		});
-
 		await logDelete(locals.user!.id, 'projects', String(id), 'KanbanBoard', {
 			name: board.name
 		});
 
-		return { success: true };
-	},
-
-	restore: async ({ locals, request }) => {
-		await requirePermission(locals, 'projects', 'update');
-
-		const isAdmin = checkPermission(locals, '*', '*');
-		if (!isAdmin) {
-			return fail(403, { error: 'Only administrators can restore deleted boards' });
-		}
-
-		const formData = await request.formData();
-		const idStr = formData.get('id') as string;
-
-		if (!idStr) {
-			return fail(400, { error: 'Board ID is required' });
-		}
-
-		const id = parseInt(idStr);
-		if (isNaN(id)) {
-			return fail(400, { error: 'Invalid board ID' });
-		}
-
-		const board = await prisma.kanbanBoard.findUnique({
-			where: { id },
-			select: { id: true, name: true, deletedAt: true }
-		});
-
-		if (!board) {
-			return fail(404, { error: 'Board not found' });
-		}
-
-		if (!board.deletedAt) {
-			return fail(400, { error: 'Board is not deleted' });
-		}
-
-		await prisma.kanbanBoard.update({
-			where: { id },
-			data: { deletedAt: null }
-		});
-
-		await logAction({
-			userId: locals.user!.id,
-			action: 'restored',
-			module: 'projects',
-			entityId: String(id),
-			entityType: 'KanbanBoard',
-			oldValues: { deletedAt: board.deletedAt },
-			newValues: { deletedAt: null }
+		await prisma.kanbanBoard.delete({
+			where: { id }
 		});
 
 		return { success: true };

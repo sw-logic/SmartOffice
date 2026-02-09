@@ -21,7 +21,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			name: true,
 			description: true,
 			createdAt: true,
-			deletedAt: true,
 			project: {
 				select: {
 					id: true,
@@ -35,7 +34,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				}
 			},
 			columns: {
-				where: { deletedAt: null },
 				orderBy: { order: 'asc' },
 				select: {
 					id: true,
@@ -45,7 +43,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				}
 			},
 			swimlanes: {
-				where: { deletedAt: null },
 				orderBy: { order: 'asc' },
 				select: {
 					id: true,
@@ -55,7 +52,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				}
 			},
 			tasks: {
-				where: { deletedAt: null },
 				orderBy: { order: 'asc' },
 				select: {
 					id: true,
@@ -91,21 +87,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		throw error(404, 'Board not found');
 	}
 
-	if (board.deletedAt && !isAdmin) {
-		throw error(403, 'This board has been deleted');
-	}
-
 	// Load all clients that have projects with boards (for nav dropdown)
 	const allClients = await prisma.client.findMany({
 		where: {
-			deletedAt: null,
 			projects: {
 				some: {
-					deletedAt: null,
 					kanbanBoards: {
-						some: {
-							deletedAt: null
-						}
+						some: {}
 					}
 				}
 			}
@@ -117,12 +105,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		orderBy: { name: 'asc' }
 	});
 
-	// Load all non-deleted boards for navigation
+	// Load all boards for navigation
 	const allBoards = await prisma.kanbanBoard.findMany({
-		where: {
-			deletedAt: null,
-			project: { deletedAt: null }
-		},
 		select: {
 			id: true,
 			name: true,
@@ -148,8 +132,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			name: board.name,
 			description: board.description,
 			createdAt: board.createdAt,
-			deletedAt: board.deletedAt,
-			isDeleted: board.deletedAt !== null,
 			projectId: board.project.id,
 			projectName: board.project.name,
 			clientId: board.project.client.id,

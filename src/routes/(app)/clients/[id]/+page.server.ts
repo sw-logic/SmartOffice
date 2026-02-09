@@ -1,6 +1,6 @@
 import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
-import { requirePermission, checkPermission } from '$lib/server/access-control';
+import { requirePermission } from '$lib/server/access-control';
 import { error, fail } from '@sveltejs/kit';
 import { logCreate, logUpdate, logDelete } from '$lib/server/audit';
 
@@ -13,14 +13,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		error(400, 'Invalid client ID');
 	}
 
-	// Check if user is admin (can view deleted clients)
-	const isAdmin = checkPermission(locals, '*', '*');
-
 	const client = await prisma.client.findUnique({
 		where: { id: clientId },
 		include: {
 			contacts: {
-				where: { deletedAt: null },
 				orderBy: [{ isPrimaryContact: 'desc' }, { lastName: 'asc' }],
 				select: {
 					id: true,
@@ -34,7 +30,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				}
 			},
 			projects: {
-				where: { deletedAt: null },
 				orderBy: { createdAt: 'desc' },
 				take: 5,
 				select: {
@@ -46,7 +41,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				}
 			},
 			offers: {
-				where: { deletedAt: null },
 				orderBy: { createdAt: 'desc' },
 				take: 5,
 				select: {
@@ -59,7 +53,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				}
 			},
 			income: {
-				where: { deletedAt: null },
 				orderBy: { date: 'desc' },
 				take: 5,
 				select: {
@@ -79,11 +72,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			},
 			_count: {
 				select: {
-					projects: { where: { deletedAt: null } },
-					contacts: { where: { deletedAt: null } },
-					offers: { where: { deletedAt: null } },
-					income: { where: { deletedAt: null } },
-					payments: { where: { deletedAt: null } }
+					projects: true,
+					contacts: true,
+					offers: true,
+					income: true,
+					payments: true
 				}
 			}
 		}
@@ -93,16 +86,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		error(404, 'Client not found');
 	}
 
-	// If client is deleted and user is not admin, deny access
-	if (client.deletedAt && !isAdmin) {
-		error(403, 'Access denied');
-	}
-
 	// Calculate total income
 	const totalIncome = await prisma.income.aggregate({
 		where: {
-			clientId: clientId,
-			deletedAt: null
+			clientId: clientId
 		},
 		_sum: {
 			amount: true
@@ -124,10 +111,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			})),
 			_count: client._count,
 			createdBy: client.createdBy,
-			isDeleted: client.deletedAt !== null,
 			totalIncome: Number(totalIncome._sum.amount || 0)
-		},
-		isAdmin
+		}
 	};
 };
 
@@ -173,8 +158,7 @@ export const actions: Actions = {
 			await prisma.person.updateMany({
 				where: {
 					clientId: clientId,
-					isPrimaryContact: true,
-					deletedAt: null
+					isPrimaryContact: true
 				},
 				data: { isPrimaryContact: false }
 			});
@@ -244,8 +228,7 @@ export const actions: Actions = {
 		const existingContact = await prisma.person.findFirst({
 			where: {
 				id: contactId,
-				clientId: clientId,
-				deletedAt: null
+				clientId: clientId
 			}
 		});
 
@@ -259,7 +242,6 @@ export const actions: Actions = {
 				where: {
 					clientId: clientId,
 					isPrimaryContact: true,
-					deletedAt: null,
 					id: { not: contactId }
 				},
 				data: { isPrimaryContact: false }
@@ -317,8 +299,7 @@ export const actions: Actions = {
 		const contact = await prisma.person.findFirst({
 			where: {
 				id: contactId,
-				clientId: clientId,
-				deletedAt: null
+				clientId: clientId
 			},
 			select: {
 				id: true,
@@ -332,16 +313,15 @@ export const actions: Actions = {
 			return fail(404, { error: 'Contact not found' });
 		}
 
-		// Soft delete
-		await prisma.person.update({
-			where: { id: contactId },
-			data: { deletedAt: new Date() }
-		});
-
+		// Log before hard delete
 		await logDelete(locals.user!.id, 'clients', String(contactId), 'Person', {
 			firstName: contact.firstName,
 			lastName: contact.lastName,
 			email: contact.email
+		});
+
+		await prisma.person.delete({
+			where: { id: contactId }
 		});
 
 		return { success: true };

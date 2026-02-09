@@ -2,7 +2,6 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
-	import * as Alert from '$lib/components/ui/alert';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Command from '$lib/components/ui/command';
@@ -12,6 +11,7 @@
 	import MilestoneFormModal from '$lib/components/shared/MilestoneFormModal.svelte';
 	import MarkdownViewer from '$lib/components/shared/MarkdownViewer.svelte';
 	import Metric from '$lib/components/shared/Metric.svelte';
+	import EnumBadge from '$lib/components/shared/EnumBadge.svelte';
 	import { toast } from 'svelte-sonner';
 	import { invalidateAll } from '$app/navigation';
 	import {
@@ -22,7 +22,6 @@
 		Briefcase,
 		Users,
 		ListChecks,
-		AlertTriangle,
 		ExternalLink,
 		Milestone,
 		Kanban,
@@ -155,57 +154,6 @@
 		return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 	}
 
-	function getStatusBadgeVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-		switch (status) {
-			case 'active':
-				return 'default';
-			case 'completed':
-				return 'secondary';
-			case 'planning':
-			case 'on_hold':
-				return 'outline';
-			case 'cancelled':
-				return 'destructive';
-			case 'archived':
-				return 'secondary';
-			default:
-				return 'outline';
-		}
-	}
-
-	function getPriorityBadgeVariant(priority: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-		switch (priority) {
-			case 'high':
-			case 'urgent':
-				return 'destructive';
-			case 'medium':
-				return 'default';
-			case 'low':
-				return 'secondary';
-			default:
-				return 'outline';
-		}
-	}
-
-	function getTaskStatusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-		switch (status) {
-			case 'done':
-				return 'default';
-			case 'in_progress':
-			case 'review':
-				return 'secondary';
-			case 'todo':
-			case 'backlog':
-				return 'outline';
-			default:
-				return 'outline';
-		}
-	}
-
-	function formatStatus(status: string): string {
-		return status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-	}
-
 	function formatCurrency(amount: number): string {
 		return new Intl.NumberFormat('en-US', {
 			style: 'currency',
@@ -224,16 +172,8 @@
 			<div>
 				<div class="flex items-center gap-3">
 					<h1 class="text-3xl font-bold tracking-tight">{data.project.name}</h1>
-					{#if data.project.isDeleted}
-						<Badge variant="destructive">Deleted</Badge>
-					{:else}
-						<Badge variant={getStatusBadgeVariant(data.project.status)}>
-							{formatStatus(data.project.status)}
-						</Badge>
-					{/if}
-					<Badge variant={getPriorityBadgeVariant(data.project.priority)}>
-						{formatStatus(data.project.priority)}
-					</Badge>
+					<EnumBadge enums={data.enums.project_status} value={data.project.status} />
+					<EnumBadge enums={data.enums.priority} value={data.project.priority} />
 				</div>
 				<p class="text-muted-foreground flex items-center gap-1">
 					<Briefcase class="h-4 w-4" />
@@ -243,23 +183,12 @@
 				</p>
 			</div>
 		</div>
-		{#if !data.project.isDeleted || data.isAdmin}
-			<Button href="/projects/{data.project.id}/edit">
-				<Pencil class="mr-2 h-4 w-4" />
-				Edit Project
-			</Button>
-		{/if}
+		<Button href="/projects/{data.project.id}/edit">
+			<Pencil class="mr-2 h-4 w-4" />
+			Edit Project
+		</Button>
 	</div>
 
-	{#if data.project.isDeleted}
-		<Alert.Root variant="destructive">
-			<AlertTriangle class="h-4 w-4" />
-			<Alert.Title>Deleted Project</Alert.Title>
-			<Alert.Description>
-				This project has been deleted. Only administrators can view and edit this record.
-			</Alert.Description>
-		</Alert.Root>
-	{/if}
 
 	<div class="grid gap-6 md:grid-cols-3">
 		<!-- Main Info Card -->
@@ -587,12 +516,8 @@
 										</div>
 									</div>
 									<div class="flex items-center gap-2">
-										<Badge variant={getPriorityBadgeVariant(task.priority)}>
-											{formatStatus(task.priority)}
-										</Badge>
-										<Badge variant={getTaskStatusVariant(task.status)}>
-											{formatStatus(task.status)}
-										</Badge>
+										<EnumBadge enums={data.enums.priority} value={task.priority} />
+										<EnumBadge enums={data.enums.task_status} value={task.status} />
 									</div>
 								</div>
 							{/each}
@@ -667,7 +592,7 @@
 		<AlertDialog.Header>
 			<AlertDialog.Title>Delete Milestone</AlertDialog.Title>
 			<AlertDialog.Description>
-				Are you sure you want to delete <strong>{milestoneToDelete?.name}</strong>? This action can be undone by an administrator.
+				Are you sure you want to delete <strong>{milestoneToDelete?.name}</strong>? This action cannot be undone.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>

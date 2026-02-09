@@ -2,20 +2,36 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { browser } from '$app/environment';
+	import { saveListState, restoreListState } from '$lib/utils/list-state';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Table from '$lib/components/ui/table';
 	import * as Select from '$lib/components/ui/select';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
-	import { Pencil, Trash2, RotateCcw, Plus, Search, ArrowUpDown } from 'lucide-svelte';
+	import { Pencil, Trash2, Plus, Search, ArrowUpDown } from 'lucide-svelte';
 	import { formatDate } from '$lib/utils/date';
 
 	let { data } = $props();
 
+	// Persist/restore list view state
+	const LIST_ROUTE = '/pricelists';
+	let _stateRestored = false;
+	$effect(() => {
+		if (!browser) return;
+		if (!_stateRestored) {
+			_stateRestored = true;
+			if (!$page.url.search) {
+				const saved = restoreListState(LIST_ROUTE);
+				if (saved) { goto(LIST_ROUTE + saved, { replaceState: true }); return; }
+			}
+		}
+		saveListState(LIST_ROUTE, $page.url.search);
+	});
+
 	let searchInput = $state(data.filters.search);
 	let deleteDialogOpen = $state(false);
-	let restoreDialogOpen = $state(false);
 	let selectedItem = $state<{ id: number; name: string } | null>(null);
 
 	const unitLabels: Record<string, string> = {
@@ -63,11 +79,6 @@
 	function openDeleteDialog(item: { id: number; name: string }) {
 		selectedItem = item;
 		deleteDialogOpen = true;
-	}
-
-	function openRestoreDialog(item: { id: number; name: string }) {
-		selectedItem = item;
-		restoreDialogOpen = true;
 	}
 
 	function formatCurrency(amount: number, currency: string = 'USD'): string {
@@ -139,17 +150,12 @@
 					? 'Active'
 					: data.filters.active === 'false'
 						? 'Inactive'
-						: data.filters.active === 'deleted'
-							? 'Deleted'
-							: 'All'}
+						: 'All'}
 			</Select.Trigger>
 			<Select.Content>
 				<Select.Item value="">All</Select.Item>
 				<Select.Item value="true">Active</Select.Item>
 				<Select.Item value="false">Inactive</Select.Item>
-				{#if data.isAdmin}
-					<Select.Item value="deleted">Deleted</Select.Item>
-				{/if}
 			</Select.Content>
 		</Select.Root>
 	</div>
@@ -183,7 +189,7 @@
 			</Table.Header>
 			<Table.Body>
 				{#each data.items as item}
-					<Table.Row class={item.deletedAt ? 'opacity-60' : ''}>
+					<Table.Row>
 						<Table.Cell class="font-mono text-sm">
 							{item.sku || '-'}
 						</Table.Cell>
@@ -231,9 +237,7 @@
 							{/if}
 						</Table.Cell>
 						<Table.Cell>
-							{#if item.deletedAt}
-								<Badge variant="destructive">Deleted</Badge>
-							{:else if item.active}
+							{#if item.active}
 								<Badge variant="default">Active</Badge>
 							{:else}
 								<Badge variant="secondary">Inactive</Badge>
@@ -244,26 +248,16 @@
 						</Table.Cell>
 						<Table.Cell>
 							<div class="flex items-center gap-1">
-								{#if !item.deletedAt}
-									<Button variant="ghost" size="icon" href="/pricelists/{item.id}/edit">
-										<Pencil class="h-4 w-4" />
-									</Button>
-									<Button
-										variant="ghost"
-										size="icon"
-										onclick={() => openDeleteDialog({ id: item.id, name: item.name })}
-									>
-										<Trash2 class="h-4 w-4 text-destructive" />
-									</Button>
-								{:else if data.isAdmin}
-									<Button
-										variant="ghost"
-										size="icon"
-										onclick={() => openRestoreDialog({ id: item.id, name: item.name })}
-									>
-										<RotateCcw class="h-4 w-4" />
-									</Button>
-								{/if}
+								<Button variant="ghost" size="icon" href="/pricelists/{item.id}/edit">
+									<Pencil class="h-4 w-4" />
+								</Button>
+								<Button
+									variant="ghost"
+									size="icon"
+									onclick={() => openDeleteDialog({ id: item.id, name: item.name })}
+								>
+									<Trash2 class="h-4 w-4 text-destructive" />
+								</Button>
 							</div>
 						</Table.Cell>
 					</Table.Row>
@@ -315,8 +309,7 @@
 		<AlertDialog.Header>
 			<AlertDialog.Title>Delete Item</AlertDialog.Title>
 			<AlertDialog.Description>
-				Are you sure you want to delete "{selectedItem?.name}"? This action can be undone by an
-				administrator.
+				Are you sure you want to delete "{selectedItem?.name}"? This action cannot be undone.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>
@@ -339,31 +332,3 @@
 	</AlertDialog.Content>
 </AlertDialog.Root>
 
-<!-- Restore Confirmation Dialog -->
-<AlertDialog.Root bind:open={restoreDialogOpen}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Restore Item</AlertDialog.Title>
-			<AlertDialog.Description>
-				Are you sure you want to restore "{selectedItem?.name}"?
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-			<form
-				method="POST"
-				action="?/restore"
-				use:enhance={() => {
-					return async ({ update }) => {
-						await update();
-						restoreDialogOpen = false;
-						selectedItem = null;
-					};
-				}}
-			>
-				<input type="hidden" name="id" value={selectedItem?.id} />
-				<Button type="submit">Restore</Button>
-			</form>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>

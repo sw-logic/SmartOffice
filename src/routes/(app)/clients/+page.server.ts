@@ -1,25 +1,21 @@
 import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
-import { requirePermission, checkPermission } from '$lib/server/access-control';
+import { requirePermission } from '$lib/server/access-control';
 import { fail } from '@sveltejs/kit';
-import { logDelete, logAction } from '$lib/server/audit';
+import { logDelete } from '$lib/server/audit';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'clients', 'read');
-
-	// Check if user is admin (can see deleted clients)
-	const isAdmin = checkPermission(locals, '*', '*');
 
 	const search = url.searchParams.get('search') || '';
 	const sortBy = url.searchParams.get('sortBy') || 'name';
 	const sortOrder = (url.searchParams.get('sortOrder') || 'asc') as 'asc' | 'desc';
 	const page = parseInt(url.searchParams.get('page') || '1');
 	const limit = parseInt(url.searchParams.get('limit') || '10');
-	const status = url.searchParams.get('status') || 'active'; // 'all', 'active', 'inactive', 'archived', 'deleted'
+	const status = url.searchParams.get('status') || 'active'; // 'active', 'inactive', 'archived'
 
 	// Build where clause based on status filter
 	type WhereClause = {
-		deletedAt?: null | { not: null };
 		status?: string;
 		OR?: Array<{
 			name?: { contains: string; mode: 'insensitive' };
@@ -30,18 +26,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	let where: WhereClause = {};
 
-	if (status === 'deleted' && isAdmin) {
-		where.deletedAt = { not: null };
-	} else if (status === 'all' && isAdmin) {
-		// Show all records including deleted — explicitly mark deletedAt as handled
-		// so the soft-delete extension doesn't auto-filter
-		where.deletedAt = undefined as any;
-	} else if (status === 'active' || status === 'inactive' || status === 'archived') {
-		where.deletedAt = null;
+	if (status === 'active' || status === 'inactive' || status === 'archived') {
 		where.status = status;
 	} else {
 		// Default: show active clients
-		where.deletedAt = null;
 		where.status = 'active';
 	}
 
@@ -70,7 +58,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				status: true,
 				industry: true,
 				createdAt: true,
-				deletedAt: true,
 				_count: {
 					select: {
 						projects: true,
@@ -99,8 +86,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			sortBy,
 			sortOrder,
 			status
-		},
-		isAdmin
+		}
 	};
 };
 
@@ -129,68 +115,14 @@ export const actions: Actions = {
 			return fail(404, { error: 'Client not found' });
 		}
 
-		// Soft delete
-		await prisma.client.update({
-			where: { id },
-			data: { deletedAt: new Date() }
-		});
-
+		// Log before hard delete
 		await logDelete(locals.user!.id, 'clients', String(id), 'Client', {
 			name: client.name,
 			companyName: client.companyName
 		});
 
-		return { success: true };
-	},
-
-	restore: async ({ locals, request }) => {
-		await requirePermission(locals, 'clients', 'update');
-
-		// Only admins can restore clients
-		const isAdmin = checkPermission(locals, '*', '*');
-		if (!isAdmin) {
-			return fail(403, { error: 'Only administrators can restore deleted clients' });
-		}
-
-		const formData = await request.formData();
-		const idStr = formData.get('id') as string;
-
-		if (!idStr) {
-			return fail(400, { error: 'Client ID is required' });
-		}
-
-		const id = parseInt(idStr);
-		if (isNaN(id)) {
-			return fail(400, { error: 'Invalid client ID' });
-		}
-
-		const client = await prisma.client.findUnique({
-			where: { id },
-			select: { id: true, name: true, deletedAt: true }
-		});
-
-		if (!client) {
-			return fail(404, { error: 'Client not found' });
-		}
-
-		if (!client.deletedAt) {
-			return fail(400, { error: 'Client is not deleted' });
-		}
-
-		// Restore client
-		await prisma.client.update({
-			where: { id },
-			data: { deletedAt: null }
-		});
-
-		await logAction({
-			userId: locals.user!.id,
-			action: 'restored',
-			module: 'clients',
-			entityId: String(id),
-			entityType: 'Client',
-			oldValues: { deletedAt: client.deletedAt },
-			newValues: { deletedAt: null }
+		await prisma.client.delete({
+			where: { id }
 		});
 
 		return { success: true };

@@ -2,12 +2,11 @@ import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
 import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { fail } from '@sveltejs/kit';
-import { logDelete, logAction } from '$lib/server/audit';
+import { logDelete } from '$lib/server/audit';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'projects', 'read');
 
-	const isAdmin = checkPermission(locals, '*', '*');
 	const canCreate = checkPermission(locals, 'projects', 'create');
 
 	const search = url.searchParams.get('search') || '';
@@ -18,7 +17,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const status = url.searchParams.get('status') || 'active';
 
 	type WhereClause = {
-		deletedAt?: null | { not: null };
 		status?: string;
 		OR?: Array<{
 			name?: { contains: string; mode: 'insensitive' };
@@ -29,15 +27,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 
 	let where: WhereClause = {};
 
-	if (status === 'deleted' && isAdmin) {
-		where.deletedAt = { not: null };
-	} else if (status === 'all' && isAdmin) {
-		where.deletedAt = undefined as any;
-	} else if (['planning', 'active', 'on_hold', 'completed', 'cancelled', 'archived'].includes(status)) {
-		where.deletedAt = null;
+	if (['planning', 'active', 'on_hold', 'completed', 'cancelled', 'archived'].includes(status)) {
 		where.status = status;
 	} else {
-		where.deletedAt = null;
 		where.status = 'active';
 	}
 
@@ -70,7 +62,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				priority: true,
 				startDate: true,
 				endDate: true,
-				deletedAt: true,
 				createdAt: true,
 				client: {
 					select: {
@@ -118,7 +109,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			sortOrder,
 			status
 		},
-		isAdmin,
 		canCreate
 	};
 };
@@ -148,64 +138,12 @@ export const actions: Actions = {
 			return fail(404, { error: 'Project not found' });
 		}
 
-		await prisma.project.update({
-			where: { id },
-			data: { deletedAt: new Date() }
-		});
-
 		await logDelete(locals.user!.id, 'projects', String(id), 'Project', {
 			name: project.name
 		});
 
-		return { success: true };
-	},
-
-	restore: async ({ locals, request }) => {
-		await requirePermission(locals, 'projects', 'update');
-
-		const isAdmin = checkPermission(locals, '*', '*');
-		if (!isAdmin) {
-			return fail(403, { error: 'Only administrators can restore deleted projects' });
-		}
-
-		const formData = await request.formData();
-		const idStr = formData.get('id') as string;
-
-		if (!idStr) {
-			return fail(400, { error: 'Project ID is required' });
-		}
-
-		const id = parseInt(idStr);
-		if (isNaN(id)) {
-			return fail(400, { error: 'Invalid project ID' });
-		}
-
-		const project = await prisma.project.findUnique({
-			where: { id },
-			select: { id: true, name: true, deletedAt: true }
-		});
-
-		if (!project) {
-			return fail(404, { error: 'Project not found' });
-		}
-
-		if (!project.deletedAt) {
-			return fail(400, { error: 'Project is not deleted' });
-		}
-
-		await prisma.project.update({
-			where: { id },
-			data: { deletedAt: null }
-		});
-
-		await logAction({
-			userId: locals.user!.id,
-			action: 'restored',
-			module: 'projects',
-			entityId: String(id),
-			entityType: 'Project',
-			oldValues: { deletedAt: project.deletedAt },
-			newValues: { deletedAt: null }
+		await prisma.project.delete({
+			where: { id }
 		});
 
 		return { success: true };

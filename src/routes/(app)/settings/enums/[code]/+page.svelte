@@ -11,7 +11,6 @@
 		Plus,
 		Pencil,
 		Trash2,
-		RotateCcw,
 		GripVertical,
 		Star,
 		Shield,
@@ -42,9 +41,7 @@
 
 	// Dialog state
 	let deleteDialogOpen = $state(false);
-	let restoreDialogOpen = $state(false);
 	let itemToDelete = $state<{ id: number; label: string } | null>(null);
-	let itemToRestore = $state<{ id: number; label: string } | null>(null);
 	let isProcessing = $state(false);
 
 	// Drag and drop state
@@ -54,7 +51,7 @@
 
 	// Update draggable items when data changes (including initial load)
 	$effect(() => {
-		draggableItems = data.values.filter((v) => !v.deletedAt).map((v) => ({ ...v }));
+		draggableItems = data.values.map((v) => ({ ...v }));
 	});
 
 	function startEdit(item: {
@@ -198,32 +195,6 @@
 		itemToDelete = null;
 	}
 
-	async function handleRestore() {
-		if (!itemToRestore) return;
-
-		isProcessing = true;
-		const formData = new FormData();
-		formData.append('id', String(itemToRestore.id));
-
-		const response = await fetch('?/restore', { method: 'POST', body: formData });
-		const result = await response.json();
-
-		if (result.type === 'success') {
-			toast.success('Value restored successfully');
-			invalidateAll();
-		} else {
-			toast.error(result.data?.error || 'Failed to restore value');
-		}
-
-		isProcessing = false;
-		restoreDialogOpen = false;
-		itemToRestore = null;
-	}
-
-	function isDeleted(item: { deletedAt: Date | string | null }): boolean {
-		return item.deletedAt !== null;
-	}
-
 	// Drag and drop handler
 	function handleDndConsider(e: CustomEvent<{ items: typeof draggableItems }>) {
 		draggableItems = e.detail.items;
@@ -268,9 +239,6 @@
 
 		await saveOrderBatch(orders);
 	}
-
-	// Filter active values for display
-	let deletedValues = $derived(data.values.filter((v) => v.deletedAt));
 </script>
 
 <div class="space-y-6">
@@ -318,9 +286,6 @@
 					<Table.Head class="w-[160px] text-center">Color</Table.Head>
 					<Table.Head class="w-[80px] text-center">Default</Table.Head>
 					<Table.Head class="w-[80px] text-center">Active</Table.Head>
-					{#if data.isAdmin}
-						<Table.Head class="w-[80px]">Status</Table.Head>
-					{/if}
 					<Table.Head class="w-[120px]">Actions</Table.Head>
 				</Table.Row>
 			</Table.Header>
@@ -368,9 +333,6 @@
 							<td class="p-2 align-middle text-center w-[80px]">
 								<Switch checked={item.isActive} disabled />
 							</td>
-							{#if data.isAdmin}
-								<td class="p-2 align-middle w-[80px]"></td>
-							{/if}
 							<td class="p-2 align-middle w-[120px]">
 								<div class="flex items-center gap-1">
 									<Button
@@ -427,11 +389,6 @@
 									disabled={isProcessing}
 								/>
 							</td>
-							{#if data.isAdmin}
-								<td class="p-2 align-middle w-[80px]">
-									<Badge variant="default">Active</Badge>
-								</td>
-							{/if}
 							<td class="p-2 align-middle w-[120px]">
 								<div class="flex items-center gap-1">
 									<Button
@@ -481,9 +438,6 @@
 						</td>
 						<td class="p-2 align-middle w-[80px]"></td>
 						<td class="p-2 align-middle w-[80px]"></td>
-						{#if data.isAdmin}
-							<td class="p-2 align-middle w-[80px]"></td>
-						{/if}
 						<td class="p-2 align-middle w-[120px]">
 							<div class="flex items-center gap-1">
 								<Button
@@ -516,68 +470,12 @@
 
 				{#if draggableItems.length === 0 && !showNewRow}
 					<tr>
-						<td colspan={data.isAdmin ? 9 : 8} class="h-24 text-center p-4">
+						<td colspan={8} class="h-24 text-center p-4">
 							No values found. Click "Add Value" to create one.
 						</td>
 					</tr>
 				{/if}
 			</tbody>
-
-			{#if data.isAdmin && deletedValues.length > 0}
-				<tbody class="[&_tr:last-child]:border-0">
-					<tr class="bg-muted/30">
-						<td colspan={data.isAdmin ? 9 : 8} class="p-2 text-sm font-medium text-muted-foreground">
-							Deleted Values ({deletedValues.length})
-						</td>
-					</tr>
-					{#each deletedValues as item (item.id)}
-						<tr class="border-b opacity-60">
-							<td class="p-2 align-middle w-[50px]"></td>
-							<td class="p-2 align-middle w-[180px]">
-								<code class="text-sm bg-muted px-1.5 py-0.5 rounded">{item.value}</code>
-							</td>
-							<td class="p-2 align-middle font-medium w-[200px]">{item.label}</td>
-							<td class="p-2 align-middle text-muted-foreground">{item.description || '-'}</td>
-							<td class="p-2 align-middle text-center w-[80px]">
-								{#if item.color}
-									<span
-										class="inline-block h-5 w-5 rounded-full border"
-										style="background-color: {item.color}"
-										title={item.color}
-									></span>
-								{:else}
-									<span class="text-muted-foreground text-xs">-</span>
-								{/if}
-							</td>
-							<td class="p-2 align-middle text-center w-[80px]">
-								{#if item.isDefault}
-									<Star class="h-4 w-4 text-yellow-500 mx-auto fill-yellow-500" />
-								{/if}
-							</td>
-							<td class="p-2 align-middle text-center w-[80px]">
-								<Switch checked={item.isActive} disabled />
-							</td>
-							<td class="p-2 align-middle w-[80px]">
-								<Badge variant="destructive">Deleted</Badge>
-							</td>
-							<td class="p-2 align-middle w-[120px]">
-								<Button
-									variant="ghost"
-									size="icon"
-									onclick={() => {
-										itemToRestore = { id: item.id, label: item.label };
-										restoreDialogOpen = true;
-									}}
-									disabled={isProcessing}
-									title="Restore"
-								>
-									<RotateCcw class="h-4 w-4" />
-								</Button>
-							</td>
-						</tr>
-					{/each}
-				</tbody>
-			{/if}
 		</Table.Root>
 	</div>
 
@@ -596,8 +494,7 @@
 		<AlertDialog.Header>
 			<AlertDialog.Title>Delete Value</AlertDialog.Title>
 			<AlertDialog.Description>
-				Are you sure you want to delete <strong>{itemToDelete?.label}</strong>? This action can be
-				undone by an administrator.
+				Are you sure you want to delete <strong>{itemToDelete?.label}</strong>? This action cannot be undone.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>
@@ -608,24 +505,6 @@
 				disabled={isProcessing}
 			>
 				{isProcessing ? 'Deleting...' : 'Delete'}
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
-
-<!-- Restore Confirmation Dialog -->
-<AlertDialog.Root bind:open={restoreDialogOpen}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Restore Value</AlertDialog.Title>
-			<AlertDialog.Description>
-				Are you sure you want to restore <strong>{itemToRestore?.label}</strong>?
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-			<AlertDialog.Action onclick={handleRestore} disabled={isProcessing}>
-				{isProcessing ? 'Restoring...' : 'Restore'}
 			</AlertDialog.Action>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>
