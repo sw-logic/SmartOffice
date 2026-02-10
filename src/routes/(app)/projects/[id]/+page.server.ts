@@ -33,7 +33,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 					id: true,
 					firstName: true,
 					lastName: true,
-					email: true
+					email: true,
+					image: true
 				}
 			},
 			assignedEmployees: {
@@ -44,7 +45,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 							firstName: true,
 							lastName: true,
 							email: true,
-							jobTitle: true
+							jobTitle: true,
+							image: true
 						}
 					}
 				},
@@ -74,7 +76,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 						select: {
 							id: true,
 							firstName: true,
-							lastName: true
+							lastName: true,
+							image: true
 						}
 					}
 				}
@@ -126,7 +129,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	}
 
 	// Load all active employees for team multi-select (only if user can manage)
-	let allEmployees: Array<{ id: number; firstName: string | null; lastName: string | null; jobTitle: string | null }> = [];
+	let allEmployees: Array<{ id: number; firstName: string | null; lastName: string | null; jobTitle: string | null; image: string | null }> = [];
 	if (canManageProject) {
 		allEmployees = await prisma.user.findMany({
 			where: {
@@ -136,7 +139,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				id: true,
 				firstName: true,
 				lastName: true,
-				jobTitle: true
+				jobTitle: true,
+				image: true
 			},
 			orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }]
 		});

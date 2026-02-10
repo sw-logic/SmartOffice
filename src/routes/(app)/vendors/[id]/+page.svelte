@@ -16,6 +16,7 @@
 		Building2,
 		Mail,
 		Phone,
+		Smartphone,
 		Globe,
 		MapPin,
 		Calendar,
@@ -41,6 +42,7 @@
 		phone: string | null;
 		mobile: string | null;
 		position: string | null;
+		avatarPath: string | null;
 		isPrimaryContact: boolean;
 	} | null>(null);
 
@@ -62,6 +64,7 @@
 		phone: string | null;
 		mobile: string | null;
 		position: string | null;
+		avatarPath: string | null;
 	}) {
 		contactToEdit = {
 			id: contact.id,
@@ -71,6 +74,7 @@
 			phone: contact.phone,
 			mobile: contact.mobile,
 			position: contact.position,
+			avatarPath: contact.avatarPath,
 			isPrimaryContact: false // Vendor contacts don't have primary flag
 		};
 		contactModalOpen = true;
@@ -89,7 +93,7 @@
 		mobile: string | null;
 		position: string | null;
 		isPrimaryContact: boolean;
-	}): Promise<{ success: boolean; error?: string }> {
+	}, avatarFile?: File | null, removeAvatar?: boolean): Promise<{ success: boolean; error?: string }> {
 		const formData = new FormData();
 		formData.append('firstName', contactData.firstName);
 		formData.append('lastName', contactData.lastName);
@@ -97,6 +101,13 @@
 		formData.append('phone', contactData.phone || '');
 		formData.append('mobile', contactData.mobile || '');
 		formData.append('position', contactData.position || '');
+
+		if (avatarFile) {
+			formData.append('avatar', avatarFile);
+		}
+		if (removeAvatar) {
+			formData.append('removeAvatar', 'true');
+		}
 
 		const action = contactToEdit?.id ? 'updateContact' : 'createContact';
 		if (contactToEdit?.id) {
@@ -352,53 +363,60 @@
 					{#if data.vendor.contacts.length === 0}
 						<p class="text-muted-foreground text-center py-8">No contacts added yet.</p>
 					{:else}
-						<div class="space-y-4">
+						<div class="space-y-3">
 							{#each data.vendor.contacts as contact}
-								<div class="flex items-center justify-between p-3 rounded-lg border">
-									<div class="flex items-center gap-3 flex-1">
-										<Avatar.Root>
-											<Avatar.Fallback class="text-xs">{contact.firstName[0]}{contact.lastName[0]}</Avatar.Fallback>
-										</Avatar.Root>
-										<div>
-											<div class="flex items-center gap-2">
-												<p class="font-medium">
-													{contact.firstName} {contact.lastName}
-												</p>
-											</div>
-											{#if contact.position}
-												<p class="text-sm text-muted-foreground">{contact.position}</p>
-											{/if}
-										</div>
+								<div class="flex items-center gap-3 p-3 rounded-lg border">
+									<Avatar.Root>
+										{#if contact.avatarPath}
+											<Avatar.Image src="/api/uploads/{contact.avatarPath}" alt="{contact.firstName} {contact.lastName}" />
+										{/if}
+										<Avatar.Fallback class="text-xs">{contact.firstName[0]}{contact.lastName[0]}</Avatar.Fallback>
+									</Avatar.Root>
+									<div class="min-w-0">
+										<p class="font-medium">
+											{contact.firstName} {contact.lastName}
+										</p>
+										{#if contact.position}
+											<p class="text-sm text-muted-foreground">{contact.position}</p>
+										{/if}
 									</div>
-									<div class="flex items-center gap-4">
-										<div class="text-sm text-right">
-											{#if contact.email}
-												<a href="mailto:{contact.email}" class="text-primary hover:underline block">
-													{contact.email}
-												</a>
-											{/if}
-											{#if contact.phone}
-												<span class="text-muted-foreground">{contact.phone}</span>
-											{/if}
-										</div>
-										<div class="flex items-center gap-1">
-											<Button
-												variant="ghost"
-												size="icon"
-												onclick={() => openEditContactModal(contact)}
-												title="Edit contact"
-											>
-												<Pencil class="h-4 w-4" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="icon"
-												onclick={() => confirmDeleteContact(contact)}
-												title="Delete contact"
-											>
-												<Trash2 class="h-4 w-4" />
-											</Button>
-										</div>
+									<div class="flex items-center gap-3 ml-auto text-sm text-muted-foreground">
+										{#if contact.email}
+											<a href="mailto:{contact.email}" class="flex items-center gap-1 text-primary hover:underline" title={contact.email}>
+												<Mail class="h-3.5 w-3.5 shrink-0" />
+												<span class="hidden lg:inline">{contact.email}</span>
+											</a>
+										{/if}
+										{#if contact.phone}
+											<a href="tel:{contact.phone}" class="flex items-center gap-1 hover:underline" title={contact.phone}>
+												<Phone class="h-3.5 w-3.5 shrink-0" />
+												<span class="hidden lg:inline">{contact.phone}</span>
+											</a>
+										{/if}
+										{#if contact.mobile}
+											<a href="tel:{contact.mobile}" class="flex items-center gap-1 hover:underline" title={contact.mobile}>
+												<Smartphone class="h-3.5 w-3.5 shrink-0" />
+												<span class="hidden lg:inline">{contact.mobile}</span>
+											</a>
+										{/if}
+									</div>
+									<div class="flex items-center gap-1 shrink-0">
+										<Button
+											variant="ghost"
+											size="icon"
+											onclick={() => openEditContactModal(contact)}
+											title="Edit contact"
+										>
+											<Pencil class="h-4 w-4" />
+										</Button>
+										<Button
+											variant="ghost"
+											size="icon"
+											onclick={() => confirmDeleteContact(contact)}
+											title="Delete contact"
+										>
+											<Trash2 class="h-4 w-4" />
+										</Button>
 									</div>
 								</div>
 							{/each}

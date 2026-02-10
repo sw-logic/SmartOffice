@@ -548,6 +548,9 @@
 								<Table.Cell>
 									<div class="flex items-center gap-2">
 										<Avatar.Root class="h-7 w-7">
+											{#if emp.image}
+												<Avatar.Image src="/api/uploads/{emp.image}" alt="{emp.firstName ?? ''} {emp.lastName ?? ''}" />
+											{/if}
 											<Avatar.Fallback class="text-xs">{(emp.firstName ?? '')[0]}{(emp.lastName ?? '')[0]}</Avatar.Fallback>
 										</Avatar.Root>
 										<div class="min-w-0">

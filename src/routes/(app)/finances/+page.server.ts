@@ -117,7 +117,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 						salary_tax: true,
 						salary_bonus: true,
 						jobTitle: true,
-						department: true
+						department: true,
+						image: true
 					}
 				})
 			: [],

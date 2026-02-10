@@ -3,6 +3,7 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
 import { error, fail } from '@sveltejs/kit';
 import { logCreate, logUpdate, logDelete } from '$lib/server/audit';
+import { saveAvatar, deleteFile } from '$lib/server/file-upload';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'vendors', 'read');
@@ -25,7 +26,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 					email: true,
 					phone: true,
 					mobile: true,
-					position: true
+					position: true,
+					avatarPath: true
 				}
 			},
 			expenses: {
@@ -94,6 +96,7 @@ export const actions: Actions = {
 		const phone = formData.get('phone') as string;
 		const mobile = formData.get('mobile') as string;
 		const position = formData.get('position') as string;
+		const avatarFile = formData.get('avatar') as File | null;
 
 		// Validation
 		if (!firstName?.trim()) {
@@ -113,6 +116,16 @@ export const actions: Actions = {
 			return fail(404, { error: 'Vendor not found' });
 		}
 
+		// Handle avatar upload
+		let avatarPath: string | null = null;
+		if (avatarFile && avatarFile.size > 0) {
+			const uploadResult = await saveAvatar(avatarFile);
+			if (!uploadResult.success) {
+				return fail(400, { error: uploadResult.error });
+			}
+			avatarPath = uploadResult.path!;
+		}
+
 		// Create contact
 		const contact = await prisma.contact.create({
 			data: {
@@ -122,6 +135,7 @@ export const actions: Actions = {
 				phone: phone?.trim() || null,
 				mobile: mobile?.trim() || null,
 				position: position?.trim() || null,
+				avatarPath,
 				vendorId: vendorId
 			}
 		});
@@ -154,6 +168,8 @@ export const actions: Actions = {
 		const phone = formData.get('phone') as string;
 		const mobile = formData.get('mobile') as string;
 		const position = formData.get('position') as string;
+		const avatarFile = formData.get('avatar') as File | null;
+		const removeAvatarFlag = formData.get('removeAvatar') === 'true';
 
 		if (!contactIdStr) {
 			return fail(400, { error: 'Contact ID is required' });
@@ -181,17 +197,40 @@ export const actions: Actions = {
 			return fail(404, { error: 'Contact not found' });
 		}
 
+		// Handle avatar upload/removal
+		let avatarPath: string | null | undefined = undefined;
+		if (avatarFile && avatarFile.size > 0) {
+			const uploadResult = await saveAvatar(avatarFile);
+			if (!uploadResult.success) {
+				return fail(400, { error: uploadResult.error });
+			}
+			if (existingContact.avatarPath) {
+				await deleteFile(existingContact.avatarPath);
+			}
+			avatarPath = uploadResult.path!;
+		} else if (removeAvatarFlag) {
+			if (existingContact.avatarPath) {
+				await deleteFile(existingContact.avatarPath);
+			}
+			avatarPath = null;
+		}
+
 		// Update contact
+		const updateData: Record<string, unknown> = {
+			firstName: firstName.trim(),
+			lastName: lastName.trim(),
+			email: email?.trim() || null,
+			phone: phone?.trim() || null,
+			mobile: mobile?.trim() || null,
+			position: position?.trim() || null
+		};
+		if (avatarPath !== undefined) {
+			updateData.avatarPath = avatarPath;
+		}
+
 		const updatedContact = await prisma.contact.update({
 			where: { id: contactId },
-			data: {
-				firstName: firstName.trim(),
-				lastName: lastName.trim(),
-				email: email?.trim() || null,
-				phone: phone?.trim() || null,
-				mobile: mobile?.trim() || null,
-				position: position?.trim() || null
-			}
+			data: updateData
 		});
 
 		await logUpdate(locals.user!.id, 'vendors', String(contactId), 'Contact', existingContact, {

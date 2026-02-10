@@ -56,7 +56,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		spentTime: true,
 		assignedToId: true,
 		assignedTo: {
-			select: { id: true, firstName: true, lastName: true }
+			select: { id: true, firstName: true, lastName: true, image: true }
 		},
 		project: {
 			select: {
@@ -96,7 +96,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		// Active employees
 		prisma.user.findMany({
 			where: { employeeStatus: 'active' },
-			select: { id: true, firstName: true, lastName: true },
+			select: { id: true, firstName: true, lastName: true, image: true },
 			orderBy: { firstName: 'asc' }
 		}),
 
@@ -117,9 +117,28 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		})
 	]);
 
+	// Load tags for all tasks
+	const allTaskIds = [...scheduledTasks, ...unscheduledTasks].map(t => t.id);
+	const entityTags = allTaskIds.length > 0
+		? await prisma.entityTag.findMany({
+			where: { entityType: 'Task', entityId: { in: allTaskIds.map(String) } },
+			select: {
+				entityId: true,
+				enumValue: { select: { label: true, color: true } }
+			}
+		})
+		: [];
+
+	const tagsByTaskId = new Map<number, Array<{ label: string; color: string | null }>>();
+	for (const et of entityTags) {
+		const tid = parseInt(et.entityId);
+		if (!tagsByTaskId.has(tid)) tagsByTaskId.set(tid, []);
+		tagsByTaskId.get(tid)!.push({ label: et.enumValue.label, color: et.enumValue.color });
+	}
+
 	return {
-		tasks: scheduledTasks,
-		unscheduledTasks,
+		tasks: scheduledTasks.map(t => ({ ...t, tags: tagsByTaskId.get(t.id) || [] })),
+		unscheduledTasks: unscheduledTasks.map(t => ({ ...t, tags: tagsByTaskId.get(t.id) || [] })),
 		employees,
 		projects,
 		clients,

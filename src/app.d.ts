@@ -9,6 +9,7 @@ declare global {
 				id: number;
 				email: string;
 				name: string;
+				image?: string | null;
 				companyId?: number;
 			};
 			permissions?: Set<string>;

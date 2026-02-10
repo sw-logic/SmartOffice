@@ -212,6 +212,9 @@
 					{#if data.project.projectManager}
 						<div class="flex items-center gap-3">
 							<Avatar.Root class="h-8 w-8">
+								{#if data.project.projectManager.image}
+									<Avatar.Image src="/api/uploads/{data.project.projectManager.image}" alt="{data.project.projectManager.firstName} {data.project.projectManager.lastName}" />
+								{/if}
 								<Avatar.Fallback class="text-xs">
 									{getInitials(data.project.projectManager.firstName ?? '', data.project.projectManager.lastName ?? '')}
 								</Avatar.Fallback>
@@ -300,6 +303,9 @@
 																disabled={isUpdatingTeam}
 															/>
 															<Avatar.Root class="h-6 w-6 shrink-0">
+																{#if employee.image}
+																	<Avatar.Image src="/api/uploads/{employee.image}" alt="{employee.firstName} {employee.lastName}" />
+																{/if}
 																<Avatar.Fallback class="text-[10px]">
 																	{getInitials(employee.firstName, employee.lastName)}
 																</Avatar.Fallback>
@@ -332,6 +338,9 @@
 							{#each data.project.assignedEmployees as assignment}
 								<div class="flex items-center gap-2">
 									<Avatar.Root class="h-6 w-6">
+										{#if assignment.user.image}
+											<Avatar.Image src="/api/uploads/{assignment.user.image}" alt="{assignment.user.firstName} {assignment.user.lastName}" />
+										{/if}
 										<Avatar.Fallback class="text-[10px]">
 											{getInitials(assignment.user.firstName ?? '', assignment.user.lastName ?? '')}
 										</Avatar.Fallback>
@@ -500,6 +509,9 @@
 										<div class="flex items-center gap-2 mt-1">
 											{#if task.assignedTo}
 												<Avatar.Root class="h-5 w-5">
+													{#if task.assignedTo.image}
+														<Avatar.Image src="/api/uploads/{task.assignedTo.image}" alt="{task.assignedTo.firstName} {task.assignedTo.lastName}" />
+													{/if}
 													<Avatar.Fallback class="text-[9px]">
 														{getInitials(task.assignedTo.firstName ?? '', task.assignedTo.lastName ?? '')}
 													</Avatar.Fallback>

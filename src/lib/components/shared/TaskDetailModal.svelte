@@ -34,17 +34,20 @@
 		id: number;
 		firstName: string | null;
 		lastName: string | null;
+		image?: string | null;
 	}
 
 	interface ProjectOption {
 		id: number;
 		name: string;
 		client: { id: number; name: string };
+		assignedEmployees?: Array<{ userId: number }>;
 		kanbanBoards: Array<{
 			id: number;
 			name: string;
 			columns: Array<{ id: number; name: string }>;
 			swimlanes: Array<{ id: number; name: string }>;
+			members?: Array<{ userId: number }>;
 		}>;
 	}
 
@@ -195,8 +198,21 @@
 	let columnOptions = $derived(selectedBoard?.columns || []);
 	let swimlaneOptions = $derived(selectedBoard?.swimlanes || []);
 
+	// Filter employees by board members (if board selected) or project employees (if project selected)
+	let availableEmployees = $derived.by(() => {
+		if (selectedBoard?.members?.length) {
+			const memberIds = new Set(selectedBoard.members.map((m: { userId: number }) => m.userId));
+			return employees.filter(emp => memberIds.has(emp.id));
+		}
+		if (selectedProject?.assignedEmployees?.length) {
+			const projectUserIds = new Set(selectedProject.assignedEmployees.map((e: { userId: number }) => e.userId));
+			return employees.filter(emp => projectUserIds.has(emp.id));
+		}
+		return employees;
+	});
+
 	let filteredReviewerEmployees = $derived(
-		employees.filter(emp => {
+		availableEmployees.filter(emp => {
 			if (!reviewerSearch) return true;
 			const q = reviewerSearch.toLowerCase();
 			return `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(q);
@@ -204,7 +220,7 @@
 	);
 
 	let filteredFollowerEmployees = $derived(
-		employees.filter(emp => {
+		availableEmployees.filter(emp => {
 			if (!followerSearch) return true;
 			const q = followerSearch.toLowerCase();
 			return `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(q);
@@ -486,7 +502,7 @@
 </script>
 
 <Dialog.Root bind:open onOpenChange={handleOpenChange}>
-	<Dialog.Content class="w-[70vw] min-w-[1000px] h-[90vh] p-0 max-w-none max-h-none overflow-hidden flex flex-col">
+        <Dialog.Content class="w-[80vw] min-w-[1000px] h-[90vh] p-0 max-w-none max-h-none overflow-hidden flex flex-col">
 		{#if loading && !task && !isCreating}
 			<div class="flex items-center justify-center py-20">
 				<Loader2 class="h-8 w-8 animate-spin text-muted-foreground" />
@@ -585,7 +601,7 @@
 								<Label class="text-xs text-muted-foreground">Description</Label>
 								{#if task.description}
 									<div class="text-sm px-2 py-1 min-h-[60px] rounded bg-muted/30">
-										<MarkdownViewer value={task.description} />
+										<MarkdownViewer value={task.description} onchange={(md) => saveField('description', md)} />
 									</div>
 								{:else}
 									<p class="text-sm text-muted-foreground px-2 py-1 min-h-[60px] rounded bg-muted/30">
@@ -609,7 +625,7 @@
 										timeRecords={task.timeRecords || []}
 										typeOptions={timeRecordTypes}
 										categoryOptions={timeRecordCategories}
-										{employees}
+										employees={availableEmployees}
 										{currentUserId}
 										onTimeRecordsChange={(records) => {
 											task = { ...task, timeRecords: records };
@@ -625,7 +641,7 @@
 					<div class="shrink-0 overflow-y-auto border-l p-4 pt-12 space-y-2 w-fit max-w-[320px]">
 						<!-- Client (UI filter only) -->
 						<div class="flex items-center gap-2">
-							<Label class="text-xs text-muted-foreground w-20 shrink-0 text-right">Client</Label>
+							<Label class="text-sm text-muted-foreground w-20 shrink-0 text-right">Client</Label>
 							<Select.Root
 								type="single"
 								value={activeClientId ? String(activeClientId) : 'all'}
@@ -662,7 +678,7 @@
 
 						<!-- Project -->
 						<div class="flex items-center gap-2">
-							<Label class="text-xs text-muted-foreground w-20 shrink-0 text-right">Project {isCreating ? '*' : ''}</Label>
+							<Label class="text-sm text-muted-foreground w-20 shrink-0 text-right">Project {isCreating ? '*' : ''}</Label>
 							<Select.Root
 								type="single"
 								value={isCreating ? (formData.projectId ? String(formData.projectId) : undefined) : String(task?.projectId)}
@@ -703,7 +719,7 @@
 
 						<!-- Board -->
 						<div class="flex items-center gap-2">
-							<Label class="text-xs text-muted-foreground w-20 shrink-0 text-right">Board</Label>
+							<Label class="text-sm text-muted-foreground w-20 shrink-0 text-right">Board</Label>
 							<Select.Root
 								type="single"
 								value={isCreating ? (formData.kanbanBoardId ? String(formData.kanbanBoardId) : 'none') : (task?.kanbanBoardId ? String(task.kanbanBoardId) : 'none')}
@@ -733,7 +749,7 @@
 						<!-- Column (Stage) -->
 						{#if columnOptions.length > 0}
 							<div class="flex items-center gap-2">
-								<Label class="text-xs text-muted-foreground w-20 shrink-0 text-right">Column</Label>
+								<Label class="text-sm text-muted-foreground w-20 shrink-0 text-right">Column</Label>
 								<Select.Root
 									type="single"
 									value={isCreating ? (formData.columnId ? String(formData.columnId) : 'none') : (task?.columnId ? String(task.columnId) : 'none')}
@@ -762,7 +778,7 @@
 						<!-- Swimlane -->
 						{#if swimlaneOptions.length > 0}
 							<div class="flex items-center gap-2">
-								<Label class="text-xs text-muted-foreground w-20 shrink-0 text-right">Swimlane</Label>
+								<Label class="text-sm text-muted-foreground w-20 shrink-0 text-right">Swimlane</Label>
 								<Select.Root
 									type="single"
 									value={isCreating ? (formData.swimlaneId ? String(formData.swimlaneId) : 'none') : (task?.swimlaneId ? String(task.swimlaneId) : 'none')}
@@ -792,7 +808,7 @@
 
 						<!-- Type -->
 						<div class="flex items-center gap-2">
-							<Label class="text-xs text-muted-foreground w-20 shrink-0 text-right">Type</Label>
+							<Label class="text-sm text-muted-foreground w-20 shrink-0 text-right">Type</Label>
 							<Select.Root
 								type="single"
 								value={isCreating ? (formData.type || 'none') : (task?.type || 'none')}
@@ -819,7 +835,7 @@
 
 						<!-- Category -->
 						<div class="flex items-center gap-2">
-							<Label class="text-xs text-muted-foreground w-20 shrink-0 text-right">Category</Label>
+							<Label class="text-sm text-muted-foreground w-20 shrink-0 text-right">Category</Label>
 							<Select.Root
 								type="single"
 								value={isCreating ? (formData.category || 'none') : (task?.category || 'none')}
@@ -846,7 +862,7 @@
 
 						<!-- Priority -->
 						<div class="flex items-center gap-2">
-							<Label class="text-xs text-muted-foreground w-20 shrink-0 text-right">Priority</Label>
+							<Label class="text-sm text-muted-foreground w-20 shrink-0 text-right">Priority</Label>
 							<Select.Root
 								type="single"
 								value={isCreating ? formData.priority : task?.priority}
@@ -874,7 +890,7 @@
 
 						<!-- Assignee -->
 						<div class="flex items-center gap-2">
-							<Label class="text-xs text-muted-foreground w-20 shrink-0 text-right">Assignee</Label>
+							<Label class="text-sm text-muted-foreground w-20 shrink-0 text-right">Assignee</Label>
 							<Select.Root
 								type="single"
 								value={isCreating ? (formData.assignedToId ? String(formData.assignedToId) : 'none') : (task?.assignedToId ? String(task.assignedToId) : 'none')}
@@ -889,7 +905,7 @@
 							>
 								<Select.Trigger size="sm" class="h-8 text-sm flex-1">
 									{#if isCreating}
-										{@const emp = formData.assignedToId ? employees.find(e => e.id === formData.assignedToId) : null}
+										{@const emp = formData.assignedToId ? availableEmployees.find(e => e.id === formData.assignedToId) : null}
 										{emp ? `${emp.firstName} ${emp.lastName}` : 'Unassigned'}
 									{:else if task?.assignedTo}
 										{task.assignedTo.firstName} {task.assignedTo.lastName}
@@ -899,7 +915,7 @@
 								</Select.Trigger>
 								<Select.Content>
 									<Select.Item value="none">Unassigned</Select.Item>
-									{#each employees as emp}
+									{#each availableEmployees as emp}
 										<Select.Item value={String(emp.id)}>{emp.firstName} {emp.lastName}</Select.Item>
 									{/each}
 								</Select.Content>
@@ -909,7 +925,7 @@
 						<!-- Reviewers (multi-select) -->
 						<div class="space-y-1">
 							<div class="flex items-center gap-2">
-								<Label class="text-xs text-muted-foreground w-20 shrink-0 text-right">Reviewers</Label>
+								<Label class="text-sm text-muted-foreground w-20 shrink-0 text-right">Reviewers</Label>
 								<Popover.Root bind:open={reviewerPopoverOpen}>
 									<Popover.Trigger class="flex-1">
 										<Button variant="outline" class="w-full justify-between h-8 text-sm font-normal">
@@ -935,6 +951,9 @@
 															<div class="flex items-center gap-2 w-full">
 																<Checkbox checked={reviewerIds.has(emp.id)} />
 																<Avatar.Root class="h-5 w-5 shrink-0">
+																	{#if emp.image}
+																		<Avatar.Image src="/api/uploads/{emp.image}" alt="{emp.firstName} {emp.lastName}" />
+																	{/if}
 																	<Avatar.Fallback class="text-[9px]">{getInitials(emp.firstName, emp.lastName)}</Avatar.Fallback>
 																</Avatar.Root>
 																<span class="text-sm truncate">{emp.firstName} {emp.lastName}</span>
@@ -971,7 +990,7 @@
 						<!-- Followers (multi-select) -->
 						<div class="space-y-1">
 							<div class="flex items-center gap-2">
-								<Label class="text-xs text-muted-foreground w-20 shrink-0 text-right">Followers</Label>
+								<Label class="text-sm text-muted-foreground w-20 shrink-0 text-right">Followers</Label>
 								<Popover.Root bind:open={followerPopoverOpen}>
 									<Popover.Trigger class="flex-1">
 										<Button variant="outline" class="w-full justify-between h-8 text-sm font-normal">
@@ -997,6 +1016,9 @@
 															<div class="flex items-center gap-2 w-full">
 																<Checkbox checked={followerIds.has(emp.id)} />
 																<Avatar.Root class="h-5 w-5 shrink-0">
+																	{#if emp.image}
+																		<Avatar.Image src="/api/uploads/{emp.image}" alt="{emp.firstName} {emp.lastName}" />
+																	{/if}
 																	<Avatar.Fallback class="text-[9px]">{getInitials(emp.firstName, emp.lastName)}</Avatar.Fallback>
 																</Avatar.Root>
 																<span class="text-sm truncate">{emp.firstName} {emp.lastName}</span>
@@ -1034,7 +1056,7 @@
 
 						<!-- Start Date -->
 						<div class="flex items-center gap-2">
-							<Label class="text-xs text-muted-foreground w-20 shrink-0 text-right">Start Date</Label>
+							<Label class="text-sm text-muted-foreground w-20 shrink-0 text-right">Start Date</Label>
 							<Input
 								type="date"
 								value={isCreating ? formData.startDate : (task?.startDate ? new Date(task.startDate).toISOString().slice(0, 10) : '')}
@@ -1052,7 +1074,7 @@
 
 						<!-- Due Date -->
 						<div class="flex items-center gap-2">
-							<Label class="text-xs text-muted-foreground w-20 shrink-0 text-right">Due Date {isCreating ? '*' : ''}</Label>
+							<Label class="text-sm text-muted-foreground w-20 shrink-0 text-right">Due Date {isCreating ? '*' : ''}</Label>
 							<Input
 								type="date"
 								value={isCreating ? formData.dueDate : (task?.dueDate ? new Date(task.dueDate).toISOString().slice(0, 10) : '')}
@@ -1070,7 +1092,7 @@
 
 						<!-- Estimated Time -->
 						<div class="flex items-center gap-2">
-							<Label class="text-xs text-muted-foreground w-20 shrink-0 text-right">Est. Time {isCreating ? '*' : ''}</Label>
+							<Label class="text-sm text-muted-foreground w-20 shrink-0 text-right">Est. Time {isCreating ? '*' : ''}</Label>
 							<DurationInput
 								value={isCreating ? formData.estimatedTime : (task?.estimatedTime ?? null)}
 								onchange={(minutes) => {
@@ -1087,7 +1109,7 @@
 						<!-- Spent Time (view mode only) -->
 						{#if !isCreating && task}
 							<div class="flex items-center gap-2">
-								<Label class="text-xs text-muted-foreground w-20 shrink-0 text-right">Spent</Label>
+								<Label class="text-sm text-muted-foreground w-20 shrink-0 text-right">Spent</Label>
 								<p class="text-sm font-medium">
 									{fmtMin(task.spentTime || 0)}
 									{#if task.estimatedTime}

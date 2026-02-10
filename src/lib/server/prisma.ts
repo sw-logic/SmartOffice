@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 
@@ -21,14 +21,20 @@ const createPrismaClient = () => {
 
 type PrismaClientInstance = ReturnType<typeof createPrismaClient>;
 
+// Schema fingerprint: changes whenever prisma generate adds/removes model fields
+const SCHEMA_FINGERPRINT = Prisma.dmmf.datamodel.models
+	.map((m) => `${m.name}:${m.fields.length}`)
+	.join(',');
+
 // Global declaration for development hot reload
 declare const globalThis: {
 	prismaGlobal: PrismaClientInstance;
+	prismaSchemaFingerprint: string;
 } & typeof global;
 
-// Force fresh client if enumType is missing (schema changed)
-if (globalThis.prismaGlobal && !('enumType' in globalThis.prismaGlobal)) {
-	console.log('Prisma client outdated, creating fresh instance...');
+// Force fresh client when schema changes (detected via field-count fingerprint)
+if (globalThis.prismaGlobal && globalThis.prismaSchemaFingerprint !== SCHEMA_FINGERPRINT) {
+	console.log('Prisma schema changed, creating fresh client...');
 	delete (globalThis as any).prismaGlobal;
 }
 
@@ -37,6 +43,7 @@ export const prisma = globalThis.prismaGlobal ?? createPrismaClient();
 
 if (process.env.NODE_ENV !== 'production') {
 	globalThis.prismaGlobal = prisma;
+	globalThis.prismaSchemaFingerprint = SCHEMA_FINGERPRINT;
 }
 
 export default prisma;

@@ -645,6 +645,9 @@
 														disabled={isUpdatingMembers}
 													/>
 													<Avatar.Root class="h-6 w-6 shrink-0">
+														{#if employee.image}
+															<Avatar.Image src="/api/uploads/{employee.image}" alt="{employee.firstName} {employee.lastName}" />
+														{/if}
 														<Avatar.Fallback class="text-[10px]">
 															{getInitials(employee.firstName, employee.lastName)}
 														</Avatar.Fallback>
@@ -679,6 +682,9 @@
 							class="flex items-center gap-2 p-2 rounded-md border bg-background hover:bg-muted/30"
 						>
 							<Avatar.Root class="h-8 w-8 shrink-0">
+								{#if member.image}
+									<Avatar.Image src="/api/uploads/{member.image}" alt="{member.firstName} {member.lastName}" />
+								{/if}
 								<Avatar.Fallback class="text-xs">
 									{getInitials(member.firstName, member.lastName)}
 								</Avatar.Fallback>

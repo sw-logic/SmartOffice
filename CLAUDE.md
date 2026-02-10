@@ -26,7 +26,7 @@ logging.
 - **UI**: shadcn-svelte + TailwindCSS + lucide-svelte
 - **Forms**: Superforms with Zod validation (full-page forms), fetch-based API calls (modals)
 - **Notifications**: svelte-sonner
-- **Markdown**: carta-md (editor) + DOMPurify (sanitization)
+- **Rich Text**: Edra (Tiptap-based WYSIWYG editor, shadcn variant) with `@tiptap/markdown` for markdown I/O
 
 ### Additional Libraries
 
@@ -54,6 +54,7 @@ src/
 ├── lib/
 │   ├── components/
 │   │   ├── ui/           # shadcn-svelte components (Button, Input, Select, etc.)
+│   │   ├── edra/         # Edra WYSIWYG editor (vendored Tiptap + shadcn wrapper)
 │   │   ├── layout/       # AppShell, Sidebar, Header
 │   │   └── shared/       # IncomeFormModal, ExpenseFormModal, NotesList, TaskCard,
 │   │                     # MarkdownEditor, MarkdownViewer, ColorInput, DurationInput,
@@ -88,8 +89,7 @@ src/
 │       ├── notes/        # POST, GET/PATCH/DELETE [id]
 │       └── tasks/        # POST, GET/PUT/DELETE [id], time-records, modal-data
 ├── styles/
-│   ├── app.scss          # Global styles
-│   └── _carta-markdown-editor.scss  # Markdown editor theme
+│   └── app.scss          # Global styles
 └── hooks.server.ts       # Auth middleware + permission pre-loading
 ```
 
@@ -452,15 +452,17 @@ Reference implementations:
 ## Shared Components
 
 ### MarkdownEditor (`src/lib/components/shared/MarkdownEditor.svelte`)
-- Built on `carta-md` (CartaEditor)
-- Sanitization via `DOMPurify.sanitize(html)`
-- Props: `value` (bindable), `placeholder`, `mode` ('tabs'|'split'|'auto'), `disableToolbar`, `class`
+- WYSIWYG editor built on Edra (Tiptap + shadcn-svelte)
+- Stores/loads content as markdown via `@tiptap/markdown` (`editor.getMarkdown()` / `setContent(md, { contentType: 'markdown' })`)
+- Toolbar with: bold, italic, underline, strike, headings, lists (including task lists/checkboxes), blockquote, code, link, table, undo/redo, font size, colors, alignment
+- Excluded toolbar groups: `media`, `math`
+- Props: `value` (bindable markdown string), `placeholder`, `class`
 
 ### MarkdownViewer (`src/lib/components/shared/MarkdownViewer.svelte`)
-- Built on `carta-md` (Markdown component)
-- Sanitization via `DOMPurify.sanitize(html)`
-- Props: `value`, `class`
-- Uses `{#key value}` wrapper for re-render on content change
+- Read-only Edra editor (`editable={false}`) for rendering markdown content
+- Loads content via `editor.commands.setContent(value, { contentType: 'markdown' })`
+- Syncs when `value` prop changes externally via `$effect`
+- Props: `value` (markdown string), `class`
 
 ### ColorInput (`src/lib/components/shared/ColorInput.svelte`)
 - Combined color picker + hex text input
@@ -623,4 +625,5 @@ Two patterns are used for CRUD operations:
 - [Prisma Docs](https://www.prisma.io/docs)
 - [shadcn-svelte](https://www.shadcn-svelte.com)
 - [Superforms](https://superforms.rocks)
-- [carta-md](https://github.com/BearToCode/carta)
+- [Edra (Tiptap editor for Svelte)](https://github.com/Tsuzat/Edra)
+- [Tiptap Markdown](https://tiptap.dev/docs/editor/markdown)

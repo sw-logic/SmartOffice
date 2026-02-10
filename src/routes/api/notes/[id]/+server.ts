@@ -68,7 +68,7 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 			color: true,
 			createdAt: true,
 			author: {
-				select: { id: true, name: true }
+				select: { id: true, name: true, image: true }
 			}
 		}
 	});

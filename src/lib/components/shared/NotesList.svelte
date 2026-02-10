@@ -15,7 +15,7 @@
 		priority: string;
 		color: string | null;
 		createdAt: string | Date;
-		author: { id: string; name: string };
+		author: { id: string; name: string; image?: string | null };
 	}
 
 	interface EnumOption {
@@ -139,6 +139,21 @@
 		}
 	}
 
+	async function handleContentChange(noteId: number, content: string) {
+		try {
+			const res = await fetch(`/api/notes/${noteId}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ content })
+			});
+			if (res.ok) {
+				notes = notes.map(n => n.id === noteId ? { ...n, content } : n);
+			}
+		} catch {
+			// silent — checkbox toggle is best-effort
+		}
+	}
+
 	function getInitials(name: string): string {
 		return name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
 	}
@@ -168,6 +183,9 @@
 					<div class="flex items-center justify-between">
 						<div class="flex items-center gap-2">
 							<Avatar.Root class="h-6 w-6">
+								{#if note.author.image}
+									<Avatar.Image src="/api/uploads/{note.author.image}" alt="{note.author.name}" />
+								{/if}
 								<Avatar.Fallback class="text-[10px]">{getInitials(note.author.name)}</Avatar.Fallback>
 							</Avatar.Root>
 							<span class="text-sm font-medium">{note.author.name}</span>
@@ -196,7 +214,7 @@
 						</div>
 					</div>
 					<div class="text-sm">
-						<MarkdownViewer value={note.content} />
+						<MarkdownViewer value={note.content} onchange={(md) => handleContentChange(note.id, md)} />
 					</div>
 				</div>
 			{/each}

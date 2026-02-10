@@ -86,6 +86,9 @@
 				<ArrowLeft class="h-4 w-4" />
 			</Button>
 			<Avatar.Root class="h-12 w-12">
+				{#if data.user.image}
+					<Avatar.Image src="/api/uploads/{data.user.image}" alt={getDisplayName(data.user)} />
+				{/if}
 				<Avatar.Fallback class="text-lg">{getInitials(data.user)}</Avatar.Fallback>
 			</Avatar.Root>
 			<div>

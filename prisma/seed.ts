@@ -516,10 +516,10 @@ async function main() {
 			group: 'Generic',
 			isSystem: true,
 			values: [
-				{ value: 'low', label: 'Low', sortOrder: 1, color: '#6B7280' },
+				{ value: 'low', label: 'Low', sortOrder: 1, color: '#646464' },
 				{ value: 'medium', label: 'Medium', sortOrder: 2, isDefault: true, color: '#3B82F6' },
-				{ value: 'high', label: 'High', sortOrder: 3, color: '#F97316' },
-				{ value: 'urgent', label: 'Urgent', sortOrder: 4, color: '#EF4444' }
+				{ value: 'high', label: 'High', sortOrder: 3, color: '#ff8800' },
+				{ value: 'urgent', label: 'Urgent', sortOrder: 4, color: '#FF2244' }
 			]
 		},
 		{
@@ -529,9 +529,9 @@ async function main() {
 			group: 'Generic',
 			isSystem: true,
 			values: [
-				{ value: 'active', label: 'Active', sortOrder: 1, isDefault: true, color: '#10B981' },
-				{ value: 'inactive', label: 'Inactive', sortOrder: 2, color: '#6B7280' },
-				{ value: 'archived', label: 'Archived', sortOrder: 3, color: '#8B5CF6' }
+				{ value: 'active', label: 'Active', sortOrder: 1, isDefault: true, color: '#11bb22' },
+				{ value: 'inactive', label: 'Inactive', sortOrder: 2, color: '#646464' },
+				{ value: 'archived', label: 'Archived', sortOrder: 3, color: '#646464' }
 			]
 		},
 		{
@@ -541,12 +541,19 @@ async function main() {
 			group: 'Finances',
 			isSystem: true,
 			values: [
-				{ value: 'project_payment', label: 'Project Payment', sortOrder: 1, isDefault: true },
-				{ value: 'consulting', label: 'Consulting', sortOrder: 2 },
-				{ value: 'product_sale', label: 'Product Sale', sortOrder: 3 },
-				{ value: 'subscription', label: 'Subscription', sortOrder: 4 },
-				{ value: 'maintenance', label: 'Maintenance', sortOrder: 5 },
-				{ value: 'license', label: 'License Fee', sortOrder: 6 },
+				{ value: 'accounting', label: 'Accounting', sortOrder: 1, isDefault: true },
+				{ value: 'design_dtp', label: 'Design & DTP', sortOrder: 2 },
+				{ value: 'design_thinking', label: 'Design Thinking', sortOrder: 33 },
+				{ value: 'development', label: 'Development', sortOrder: 4 },
+				{ value: 'hosting', label: 'Hosting', sortOrder: 5 },
+                { value: 'maintenance', label: 'Maintenance', sortOrder: 6 },
+                { value: 'online_marketing', label: 'Online Marketing', sortOrder: 7 },
+                { value: 'project_management', label: 'Project Management', sortOrder: 8 },
+                { value: 'seo', label: 'Search Engine Optimization', sortOrder: 9 },
+                { value: 'subscription', label: 'Subscription', sortOrder: 10 },
+                { value: 'support', label: 'Support', sortOrder: 10 },
+                { value: 'user_experience', label: 'User Experience', sortOrder: 11 },
+				{ value: 'wordpress', label: 'WordPress', sortOrder: 12 },
 				{ value: 'other', label: 'Other', sortOrder: 99 }
 			]
 		},
@@ -557,11 +564,11 @@ async function main() {
 			group: 'Finances',
 			isSystem: true,
 			values: [
-				{ value: 'projected', label: 'Projected', sortOrder: 0, color: '#8B5CF6' },
-				{ value: 'pending', label: 'Pending', sortOrder: 1, isDefault: true, color: '#F59E0B' },
-				{ value: 'paid', label: 'Paid', sortOrder: 2, color: '#10B981' },
-				{ value: 'late', label: 'Late', sortOrder: 3, color: '#EF4444' },
-				{ value: 'suspended', label: 'Suspended', sortOrder: 4, color: '#6B7280' }
+				{ value: 'projected', label: 'Projected', sortOrder: 0, color: '#646464' },
+				{ value: 'pending', label: 'Pending', sortOrder: 1, isDefault: true, color: '#0077ff' },
+				{ value: 'paid', label: 'Paid', sortOrder: 2, color: '#11bb22' },
+				{ value: 'late', label: 'Late', sortOrder: 3, color: '#ff8800' },
+				{ value: 'canceled', label: 'Canceled', sortOrder: 4, color: '#FF2244' }
 			]
 		},
 		{
@@ -571,17 +578,20 @@ async function main() {
 			group: 'Finances',
 			isSystem: true,
 			values: [
-				{ value: 'salary', label: 'Salary', sortOrder: 1, isDefault: true },
-				{ value: 'software', label: 'Software', sortOrder: 2 },
-				{ value: 'office', label: 'Office', sortOrder: 3 },
-				{ value: 'marketing', label: 'Marketing', sortOrder: 4 },
-				{ value: 'travel', label: 'Travel', sortOrder: 5 },
-				{ value: 'equipment', label: 'Equipment', sortOrder: 6 },
-				{ value: 'contractor', label: 'Contractor', sortOrder: 7 },
-				{ value: 'utilities', label: 'Utilities', sortOrder: 8 },
-				{ value: 'insurance', label: 'Insurance', sortOrder: 9 },
-				{ value: 'rent', label: 'Rent', sortOrder: 10 },
-				{ value: 'other', label: 'Other', sortOrder: 99 }
+                { value: 'ai', label: 'AI Solutions', sortOrder: 1, isDefault: true },
+                { value: 'car', label: 'Car Fleet', sortOrder: 2 },
+                { value: 'equipment', label: 'Equipment', sortOrder: 3 },
+                { value: 'insurance', label: 'Insurance', sortOrder: 4 },
+                { value: 'investment', label: 'Investment', sortOrder: 5 },
+                { value: 'hosting', label: 'Hosting', sortOrder: 6 },
+                { value: 'marketing', label: 'Marketing', sortOrder: 7 },
+                { value: 'outsourcing', label: 'Outsourcing', sortOrder: 8 },
+                { value: 'rent', label: 'Rent', sortOrder: 9 },
+                { value: 'software', label: 'Software', sortOrder: 10 },
+                { value: 'telecom', label: 'Telecommunication', sortOrder: 11 },
+                { value: 'travel', label: 'Travel', sortOrder: 12 },
+                { value: 'vendor', label: 'Vendor Payment', sortOrder: 13 },
+                { value: 'other', label: 'Other', sortOrder: 99 }
 			]
 		},
 		{
@@ -591,11 +601,11 @@ async function main() {
 			group: 'Finances',
 			isSystem: true,
 			values: [
-				{ value: 'projected', label: 'Projected', sortOrder: 0, color: '#8B5CF6' },
-				{ value: 'pending', label: 'Pending', sortOrder: 1, isDefault: true, color: '#F59E0B' },
-				{ value: 'paid', label: 'Paid', sortOrder: 2, color: '#10B981' },
-				{ value: 'late', label: 'Late', sortOrder: 3, color: '#EF4444' },
-				{ value: 'suspended', label: 'Suspended', sortOrder: 4, color: '#6B7280' }
+                { value: 'projected', label: 'Projected', sortOrder: 0, color: '#646464' },
+                { value: 'pending', label: 'Pending', sortOrder: 1, isDefault: true, color: '#0077ff' },
+                { value: 'paid', label: 'Paid', sortOrder: 2, color: '#11bb22' },
+                { value: 'late', label: 'Late', sortOrder: 3, color: '#ff8800' },
+                { value: 'canceled', label: 'Canceled', sortOrder: 4, color: '#FF2244' }
 			]
 		},
 		{
@@ -608,9 +618,6 @@ async function main() {
 				{ value: 'bank_transfer', label: 'Bank Transfer', sortOrder: 1, isDefault: true },
 				{ value: 'cash', label: 'Cash', sortOrder: 2 },
 				{ value: 'credit_card', label: 'Credit Card', sortOrder: 3 },
-				{ value: 'check', label: 'Check', sortOrder: 4 },
-				{ value: 'paypal', label: 'PayPal', sortOrder: 5 },
-				{ value: 'stripe', label: 'Stripe', sortOrder: 6 },
 				{ value: 'other', label: 'Other', sortOrder: 99 }
 			]
 		},
@@ -621,10 +628,10 @@ async function main() {
 			group: 'Finances',
 			isSystem: true,
 			values: [
-				{ value: 'pending', label: 'Pending', sortOrder: 1, isDefault: true, color: '#F59E0B' },
-				{ value: 'completed', label: 'Completed', sortOrder: 2, color: '#10B981' },
-				{ value: 'failed', label: 'Failed', sortOrder: 3, color: '#EF4444' },
-				{ value: 'cancelled', label: 'Cancelled', sortOrder: 4, color: '#6B7280' }
+				{ value: 'pending', label: 'Pending', sortOrder: 1, isDefault: true, color: '#0077ff' },
+				{ value: 'completed', label: 'Completed', sortOrder: 2, color: '#11bb22' },
+				{ value: 'failed', label: 'Failed', sortOrder: 3, color: '#FF2244' },
+				{ value: 'cancelled', label: 'Cancelled', sortOrder: 4, color: '#646464' }
 			]
 		},
 		{
@@ -634,9 +641,9 @@ async function main() {
 			group: 'Finances',
 			isSystem: true,
 			values: [
-				{ value: '7', label: '7 Days', sortOrder: 1 },
+				{ value: '7', label: '7 Days', sortOrder: 1, isDefault: true },
 				{ value: '14', label: '14 Days', sortOrder: 2 },
-				{ value: '30', label: '30 Days', sortOrder: 3, isDefault: true }
+				{ value: '30', label: '30 Days', sortOrder: 3 }
 			]
 		},
 		{
@@ -660,18 +667,20 @@ async function main() {
 			group: 'Clients',
 			isSystem: false,
 			values: [
-				{ value: 'technology', label: 'Technology', sortOrder: 1, isDefault: true },
-				{ value: 'finance', label: 'Finance', sortOrder: 2 },
-				{ value: 'healthcare', label: 'Healthcare', sortOrder: 3 },
-				{ value: 'retail', label: 'Retail', sortOrder: 4 },
-				{ value: 'manufacturing', label: 'Manufacturing', sortOrder: 5 },
-				{ value: 'education', label: 'Education', sortOrder: 6 },
-				{ value: 'real_estate', label: 'Real Estate', sortOrder: 7 },
-				{ value: 'hospitality', label: 'Hospitality', sortOrder: 8 },
-				{ value: 'consulting', label: 'Consulting', sortOrder: 9 },
-				{ value: 'media', label: 'Media & Entertainment', sortOrder: 10 },
-				{ value: 'nonprofit', label: 'Non-Profit', sortOrder: 11 },
-				{ value: 'government', label: 'Government', sortOrder: 12 },
+                { value: 'communication', label: 'Communication', sortOrder: 1, isDefault: true },
+                { value: 'consulting', label: 'Consulting', sortOrder: 2 },
+                { value: 'education', label: 'Education', sortOrder: 3 },
+                { value: 'finance', label: 'Finance', sortOrder: 4 },
+                { value: 'government', label: 'Government', sortOrder: 5 },
+                { value: 'healthcare', label: 'Healthcare', sortOrder: 6 },
+                { value: 'hospitality', label: 'Hospitality', sortOrder: 7 },
+                { value: 'manufacturing', label: 'Manufacturing', sortOrder: 8 },
+                { value: 'media', label: 'Media & Entertainment', sortOrder: 9 },
+                { value: 'nonprofit', label: 'Non-Profit', sortOrder: 10 },
+                { value: 'retail', label: 'Retail', sortOrder: 11 },
+                { value: 'real_estate', label: 'Real Estate', sortOrder: 12 },
+                { value: 'technology', label: 'Technology', sortOrder: 13 },
+                { value: 'telecommunication', label: 'Telecommunication', sortOrder: 14 },
 				{ value: 'other', label: 'Other', sortOrder: 99 }
 			]
 		},
@@ -698,17 +707,15 @@ async function main() {
 			group: 'Employees',
 			isSystem: false,
 			values: [
-				{ value: 'engineering', label: 'Engineering', sortOrder: 1, isDefault: true },
-				{ value: 'sales', label: 'Sales', sortOrder: 2 },
-				{ value: 'marketing', label: 'Marketing', sortOrder: 3 },
-				{ value: 'finance', label: 'Finance', sortOrder: 4 },
-				{ value: 'hr', label: 'Human Resources', sortOrder: 5 },
-				{ value: 'operations', label: 'Operations', sortOrder: 6 },
-				{ value: 'support', label: 'Support', sortOrder: 7 },
-				{ value: 'design', label: 'Design', sortOrder: 8 },
-				{ value: 'management', label: 'Management', sortOrder: 9 },
-				{ value: 'legal', label: 'Legal', sortOrder: 10 },
-				{ value: 'other', label: 'Other', sortOrder: 99 }
+				{ value: 'design', label: 'Design', sortOrder: 1, isDefault: true },
+                { value: 'development', label: 'Development', sortOrder: 2 },
+                { value: 'finance', label: 'Finance', sortOrder: 3 },
+                { value: 'management', label: 'Management', sortOrder: 4 },
+                { value: 'online_marketing', label: 'Online Marketing', sortOrder: 5 },
+                { value: 'seo', label: 'Search Engine Optimization', sortOrder: 6 },
+                { value: 'support', label: 'Support', sortOrder: 7 },
+                { value: 'wp_site_build', label: 'WordPress & Site-build', sortOrder: 8 },
+                { value: 'other', label: 'Other', sortOrder: 99 }
 			]
 		},
 		{
@@ -718,10 +725,10 @@ async function main() {
 			group: 'Employees',
 			isSystem: true,
 			values: [
-				{ value: 'full-time', label: 'Full-time', sortOrder: 1, isDefault: true, color: '#10B981' },
-				{ value: 'part-time', label: 'Part-time', sortOrder: 2, color: '#3B82F6' },
-				{ value: 'contractor', label: 'Contractor', sortOrder: 3, color: '#F59E0B' },
-				{ value: 'intern', label: 'Intern', sortOrder: 4, color: '#8B5CF6' },
+				{ value: 'full-time', label: 'Full-time', sortOrder: 1, isDefault: true, color: '#11BB22' },
+				{ value: 'part-time', label: 'Part-time', sortOrder: 2, color: '#0077ff' },
+                { value: 'intern', label: 'Intern', sortOrder: 4, color: '#8B5CF6' },
+                { value: 'contractor', label: 'Contractor', sortOrder: 3, color: '#ff8800' },
 				{ value: 'temporary', label: 'Temporary', sortOrder: 5, color: '#6B7280' }
 			]
 		},
@@ -732,10 +739,10 @@ async function main() {
 			group: 'Employees',
 			isSystem: true,
 			values: [
-				{ value: 'active', label: 'Active', sortOrder: 1, isDefault: true, color: '#10B981' },
-				{ value: 'on_leave', label: 'On Leave', sortOrder: 2, color: '#F59E0B' },
-				{ value: 'terminated', label: 'Terminated', sortOrder: 3, color: '#EF4444' },
-				{ value: 'retired', label: 'Retired', sortOrder: 4, color: '#6B7280' }
+				{ value: 'active', label: 'Active', sortOrder: 1, isDefault: true, color: '#11BB22' },
+				{ value: 'on_leave', label: 'On Leave', sortOrder: 2, color: '#FF8800' },
+				{ value: 'terminated', label: 'Terminated', sortOrder: 3, color: '#FF2244' },
+				{ value: 'retired', label: 'Retired', sortOrder: 4, color: '#646464' }
 			]
 		},
 		{
@@ -746,11 +753,11 @@ async function main() {
 			isSystem: true,
 			values: [
 				{ value: 'planning', label: 'Planning', sortOrder: 1, isDefault: true, color: '#8B5CF6' },
-				{ value: 'active', label: 'Active', sortOrder: 2, color: '#10B981' },
-				{ value: 'on_hold', label: 'On Hold', sortOrder: 3, color: '#F59E0B' },
-				{ value: 'completed', label: 'Completed', sortOrder: 4, color: '#3B82F6' },
-				{ value: 'cancelled', label: 'Cancelled', sortOrder: 5, color: '#EF4444' },
-				{ value: 'archived', label: 'Archived', sortOrder: 6, color: '#6B7280' }
+				{ value: 'active', label: 'Active', sortOrder: 2, color: '#11BB22' },
+				{ value: 'on_hold', label: 'On Hold', sortOrder: 3, color: '#FF8800' },
+				{ value: 'completed', label: 'Completed', sortOrder: 4, color: '#0077ff' },
+				{ value: 'cancelled', label: 'Cancelled', sortOrder: 5, color: '#FF2244' },
+				{ value: 'archived', label: 'Archived', sortOrder: 6, color: '#646464' }
 			]
 		},
 		{
@@ -760,12 +767,12 @@ async function main() {
 			group: 'Projects',
 			isSystem: true,
 			values: [
-				{ value: 'backlog', label: 'Backlog', sortOrder: 1, color: '#6B7280' },
-				{ value: 'todo', label: 'To Do', sortOrder: 2, isDefault: true, color: '#8B5CF6' },
-				{ value: 'in_progress', label: 'In Progress', sortOrder: 3, color: '#3B82F6' },
-				{ value: 'review', label: 'Review', sortOrder: 4, color: '#F59E0B' },
-				{ value: 'client_review', label: 'Client Review', sortOrder: 5, color: '#F97316' },
-				{ value: 'done', label: 'Done', sortOrder: 6, color: '#10B981' }
+				{ value: 'backlog', label: 'Backlog', sortOrder: 1, color: '#646464' },
+				{ value: 'todo', label: 'To Do', sortOrder: 2, isDefault: true, color: '#FF9900' },
+				{ value: 'in_progress', label: 'In Progress', sortOrder: 3, color: '#11BB22' },
+				{ value: 'review', label: 'Review', sortOrder: 4, color: '#0077ff' },
+				{ value: 'client_review', label: 'Client Review', sortOrder: 5, color: '#0077ff' },
+				{ value: 'done', label: 'Done', sortOrder: 6, color: '#002255' }
 			]
 		},
 		{
@@ -776,10 +783,10 @@ async function main() {
 			isSystem: true,
 			values: [
 				{ value: 'draft', label: 'Draft', sortOrder: 1, isDefault: true, color: '#6B7280' },
-				{ value: 'sent', label: 'Sent', sortOrder: 2, color: '#3B82F6' },
-				{ value: 'accepted', label: 'Accepted', sortOrder: 3, color: '#10B981' },
-				{ value: 'rejected', label: 'Rejected', sortOrder: 4, color: '#EF4444' },
-				{ value: 'expired', label: 'Expired', sortOrder: 5, color: '#F59E0B' }
+				{ value: 'sent', label: 'Sent', sortOrder: 2, color: '#0077ff' },
+				{ value: 'accepted', label: 'Accepted', sortOrder: 3, color: '#11BB22' },
+				{ value: 'rejected', label: 'Rejected', sortOrder: 4, color: '#FF8800' },
+				{ value: 'expired', label: 'Expired', sortOrder: 5, color: '#FF2244' }
 			]
 		},
 		{
@@ -806,17 +813,19 @@ async function main() {
 			group: 'Price Lists',
 			isSystem: false,
 			values: [
-				{ value: 'hourly_rate', label: 'Hourly Rate', sortOrder: 1, isDefault: true },
-				{ value: 'consulting', label: 'Consulting', sortOrder: 2 },
-				{ value: 'design', label: 'Design', sortOrder: 3 },
-				{ value: 'development', label: 'Development', sortOrder: 4 },
-				{ value: 'hosting', label: 'Hosting', sortOrder: 5 },
-				{ value: 'marketing', label: 'Marketing', sortOrder: 6 },
-				{ value: 'planning', label: 'Planning', sortOrder: 7 },
-				{ value: 'project_management', label: 'Project Management', sortOrder: 8 },
-				{ value: 'seo', label: 'SEO', sortOrder: 9 },
-				{ value: 'support', label: 'Support', sortOrder: 10 },
-				{ value: 'training', label: 'Training', sortOrder: 11 },
+                { value: 'hourly_rate', label: 'Hourly Rate', sortOrder: 1, isDefault: true },
+                { value: 'accounting', label: 'Accounting', sortOrder: 2 },
+                { value: 'content', label: 'Content Creation', sortOrder: 3 },
+                { value: 'design', label: 'Design', sortOrder: 4 },
+                { value: 'development', label: 'Development', sortOrder: 5 },
+                { value: 'hosting', label: 'Hosting', sortOrder: 6 },
+				{ value: 'marketing', label: 'Online Marketing', sortOrder: 7 },
+				{ value: 'multimedia', label: 'Multimedia', sortOrder: 8 },
+				{ value: 'planning', label: 'Planning', sortOrder: 9 },
+				{ value: 'project_management', label: 'Project Management', sortOrder: 10 },
+				{ value: 'seo', label: 'SEO', sortOrder: 11 },
+				{ value: 'support', label: 'Support', sortOrder: 12 },
+				{ value: 'ux', label: 'User Experience', sortOrder: 13 },
 				{ value: 'other', label: 'Other', sortOrder: 99 }
 			]
 		},
@@ -828,12 +837,14 @@ async function main() {
 			isSystem: false,
 			values: [
 				{ value: 'bug', label: 'Bug', sortOrder: 1, color: '#EF4444' },
-				{ value: 'feature', label: 'Feature', sortOrder: 2, isDefault: true, color: '#10B981' },
-				{ value: 'task', label: 'Task', sortOrder: 3, color: '#3B82F6' },
-				{ value: 'improvement', label: 'Improvement', sortOrder: 4, color: '#F59E0B' },
-				{ value: 'research', label: 'Research', sortOrder: 5, color: '#8B5CF6' },
-				{ value: 'documentation', label: 'Documentation', sortOrder: 6, color: '#6B7280' }
-			]
+                { value: 'documentation', label: 'Documentation', sortOrder: 6, color: '#6B7280' },
+                { value: 'feature', label: 'Feature', sortOrder: 2, isDefault: true, color: '#10B981' },
+                { value: 'improvement', label: 'Improvement', sortOrder: 4, color: '#F59E0B' },
+                { value: 'meeting', label: 'Meeting', sortOrder: 4, color: '#F59E0B' },
+                { value: 'research', label: 'Research', sortOrder: 5, color: '#8B5CF6' },
+                { value: 'Support', label: 'Support', sortOrder: 5, color: '#8B5CF6' },
+                { value: 'task', label: 'Task', sortOrder: 3, color: '#3B82F6' }
+            ]
 		},
 		{
 			code: 'task_category',
@@ -842,11 +853,19 @@ async function main() {
 			group: 'Projects',
 			isSystem: false,
 			values: [
-				{ value: 'frontend', label: 'Frontend', sortOrder: 1 },
-				{ value: 'backend', label: 'Backend', sortOrder: 2, isDefault: true },
-				{ value: 'design', label: 'Design', sortOrder: 3 },
-				{ value: 'testing', label: 'Testing', sortOrder: 4 },
-				{ value: 'devops', label: 'DevOps', sortOrder: 5 },
+                { value: 'accounting', label: 'Accounting', sortOrder: 1, isDefault: true },
+                { value: 'content', label: 'Content Creation', sortOrder: 2 },
+                { value: 'design', label: 'Design', sortOrder: 3 },
+                { value: 'development', label: 'Development', sortOrder: 4 },
+                { value: 'hosting', label: 'Hosting', sortOrder: 5 },
+                { value: 'marketing', label: 'Online Marketing', sortOrder: 6 },
+                { value: 'multimedia', label: 'Multimedia', sortOrder: 7 },
+                { value: 'planning', label: 'Planning', sortOrder: 8 },
+                { value: 'project_management', label: 'Project Management', sortOrder: 9 },
+                { value: 'seo', label: 'SEO', sortOrder: 10 },
+                { value: 'support', label: 'Support', sortOrder: 11 },
+                { value: 'testing', label: 'Testing', sortOrder: 11 },
+                { value: 'ux', label: 'User Experience', sortOrder: 12 },
 				{ value: 'other', label: 'Other', sortOrder: 99 }
 			]
 		},
@@ -857,14 +876,20 @@ async function main() {
 			group: 'Projects',
 			isSystem: false,
 			values: [
-				{ value: 'development', label: 'Development', sortOrder: 1, isDefault: true },
-				{ value: 'design', label: 'Design', sortOrder: 2 },
-				{ value: 'meeting', label: 'Meeting', sortOrder: 3 },
-				{ value: 'review', label: 'Review', sortOrder: 4 },
-				{ value: 'testing', label: 'Testing', sortOrder: 5 },
-				{ value: 'documentation', label: 'Documentation', sortOrder: 6 },
-				{ value: 'support', label: 'Support', sortOrder: 7 },
-				{ value: 'other', label: 'Other', sortOrder: 99 }
+                { value: 'accounting', label: 'Accounting', sortOrder: 1, isDefault: true },
+                { value: 'content', label: 'Content Creation', sortOrder: 2 },
+                { value: 'design', label: 'Design', sortOrder: 3 },
+                { value: 'development', label: 'Development', sortOrder: 4 },
+                { value: 'hosting', label: 'Hosting', sortOrder: 5 },
+                { value: 'marketing', label: 'Online Marketing', sortOrder: 6 },
+                { value: 'multimedia', label: 'Multimedia', sortOrder: 7 },
+                { value: 'planning', label: 'Planning', sortOrder: 8 },
+                { value: 'project_management', label: 'Project Management', sortOrder: 9 },
+                { value: 'seo', label: 'SEO', sortOrder: 10 },
+                { value: 'support', label: 'Support', sortOrder: 11 },
+                { value: 'testing', label: 'Testing', sortOrder: 11 },
+                { value: 'ux', label: 'User Experience', sortOrder: 12 },
+                { value: 'other', label: 'Other', sortOrder: 99 }
 			]
 		},
 		{
@@ -874,10 +899,9 @@ async function main() {
 			group: 'Projects',
 			isSystem: false,
 			values: [
-				{ value: 'billable', label: 'Billable', sortOrder: 1, isDefault: true },
-				{ value: 'non_billable', label: 'Non-billable', sortOrder: 2 },
-				{ value: 'overtime', label: 'Overtime', sortOrder: 3 },
-				{ value: 'internal', label: 'Internal', sortOrder: 4 }
+				{ value: 'normal', label: 'Normal', sortOrder: 1, isDefault: true },
+				{ value: 'overtime', label: 'Overtime', sortOrder: 2 },
+				{ value: 'internal', label: 'Internal', sortOrder: 3 }
 			]
 		},
 		{
@@ -888,9 +912,9 @@ async function main() {
 			isSystem: true,
 			values: [
 				{ value: 'low', label: 'Low', sortOrder: 1, color: '#6B7280' },
-				{ value: 'normal', label: 'Normal', sortOrder: 2, isDefault: true, color: '#3B82F6' },
-				{ value: 'high', label: 'High', sortOrder: 3, color: '#F97316' },
-				{ value: 'urgent', label: 'Urgent', sortOrder: 4, color: '#EF4444' }
+				{ value: 'normal', label: 'Normal', sortOrder: 2, isDefault: true, color: '#11BB22' },
+				{ value: 'high', label: 'High', sortOrder: 3, color: '#FF8800' },
+				{ value: 'urgent', label: 'Urgent', sortOrder: 4, color: '#FF2244' }
 			]
 		},
 		{

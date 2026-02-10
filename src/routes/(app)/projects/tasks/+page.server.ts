@@ -115,7 +115,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 					select: { id: true, name: true }
 				},
 				assignedTo: {
-					select: { id: true, firstName: true, lastName: true }
+					select: { id: true, firstName: true, lastName: true, image: true }
 				},
 				_count: {
 					select: { timeRecords: true }
@@ -133,6 +133,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				name: true,
 				clientId: true,
 				client: { select: { id: true, name: true } },
+				assignedEmployees: {
+					select: { userId: true }
+				},
 				kanbanBoards: {
 					select: {
 						id: true,
@@ -144,6 +147,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 						swimlanes: {
 							orderBy: { order: 'asc' },
 							select: { id: true, name: true }
+						},
+						members: {
+							select: { userId: true }
 						}
 					}
 				}
@@ -160,7 +166,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		}),
 		prisma.user.findMany({
 			where: { employeeStatus: 'active' },
-			select: { id: true, firstName: true, lastName: true },
+			select: { id: true, firstName: true, lastName: true, image: true },
 			orderBy: { firstName: 'asc' }
 		})
 	]);
@@ -177,10 +183,30 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		}
 	});
 
+	// Load tags for all fetched tasks
+	const taskIds = tasks.map(t => t.id);
+	const entityTags = taskIds.length > 0
+		? await prisma.entityTag.findMany({
+			where: { entityType: 'Task', entityId: { in: taskIds.map(String) } },
+			select: {
+				entityId: true,
+				enumValue: { select: { label: true, color: true } }
+			}
+		})
+		: [];
+
+	const tagsByTaskId = new Map<number, Array<{ label: string; color: string | null }>>();
+	for (const et of entityTags) {
+		const tid = parseInt(et.entityId);
+		if (!tagsByTaskId.has(tid)) tagsByTaskId.set(tid, []);
+		tagsByTaskId.get(tid)!.push({ label: et.enumValue.label, color: et.enumValue.color });
+	}
+
 	return {
 		tasks: tasks.map(task => ({
 			...task,
-			timeRecordCount: task._count.timeRecords
+			timeRecordCount: task._count.timeRecords,
+			tags: tagsByTaskId.get(task.id) || []
 		})),
 		pagination: {
 			page,

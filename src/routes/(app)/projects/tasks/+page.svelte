@@ -591,6 +591,16 @@
 												{data.enums.task_type.find(t => t.value === task.type)?.label || task.type}
 											</span>
 										{/if}
+										{#if task.tags?.length}
+											<div class="flex flex-wrap gap-1 mt-0.5">
+												{#each task.tags as tag}
+													<span
+														class="text-[10px] leading-tight px-1 py-0 rounded border font-medium"
+														style={tag.color ? `border-color: ${tag.color}; color: ${tag.color}` : ''}
+													>{tag.label}</span>
+												{/each}
+											</div>
+										{/if}
 									</div>
 								</Table.Cell>
 								<Table.Cell class="text-sm">{task.project.name}</Table.Cell>
@@ -605,6 +615,9 @@
 									{#if task.assignedTo}
 										<div class="flex items-center gap-1.5">
 											<Avatar.Root class="h-6 w-6">
+												{#if task.assignedTo.image}
+													<Avatar.Image src="/api/uploads/{task.assignedTo.image}" alt="{task.assignedTo.firstName} {task.assignedTo.lastName}" />
+												{/if}
 												<Avatar.Fallback class="text-[9px]">
 													{getInitials(task.assignedTo.firstName ?? '', task.assignedTo.lastName ?? '')}
 												</Avatar.Fallback>

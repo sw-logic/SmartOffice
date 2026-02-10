@@ -18,6 +18,9 @@ export const GET: RequestHandler = async ({ locals }) => {
 				id: true,
 				name: true,
 				client: { select: { id: true, name: true } },
+				assignedEmployees: {
+					select: { userId: true }
+				},
 				kanbanBoards: {
 					select: {
 						id: true,
@@ -29,6 +32,9 @@ export const GET: RequestHandler = async ({ locals }) => {
 						swimlanes: {
 							orderBy: { order: 'asc' },
 							select: { id: true, name: true }
+						},
+						members: {
+							select: { userId: true }
 						}
 					}
 				}
@@ -37,7 +43,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 		}),
 		prisma.user.findMany({
 			where: { employeeStatus: 'active' },
-			select: { id: true, firstName: true, lastName: true },
+			select: { id: true, firstName: true, lastName: true, image: true },
 			orderBy: { firstName: 'asc' }
 		}),
 		prisma.enumType.findUnique({

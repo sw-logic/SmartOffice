@@ -195,13 +195,14 @@ const authorizationHandle: Handle = async ({ event, resolve }) => {
 		// Load user's companyId from DB (cached via session validation above)
 		const user = await prisma.user.findUnique({
 			where: { id: userId },
-			select: { companyId: true }
+			select: { companyId: true, image: true }
 		});
 
 		event.locals.user = {
 			id: userId,
 			email: session.user.email as string,
 			name: session.user.name as string,
+			image: user?.image ?? null,
 			companyId: user?.companyId ?? undefined
 		};
 

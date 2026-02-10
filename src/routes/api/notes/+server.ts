@@ -44,7 +44,7 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 			color: true,
 			createdAt: true,
 			author: {
-				select: { id: true, name: true }
+				select: { id: true, name: true, image: true }
 			}
 		}
 	});
@@ -85,7 +85,7 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 			color: true,
 			createdAt: true,
 			author: {
-				select: { id: true, name: true }
+				select: { id: true, name: true, image: true }
 			}
 		}
 	});

@@ -7,7 +7,8 @@
 	import { Textarea } from '$lib/components/ui/textarea';
 	import * as Card from '$lib/components/ui/card';
 	import * as Select from '$lib/components/ui/select';
-	import { ArrowLeft } from 'lucide-svelte';
+	import * as Avatar from '$lib/components/ui/avatar';
+	import { ArrowLeft, Camera } from 'lucide-svelte';
 
 	let { data, form } = $props();
 
@@ -39,6 +40,47 @@
 		selectedGroups = newSet;
 	}
 
+	// Avatar state
+	let avatarFile = $state<File | null>(null);
+	let avatarPreview = $state<string | null>(null);
+	let removeAvatar = $state(false);
+	let fileInputEl: HTMLInputElement | undefined = $state();
+
+	let displayedAvatarUrl = $derived.by(() => {
+		if (removeAvatar) return null;
+		if (avatarPreview) return avatarPreview;
+		if (data.user.image) return `/api/uploads/${data.user.image}`;
+		return null;
+	});
+
+	let initials = $derived(
+		`${(data.user.firstName || data.user.name || '').charAt(0)}${(data.user.lastName || '').charAt(0)}`.toUpperCase()
+	);
+
+	function handleAvatarSelect(e: Event) {
+		const input = e.target as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+
+		const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/aiff'];
+		if (!allowed.includes(file.type)) return;
+		if (file.size > 2 * 1024 * 1024) return;
+
+		avatarFile = file;
+		removeAvatar = false;
+		avatarPreview = URL.createObjectURL(file);
+	}
+
+	function handleRemoveAvatar() {
+		avatarFile = null;
+		if (avatarPreview) {
+			URL.revokeObjectURL(avatarPreview);
+			avatarPreview = null;
+		}
+		removeAvatar = true;
+		if (fileInputEl) fileInputEl.value = '';
+	}
+
 	function v(field: string): string {
 		return (form?.values as Record<string, string> | undefined)?.[field] ?? String((data.user as unknown as Record<string, unknown>)[field] ?? '');
 	}
@@ -57,6 +99,7 @@
 
 	<form
 		method="POST"
+		enctype="multipart/form-data"
 		use:enhance={() => {
 			isSubmitting = true;
 			return async ({ update }) => {
@@ -81,6 +124,46 @@
 						<Card.Description>Login credentials</Card.Description>
 					</Card.Header>
 					<Card.Content class="space-y-4">
+						<!-- Avatar Upload -->
+						<div class="flex flex-col items-center gap-2">
+							<button
+								type="button"
+								class="relative group cursor-pointer"
+								onclick={() => fileInputEl?.click()}
+							>
+								<Avatar.Root class="h-20 w-20">
+									{#if displayedAvatarUrl}
+										<Avatar.Image src={displayedAvatarUrl} alt="User avatar" />
+									{/if}
+									<Avatar.Fallback class="text-lg">{initials || '?'}</Avatar.Fallback>
+								</Avatar.Root>
+								<div class="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+									<Camera class="h-6 w-6 text-white" />
+								</div>
+							</button>
+							<input
+								bind:this={fileInputEl}
+								type="file"
+								name="avatar"
+								accept=".jpg,.jpeg,.png,.webp,.aiff"
+								class="hidden"
+								onchange={handleAvatarSelect}
+							/>
+							{#if removeAvatar}
+								<input type="hidden" name="removeAvatar" value="true" />
+							{/if}
+							{#if displayedAvatarUrl}
+								<button
+									type="button"
+									class="text-xs text-muted-foreground hover:text-destructive cursor-pointer"
+									onclick={handleRemoveAvatar}
+								>
+									Remove photo
+								</button>
+							{/if}
+							<p class="text-xs text-muted-foreground">JPG, PNG, WebP or AIFF. Max 2MB.</p>
+						</div>
+
 						<div class="grid grid-cols-2 gap-4">
 							<div class="space-y-2">
 								<Label for="name">Display Name *</Label>

@@ -18,7 +18,7 @@ function resolveSecurePath(relativePath: string): string {
 }
 
 const ALLOWED_MIME_TYPES: Record<string, string[]> = {
-	image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+	image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/aiff'],
 	document: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
 	spreadsheet: ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv']
 };
@@ -164,6 +164,7 @@ function getExtensionFromMime(mimeType: string): string {
 		'image/png': '.png',
 		'image/gif': '.gif',
 		'image/webp': '.webp',
+		'image/aiff': '.aiff',
 		'application/pdf': '.pdf',
 		'application/msword': '.doc',
 		'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
@@ -185,6 +186,7 @@ export function getContentType(filename: string): string {
 		'.png': 'image/png',
 		'.gif': 'image/gif',
 		'.webp': 'image/webp',
+		'.aiff': 'image/aiff',
 		'.pdf': 'application/pdf',
 		'.doc': 'application/msword',
 		'.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -201,4 +203,15 @@ export function getContentType(filename: string): string {
  */
 export function isValidImage(mimeType: string): boolean {
 	return ALLOWED_MIME_TYPES.image.includes(mimeType);
+}
+
+// Avatar-specific upload
+export const AVATAR_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/aiff'];
+export const AVATAR_MAX_SIZE = 2 * 1024 * 1024; // 2MB
+
+export async function saveAvatar(file: File): Promise<UploadResult> {
+	if (file.size > AVATAR_MAX_SIZE) {
+		return { success: false, error: 'Avatar file too large. Maximum size is 2MB' };
+	}
+	return saveFile(file, 'avatars', AVATAR_ALLOWED_TYPES);
 }

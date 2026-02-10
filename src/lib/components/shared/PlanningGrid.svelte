@@ -29,6 +29,7 @@
 		id: number;
 		firstName: string | null;
 		lastName: string | null;
+		image?: string | null;
 	}
 
 	interface Props {
@@ -167,6 +168,9 @@
 			<!-- Person label -->
 			<div class="sticky left-0 z-10 bg-background border-b border-r p-2 flex items-center gap-2">
 				<Avatar.Root class="h-6 w-6 shrink-0">
+					{#if employee.image}
+						<Avatar.Image src="/api/uploads/{employee.image}" alt="{employee.firstName} {employee.lastName}" />
+					{/if}
 					<Avatar.Fallback class="text-[10px]">
 						{getInitials(employee.firstName, employee.lastName)}
 					</Avatar.Fallback>

@@ -69,7 +69,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 						select: {
 							id: true,
 							firstName: true,
-							lastName: true
+							lastName: true,
+							image: true
 						}
 					}
 				}
@@ -85,6 +86,26 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	if (!board) {
 		throw error(404, 'Board not found');
+	}
+
+	// Load tags for all tasks on this board
+	const taskIds = board.tasks.map(t => t.id);
+	const entityTags = taskIds.length > 0
+		? await prisma.entityTag.findMany({
+			where: { entityType: 'Task', entityId: { in: taskIds.map(String) } },
+			select: {
+				entityId: true,
+				enumValue: { select: { label: true, color: true } }
+			}
+		})
+		: [];
+
+	// Build a map of taskId -> tags
+	const tagsByTaskId = new Map<number, Array<{ label: string; color: string | null }>>();
+	for (const et of entityTags) {
+		const tid = parseInt(et.entityId);
+		if (!tagsByTaskId.has(tid)) tagsByTaskId.set(tid, []);
+		tagsByTaskId.get(tid)!.push({ label: et.enumValue.label, color: et.enumValue.color });
 	}
 
 	// Load all clients that have projects with boards (for nav dropdown)
@@ -138,7 +159,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			clientName: board.project.client.name,
 			columns: board.columns,
 			swimlanes: board.swimlanes,
-			tasks: board.tasks,
+			tasks: board.tasks.map(t => ({ ...t, tags: tagsByTaskId.get(t.id) || [] })),
 			memberCount: board._count.members,
 			taskCount: board._count.tasks
 		},

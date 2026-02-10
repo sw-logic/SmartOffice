@@ -55,7 +55,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 							id: true,
 							firstName: true,
 							lastName: true,
-							jobTitle: true
+							jobTitle: true,
+							image: true
 						}
 					}
 				}
@@ -76,7 +77,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 					id: true,
 					firstName: true,
 					lastName: true,
-					jobTitle: true
+					jobTitle: true,
+					image: true
 				}
 			}
 		}
@@ -110,13 +112,15 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			assignedAt: m.assignedAt,
 			firstName: m.user.firstName,
 			lastName: m.user.lastName,
-			jobTitle: m.user.jobTitle
+			jobTitle: m.user.jobTitle,
+			image: m.user.image
 		})),
 		allProjectEmployees: allProjectEmployees.map((e) => ({
 			id: e.user.id,
 			firstName: e.user.firstName,
 			lastName: e.user.lastName,
-			jobTitle: e.user.jobTitle
+			jobTitle: e.user.jobTitle,
+			image: e.user.image
 		}))
 	};
 };

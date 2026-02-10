@@ -10,6 +10,11 @@
 		color?: string | null;
 	}
 
+	interface TaskTag {
+		label: string;
+		color: string | null;
+	}
+
 	interface Props {
 		task: {
 			id: number;
@@ -19,7 +24,8 @@
 			dueDate: string | Date | null;
 			estimatedTime: number | null;
 			spentTime: number;
-			assignedTo: { id: number; firstName: string | null; lastName: string | null } | null;
+			assignedTo: { id: number; firstName: string | null; lastName: string | null; image?: string | null } | null;
+			tags?: TaskTag[];
 		};
 		priorityEnums?: EnumOption[];
 		onclick?: () => void;
@@ -52,6 +58,16 @@
 	{onclick}
 >
 	<p class="text-sm font-medium leading-snug">{task.name}</p>
+	{#if task.tags?.length}
+		<div class="flex flex-wrap gap-1 mt-1">
+			{#each task.tags as tag}
+				<span
+					class="text-[10px] uppercase px-1 py-0 rounded border font-medium"
+					style={tag.color ? `border-color: ${tag.color}; color: ${tag.color}` : ''}
+				>{tag.label}</span>
+			{/each}
+		</div>
+	{/if}
 	<div class="flex items-center justify-between mt-1.5 gap-2">
 		<div class="flex items-center gap-1.5 flex-wrap">
 			{#if task.type}
@@ -72,6 +88,9 @@
 		</div>
 		{#if task.assignedTo}
 			<Avatar.Root class="h-5 w-5 shrink-0" title="{task.assignedTo.firstName} {task.assignedTo.lastName}">
+				{#if task.assignedTo.image}
+					<Avatar.Image src="/api/uploads/{task.assignedTo.image}" alt="{task.assignedTo.firstName} {task.assignedTo.lastName}" />
+				{/if}
 				<Avatar.Fallback class="text-[9px]">
 					{getInitials(task.assignedTo.firstName, task.assignedTo.lastName)}
 				</Avatar.Fallback>

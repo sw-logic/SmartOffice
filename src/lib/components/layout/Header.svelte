@@ -7,7 +7,7 @@
 	import { Moon, Sun, LogOut, User, Settings, PanelLeftClose, PanelLeft } from 'lucide-svelte';
 
 	interface Props {
-		user: { name: string; email: string } | null;
+		user: { name: string; email: string; image?: string | null } | null;
 		sidebarCollapsed?: boolean;
 		onToggleSidebar?: () => void;
 	}
@@ -59,6 +59,9 @@
 					{#snippet child({ props })}
 						<button {...props} class="relative h-8 w-8 rounded-full">
 							<Avatar.Root class="h-8 w-8">
+								{#if user.image}
+									<Avatar.Image src="/api/uploads/{user.image}" alt={user.name} />
+								{/if}
 								<Avatar.Fallback>
 									{user.name?.charAt(0)?.toUpperCase() ?? 'U'}
 								</Avatar.Fallback>

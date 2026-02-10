@@ -1,132 +1,84 @@
 <script lang="ts">
-	import { Carta, Markdown as CartaViewer } from 'carta-md';
-	import DOMPurify from 'isomorphic-dompurify';
-	import 'carta-md/default.css';
+	import type { Editor } from '@tiptap/core';
+	import { EdraEditor } from '$lib/components/edra/shadcn/index.js';
 
 	let {
 		value = '',
-		class: className = ''
+		class: className = '',
+		onchange
 	}: {
 		value: string;
 		class?: string;
+		onchange?: (markdown: string) => void;
 	} = $props();
 
-	const carta = new Carta({ sanitizer: (html) => DOMPurify.sanitize(html) });
+	let editor = $state<Editor>();
+	let container: HTMLElement;
+	let lastSyncedValue: string | null = null;
+
+	// Sync content when value changes or editor becomes available.
+	// Guard with lastSyncedValue to prevent infinite loop:
+	// setContent → onTransaction → editor reassign → $effect re-run
+	$effect(() => {
+		const current = value;
+		if (!editor || editor.isDestroyed) return;
+		if (current === lastSyncedValue) return;
+		lastSyncedValue = current;
+		editor.commands.setContent(current || '', { contentType: 'markdown' });
+	});
+
+	function handleUpdate() {
+		if (!editor || !onchange) return;
+		const md = editor.getMarkdown();
+		if (md !== lastSyncedValue) {
+			lastSyncedValue = md;
+			onchange(md);
+		}
+	}
+
+	// onReadOnlyChecked only toggles the DOM checkbox — it does NOT update
+	// the ProseMirror document, so onUpdate never fires. We listen for
+	// checkbox change events via event delegation, then sync the DOM state
+	// back into the document so the markdown can be extracted and saved.
+	function handleCheckboxChange(event: Event) {
+		const target = event.target as HTMLInputElement;
+		if (target.type !== 'checkbox' || !editor || editor.isDestroyed || !onchange) return;
+
+		// Let Tiptap's onReadOnlyChecked handler finish first
+		setTimeout(() => {
+			if (!editor || editor.isDestroyed) return;
+
+			const { state, view } = editor;
+			const { tr } = state;
+			let modified = false;
+
+			state.doc.descendants((node, pos) => {
+				if (node.type.name === 'taskItem') {
+					const domNode = view.nodeDOM(pos) as HTMLElement | null;
+					if (domNode) {
+						const cb = domNode.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+						if (cb && cb.checked !== node.attrs.checked) {
+							tr.setNodeMarkup(pos, undefined, { ...node.attrs, checked: cb.checked });
+							modified = true;
+						}
+					}
+				}
+			});
+
+			if (modified) {
+				view.dispatch(tr);
+				// dispatch triggers onUpdate → handleUpdate → onchange
+			}
+		}, 0);
+	}
 </script>
 
-<div class="md-viewer {className}">
-	{#key value}
-		<CartaViewer {carta} {value} />
-	{/key}
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="md-viewer {className}" bind:this={container} onchange={handleCheckboxChange}>
+	<EdraEditor
+		bind:editor
+		editable={false}
+		onUpdate={handleUpdate}
+		class="overflow-auto"
+	/>
 </div>
-
-<style>
-	.md-viewer :global(.carta-viewer) {
-		font-size: 0.875rem;
-		line-height: 1.6;
-	}
-
-	.md-viewer :global(.carta-viewer h1) {
-		font-size: 1.5rem;
-		font-weight: 700;
-		margin-top: 1rem;
-		margin-bottom: 0.5rem;
-	}
-
-	.md-viewer :global(.carta-viewer h2) {
-		font-size: 1.25rem;
-		font-weight: 600;
-		margin-top: 0.75rem;
-		margin-bottom: 0.375rem;
-	}
-
-	.md-viewer :global(.carta-viewer h3) {
-		font-size: 1.1rem;
-		font-weight: 600;
-		margin-top: 0.5rem;
-		margin-bottom: 0.25rem;
-	}
-
-	.md-viewer :global(.carta-viewer p) {
-		margin-bottom: 0.5rem;
-	}
-
-	.md-viewer :global(.carta-viewer ul),
-	.md-viewer :global(.carta-viewer ol) {
-		padding-left: 1.5rem;
-		margin-bottom: 0.5rem;
-	}
-
-	.md-viewer :global(.carta-viewer ul) {
-		list-style: disc;
-	}
-
-	.md-viewer :global(.carta-viewer ol) {
-		list-style: decimal;
-	}
-
-	.md-viewer :global(.carta-viewer code) {
-		background: var(--muted);
-		padding: 0.125rem 0.25rem;
-		border-radius: calc(var(--radius) - 4px);
-		font-size: 0.8125rem;
-		font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono',
-			monospace;
-	}
-
-	.md-viewer :global(.carta-viewer pre) {
-		background: var(--muted);
-		padding: 0.75rem;
-		border-radius: calc(var(--radius) - 2px);
-		overflow-x: auto;
-		margin-bottom: 0.5rem;
-	}
-
-	.md-viewer :global(.carta-viewer pre code) {
-		background: transparent;
-		padding: 0;
-	}
-
-	.md-viewer :global(.carta-viewer blockquote) {
-		border-left: 3px solid var(--border);
-		padding-left: 0.75rem;
-		color: var(--muted-foreground);
-		margin-bottom: 0.5rem;
-	}
-
-	.md-viewer :global(.carta-viewer a) {
-		color: var(--primary);
-		text-decoration: underline;
-	}
-
-	.md-viewer :global(.carta-viewer hr) {
-		border-color: var(--border);
-		margin: 0.75rem 0;
-	}
-
-	.md-viewer :global(.carta-viewer table) {
-		width: 100%;
-		border-collapse: collapse;
-		margin-bottom: 0.5rem;
-	}
-
-	.md-viewer :global(.carta-viewer th),
-	.md-viewer :global(.carta-viewer td) {
-		border: 1px solid var(--border);
-		padding: 0.375rem 0.5rem;
-		text-align: left;
-	}
-
-	.md-viewer :global(.carta-viewer th) {
-		background: var(--muted);
-		font-weight: 600;
-	}
-
-	.md-viewer :global(.carta-viewer strong) {
-		font-weight: 700;
-	}
-
-	.md-viewer :global(.carta-viewer em) {
-		font-style: italic;
-	}
-</style>

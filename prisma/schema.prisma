@@ -245,6 +245,7 @@ model Contact {
   phone            String?
   mobile           String?
   position         String?
+  avatarPath       String?
   isPrimaryContact Boolean  @default(false)
 
   clientId Int?
@@ -866,23 +867,32 @@ model PriceListItem {
 model Offer {
   id          Int    @id @default(autoincrement())
   offerNumber String @unique // Auto-generated
+  title       String?
+  showGrandTotal Boolean @default(true)
 
   date       DateTime @default(now())
   validUntil DateTime
 
-  clientId Int
-  client   Client @relation(fields: [clientId], references: [id])
+  // Client (nullable — snapshot preserved if client deleted)
+  clientId          Int?
+  client            Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  clientName        String?
+  clientEmail       String?
+  clientCompanyName String?
+  clientAddress     String?  @db.Text
 
   status String @default("draft") // "draft", "sent", "accepted", "rejected", "expired"
 
   // Financials
-  currency   String  @default("USD")
-  subtotal   Decimal @db.Decimal(10, 2)
-  taxTotal   Decimal @db.Decimal(10, 2)
-  grandTotal Decimal @db.Decimal(10, 2)
+  currency      String   @default("USD")
+  subtotal      Decimal  @db.Decimal(10, 2)
+  taxTotal      Decimal  @db.Decimal(10, 2)
+  grandTotal    Decimal  @db.Decimal(10, 2)
+  discountType  String?  // "percentage" | "fixed"
+  discountValue Decimal? @db.Decimal(10, 2)
 
   // Relations
-  items OfferItem[]
+  options OfferOption[]
 
   // Content
   terms String? @db.Text // Terms and conditions
@@ -910,34 +920,53 @@ model Offer {
   @@index([status])
 }
 
-model OfferItem {
+model OfferOption {
   id      Int   @id @default(autoincrement())
   offerId Int
   offer   Offer @relation(fields: [offerId], references: [id], onDelete: Cascade)
 
-  // Can link to price list or be custom
-  priceListItemId Int?
-  priceListItem   PriceListItem? @relation(fields: [priceListItemId], references: [id])
-
   name        String
   description String?
-  quantity    Decimal @db.Decimal(10, 2)
-  unitPrice   Decimal @db.Decimal(10, 2)
-  taxRate     Decimal @db.Decimal(5, 2)
+  order       Int
 
-  // Calculated: quantity * unitPrice
-  subtotal  Decimal @db.Decimal(10, 2)
-  // Calculated: subtotal * (taxRate / 100)
-  taxAmount Decimal @db.Decimal(10, 2)
-  // Calculated: subtotal + taxAmount
-  total     Decimal @db.Decimal(10, 2)
+  items OfferItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([offerId])
+}
+
+model OfferItem {
+  id       Int         @id @default(autoincrement())
+  optionId Int
+  option   OfferOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  // Can link to price list or be custom
+  priceListItemId Int?
+  priceListItem   PriceListItem? @relation(fields: [priceListItemId], references: [id], onDelete: SetNull)
+
+  name          String
+  description   String?
+  sku           String?
+  unitOfMeasure String  @default("piece")
+  quantity      Decimal @db.Decimal(10, 2)
+  unitPrice     Decimal @db.Decimal(10, 2)
+  discount      Decimal @db.Decimal(5, 2) @default(0) // Per-item percentage discount
+  taxRate       Decimal @db.Decimal(5, 2)
+
+  // Calculated fields
+  subtotal       Decimal @db.Decimal(10, 2) // quantity * unitPrice
+  discountAmount Decimal @db.Decimal(10, 2) @default(0) // subtotal * (discount / 100)
+  taxAmount      Decimal @db.Decimal(10, 2) // (subtotal - discountAmount) * (taxRate / 100)
+  total          Decimal @db.Decimal(10, 2) // (subtotal - discountAmount) + taxAmount
 
   order Int // Display order
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([offerId])
+  @@index([optionId])
 }
 
 // ============================================================================

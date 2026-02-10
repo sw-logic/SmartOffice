@@ -8,6 +8,11 @@
 		color?: string | null;
 	}
 
+	interface TaskTag {
+		label: string;
+		color: string | null;
+	}
+
 	interface Props {
 		task: {
 			id: number;
@@ -17,6 +22,7 @@
 			dueDate?: string | Date | null;
 			estimatedTime: number | null;
 			project: { name: string; client?: { name: string } };
+			tags?: TaskTag[];
 		};
 		priorityEnums?: EnumOption[];
 		onclick?: () => void;
@@ -45,6 +51,16 @@
 	{onclick}
 >
 	<p class="text-xs font-medium leading-snug truncate">{task.name}</p>
+	{#if task.tags?.length}
+		<div class="flex flex-wrap gap-0.5 mt-0.5">
+			{#each task.tags as tag}
+				<span
+					class="text-[9px] leading-tight px-0.5 rounded border font-medium"
+					style={tag.color ? `border-color: ${tag.color}; color: ${tag.color}` : ''}
+				>{tag.label}</span>
+			{/each}
+		</div>
+	{/if}
 	<div class="flex items-center gap-2 mt-0.5">
         <span class="text-[10px] text-muted-foreground mt-0.5 truncate">
             {#if clientName}

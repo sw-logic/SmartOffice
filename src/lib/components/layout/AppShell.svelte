@@ -6,7 +6,7 @@
 	import type { Snippet } from 'svelte';
 
 	interface Props {
-		user: { name: string; email: string } | null;
+		user: { name: string; email: string; image?: string | null } | null;
 		permissions: Array<{ module: string; action: string }>;
 		children: Snippet;
 	}

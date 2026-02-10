@@ -374,6 +374,9 @@
 							<Table.Cell>
 								<div class="flex items-center gap-3">
 									<Avatar.Root>
+										{#if user.image}
+											<Avatar.Image src="/api/uploads/{user.image}" alt={getDisplayName(user)} />
+										{/if}
 										<Avatar.Fallback class="text-xs">{getInitials(user)}</Avatar.Fallback>
 									</Avatar.Root>
 									<span class="font-medium">

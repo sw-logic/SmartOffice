@@ -3,6 +3,7 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { fail, redirect, error } from '@sveltejs/kit';
 import { logUpdate } from '$lib/server/audit';
+import { saveAvatar, deleteFile } from '$lib/server/file-upload';
 import bcrypt from 'bcryptjs';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
@@ -23,6 +24,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				id: true,
 				name: true,
 				email: true,
+				image: true,
 				firstName: true,
 				lastName: true,
 				phone: true,
@@ -128,6 +130,10 @@ export const actions: Actions = {
 		const emergencyContact = formData.get('emergencyContact') as string;
 		const notes = formData.get('notes') as string;
 
+		// Avatar
+		const avatarFile = formData.get('avatar') as File | null;
+		const removeAvatarFlag = formData.get('removeAvatar') === 'true';
+
 		// Salary (only if permitted)
 		const salaryStr = formData.get('salary') as string;
 		const salaryTaxStr = formData.get('salary_tax') as string;
@@ -230,6 +236,23 @@ export const actions: Actions = {
 
 		if (password) {
 			updateData.password = await bcrypt.hash(password, 10);
+		}
+
+		// Handle avatar upload/removal
+		if (avatarFile && avatarFile.size > 0) {
+			const uploadResult = await saveAvatar(avatarFile);
+			if (!uploadResult.success) {
+				return fail(400, { errors: { avatar: uploadResult.error || 'Avatar upload failed' }, values: allValues });
+			}
+			if (oldUser?.image) {
+				await deleteFile(oldUser.image);
+			}
+			updateData.image = uploadResult.path!;
+		} else if (removeAvatarFlag) {
+			if (oldUser?.image) {
+				await deleteFile(oldUser.image);
+			}
+			updateData.image = null;
 		}
 
 		// Only set salary fields if user has permission
