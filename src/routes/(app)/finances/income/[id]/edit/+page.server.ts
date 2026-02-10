@@ -3,15 +3,12 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
 import { fail, redirect, error } from '@sveltejs/kit';
 import { logUpdate } from '$lib/server/audit';
+import { parseId, calculateDueDate, fetchDenormalizedName } from '$lib/server/crud-helpers';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'finances.income', 'update');
 
-	// Parse income ID
-	const incomeId = parseInt(params.id);
-	if (isNaN(incomeId)) {
-		error(400, 'Invalid income ID');
-	}
+	const incomeId = parseId(params.id, 'income');
 
 	const [income, clients, projects] = await Promise.all([
 		prisma.income.findUnique({
@@ -74,11 +71,7 @@ export const actions: Actions = {
 	default: async ({ locals, request, params }) => {
 		await requirePermission(locals, 'finances.income', 'update');
 
-		// Parse income ID
-		const incomeId = parseInt(params.id);
-		if (isNaN(incomeId)) {
-			return fail(400, { error: 'Invalid income ID' });
-		}
+		const incomeId = parseId(params.id, 'income');
 
 		const formData = await request.formData();
 
@@ -171,11 +164,7 @@ export const actions: Actions = {
 
 		// Denormalize client name
 		const parsedClientId = clientId ? parseInt(clientId) : null;
-		let clientName: string | null = null;
-		if (parsedClientId) {
-			const client = await prisma.client.findUnique({ where: { id: parsedClientId }, select: { name: true } });
-			clientName = client?.name ?? null;
-		}
+		const clientName = await fetchDenormalizedName('client', parsedClientId);
 
 		// Update income
 		const updatedIncome = await prisma.income.update({
@@ -188,7 +177,7 @@ export const actions: Actions = {
 				category,
 				status,
 				paymentTermDays,
-				dueDate: paymentTermDays && date ? new Date(new Date(date).getTime() + paymentTermDays * 86400000) : null,
+				dueDate: calculateDueDate(new Date(date), paymentTermDays),
 				isRecurring,
 				recurringPeriod: isRecurring ? recurringPeriod : null,
 				clientId: parsedClientId,

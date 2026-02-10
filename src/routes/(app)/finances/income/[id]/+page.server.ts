@@ -2,15 +2,12 @@ import type { PageServerLoad } from './$types';
 import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
 import { error } from '@sveltejs/kit';
+import { parseId } from '$lib/server/crud-helpers';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'finances.income', 'read');
 
-	// Parse income ID
-	const incomeId = parseInt(params.id);
-	if (isNaN(incomeId)) {
-		error(400, 'Invalid income ID');
-	}
+	const incomeId = parseId(params.id, 'income');
 
 	const income = await prisma.income.findUnique({
 		where: { id: incomeId },

@@ -3,15 +3,12 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
 import { fail, redirect, error } from '@sveltejs/kit';
 import { logUpdate } from '$lib/server/audit';
+import { parseId, calculateDueDate, fetchDenormalizedName } from '$lib/server/crud-helpers';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'finances.expenses', 'update');
 
-	// Parse expense ID
-	const expenseId = parseInt(params.id);
-	if (isNaN(expenseId)) {
-		error(400, 'Invalid expense ID');
-	}
+	const expenseId = parseId(params.id, 'expense');
 
 	const [expense, vendors, projects] = await Promise.all([
 		prisma.expense.findUnique({
@@ -72,11 +69,7 @@ export const actions: Actions = {
 	default: async ({ locals, request, params }) => {
 		await requirePermission(locals, 'finances.expenses', 'update');
 
-		// Parse expense ID
-		const expenseId = parseInt(params.id);
-		if (isNaN(expenseId)) {
-			return fail(400, { error: 'Invalid expense ID' });
-		}
+		const expenseId = parseId(params.id, 'expense');
 
 		const formData = await request.formData();
 
@@ -159,11 +152,7 @@ export const actions: Actions = {
 
 		// Denormalize vendor name
 		const parsedVendorId = vendorId ? parseInt(vendorId) : null;
-		let vendorName: string | null = null;
-		if (parsedVendorId) {
-			const vendor = await prisma.vendor.findUnique({ where: { id: parsedVendorId }, select: { name: true } });
-			vendorName = vendor?.name ?? null;
-		}
+		const vendorName = await fetchDenormalizedName('vendor', parsedVendorId);
 
 		// Update expense
 		const updatedExpense = await prisma.expense.update({
@@ -176,7 +165,7 @@ export const actions: Actions = {
 				category,
 				status,
 				paymentTermDays,
-				dueDate: paymentTermDays && date ? new Date(new Date(date).getTime() + paymentTermDays * 86400000) : null,
+				dueDate: calculateDueDate(new Date(date), paymentTermDays),
 				isRecurring,
 				recurringPeriod: isRecurring ? recurringPeriod : null,
 				vendorId: parsedVendorId,

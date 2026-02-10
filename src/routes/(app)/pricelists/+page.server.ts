@@ -2,21 +2,17 @@ import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
 import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { fail } from '@sveltejs/kit';
-import { logDelete, logUpdate } from '$lib/server/audit';
+import { logUpdate } from '$lib/server/audit';
+import { parseListParams, buildPagination, createDeleteAction, parseFormId } from '$lib/server/crud-helpers';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'pricelists', 'read');
 
 	const isAdmin = checkPermission(locals, '*', '*');
 
-	// Get query parameters
-	const search = url.searchParams.get('search') || '';
+	const { search, sortBy, sortOrder, page, limit } = parseListParams(url, { limit: 50 });
 	const category = url.searchParams.get('category') || '';
 	const active = url.searchParams.get('active') || 'true';
-	const sortBy = url.searchParams.get('sortBy') || 'name';
-	const sortOrder = url.searchParams.get('sortOrder') || 'asc';
-	const page = parseInt(url.searchParams.get('page') || '1');
-	const pageSize = 50;
 
 	// Build where clause
 	const where: any = {};
@@ -27,7 +23,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	} else if (active === 'true') {
 		where.active = true;
 	}
-	// 'all' - show all records (no filter)
 
 	// Search filter
 	if (search) {
@@ -73,8 +68,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			}
 		},
 		orderBy,
-		skip: (page - 1) * pageSize,
-		take: pageSize
+		skip: (page - 1) * limit,
+		take: limit
 	});
 
 	// Convert Decimal fields to numbers for serialization
@@ -123,8 +118,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		categories,
 		totalCount,
 		page,
-		pageSize,
-		totalPages: Math.ceil(totalCount / pageSize),
+		pageSize: limit,
+		totalPages: Math.ceil(totalCount / limit),
 		filters: {
 			search,
 			category,
@@ -137,62 +132,28 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 };
 
 export const actions: Actions = {
-	delete: async ({ locals, request }) => {
-		await requirePermission(locals, 'pricelists', 'delete');
-
-		const formData = await request.formData();
-		const idStr = formData.get('id') as string;
-
-		if (!idStr) {
-			return fail(400, { error: 'Item ID is required' });
-		}
-		const id = parseInt(idStr);
-		if (isNaN(id)) {
-			return fail(400, { error: 'Invalid item ID' });
-		}
-
-		const item = await prisma.priceListItem.findUnique({
-			where: { id },
-			select: {
-				id: true,
-				name: true,
-				sku: true,
-				unitPrice: true
-			}
-		});
-
-		if (!item) {
-			return fail(404, { error: 'Item not found' });
-		}
-
-		// Audit log before hard delete
-		await logDelete(locals.user!.id, 'pricelists', String(id), 'PriceListItem', {
-			name: item.name,
-			sku: item.sku,
-			unitPrice: Number(item.unitPrice)
-		});
-
-		await prisma.priceListItem.delete({
-			where: { id }
-		});
-
-		return { success: true };
-	},
+	delete: createDeleteAction({
+		permission: ['pricelists', 'delete'],
+		module: 'pricelists',
+		entityType: 'PriceListItem',
+		model: 'priceListItem',
+		findSelect: { id: true, name: true, sku: true, unitPrice: true },
+		auditValues: (record) => ({
+			name: record.name,
+			sku: record.sku,
+			unitPrice: Number(record.unitPrice)
+		})
+	}),
 
 	toggleActive: async ({ locals, request }) => {
 		await requirePermission(locals, 'pricelists', 'update');
 
 		const formData = await request.formData();
-		const idStr = formData.get('id') as string;
-		const active = formData.get('active') === 'true';
+		const result = parseFormId(formData, 'id', 'Item');
+		if ('error' in result) return result.error;
+		const { id } = result;
 
-		if (!idStr) {
-			return fail(400, { error: 'Item ID is required' });
-		}
-		const id = parseInt(idStr);
-		if (isNaN(id)) {
-			return fail(400, { error: 'Invalid item ID' });
-		}
+		const active = formData.get('active') === 'true';
 
 		const item = await prisma.priceListItem.findUnique({
 			where: { id },

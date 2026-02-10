@@ -143,6 +143,30 @@ We use Svelte 5 runes throughout the application:
 - Query helpers: `getEntityAuditLogs(module, entityId)`, `getUserAuditLogs(userId)`
 - Error handling: Logs to console but doesn't throw (non-blocking)
 
+### Server Utilities: CRUD Helpers (`src/lib/server/crud-helpers.ts`)
+
+Composable helper functions that eliminate repeated boilerplate across `+page.server.ts` files:
+
+| Function | Purpose | Used by |
+|---|---|---|
+| `parseListParams(url, defaults?)` | Parse search/sort/page/limit from URL | All list pages |
+| `buildPagination(page, limit, total)` | Build `{ page, limit, total, totalPages }` | All list pages |
+| `parseId(value, entityName)` | Parse int ID from params, throw `error(400)` if invalid | All detail/edit load functions |
+| `parseFormId(formData, field, entityName)` | Parse int ID from FormData, return discriminated union `{ id } \| { error }` | Form actions |
+| `parseDateRange(url)` | Parse year/period params → `{ year, period, startDate, endDate }` | income, expenses list pages |
+| `serializeDecimals(record, fields)` | Convert Prisma Decimal fields to Number | Financial records |
+| `calculateDueDate(date, paymentTermDays)` | `date + days * 86400000` or null | income/expenses create & edit |
+| `fetchDenormalizedName(model, id)` | Fetch client/vendor name for denormalization | income/expenses create & edit |
+| `createDeleteAction(config)` | Factory: permission → parse ID → find → logDelete → delete | All list pages |
+| `createBulkDeleteAction(config)` | Factory: permission → parse IDs → find → logDelete each → deleteMany | users, income, expenses, offers |
+
+**Action factories** accept hooks for module-specific logic:
+- `validate(record, locals)` — e.g., prevent self-delete on users
+- `beforeDelete(record)` — e.g., delete projected children for recurring income/expenses
+- `afterDelete(record)` — e.g., invalidate user cache
+
+**What stays module-specific**: Where clause building, select fields, aggregate queries, conditional field selection, and any non-delete form actions (updateStatus, toggleActive, etc.).
+
 ### Enum Management
 
 - Dynamic enums stored in `EnumType` and `EnumValue` tables

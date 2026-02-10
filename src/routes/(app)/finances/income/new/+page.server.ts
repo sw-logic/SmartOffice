@@ -3,6 +3,7 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
 import { fail, redirect } from '@sveltejs/kit';
 import { logCreate } from '$lib/server/audit';
+import { calculateDueDate, fetchDenormalizedName } from '$lib/server/crud-helpers';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	await requirePermission(locals, 'finances.income', 'create');
@@ -109,11 +110,7 @@ export const actions: Actions = {
 		const parsedClientId = clientId ? parseInt(clientId) : null;
 
 		// Denormalize client name
-		let clientName: string | null = null;
-		if (parsedClientId) {
-			const client = await prisma.client.findUnique({ where: { id: parsedClientId }, select: { name: true } });
-			clientName = client?.name ?? null;
-		}
+		const clientName = await fetchDenormalizedName('client', parsedClientId);
 
 		const income = await prisma.income.create({
 			data: {
@@ -126,7 +123,7 @@ export const actions: Actions = {
 				category,
 				status,
 				paymentTermDays,
-				dueDate: paymentTermDays && date ? new Date(new Date(date).getTime() + paymentTermDays * 86400000) : null,
+				dueDate: calculateDueDate(new Date(date), paymentTermDays),
 				isRecurring,
 				recurringPeriod: isRecurring ? recurringPeriod : null,
 				clientId: parsedClientId,

@@ -3,14 +3,12 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
 import { error, fail, redirect } from '@sveltejs/kit';
 import { logDelete } from '$lib/server/audit';
+import { parseId } from '$lib/server/crud-helpers';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'offers', 'read');
 
-	const id = parseInt(params.id);
-	if (isNaN(id)) {
-		throw error(400, 'Invalid offer ID');
-	}
+	const id = parseId(params.id, 'offer');
 
 	const offer = await prisma.offer.findUnique({
 		where: { id },

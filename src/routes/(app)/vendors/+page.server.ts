@@ -1,17 +1,12 @@
 import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
-import { fail } from '@sveltejs/kit';
-import { logDelete } from '$lib/server/audit';
+import { parseListParams, buildPagination, createDeleteAction } from '$lib/server/crud-helpers';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'vendors', 'read');
 
-	const search = url.searchParams.get('search') || '';
-	const sortBy = url.searchParams.get('sortBy') || 'name';
-	const sortOrder = (url.searchParams.get('sortOrder') || 'asc') as 'asc' | 'desc';
-	const page = parseInt(url.searchParams.get('page') || '1');
-	const limit = parseInt(url.searchParams.get('limit') || '10');
+	const { search, sortBy, sortOrder, page, limit } = parseListParams(url);
 	const status = url.searchParams.get('status') || 'active';
 	const category = url.searchParams.get('category') || '';
 
@@ -31,7 +26,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	if (status === 'active' || status === 'inactive') {
 		where.status = status;
 	} else {
-		// Default: show active vendors
 		where.status = 'active';
 	}
 
@@ -87,12 +81,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			expenseCount: vendor._count.expenses,
 			contactCount: vendor._count.contacts
 		})),
-		pagination: {
-			page,
-			limit,
-			total,
-			totalPages: Math.ceil(total / limit)
-		},
+		pagination: buildPagination(page, limit, total),
 		filters: {
 			search,
 			sortBy,
@@ -105,39 +94,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 };
 
 export const actions: Actions = {
-	delete: async ({ locals, request }) => {
-		await requirePermission(locals, 'vendors', 'delete');
-
-		const formData = await request.formData();
-		const idStr = formData.get('id') as string;
-
-		if (!idStr) {
-			return fail(400, { error: 'Vendor ID is required' });
-		}
-		const id = parseInt(idStr);
-		if (isNaN(id)) {
-			return fail(400, { error: 'Invalid vendor ID' });
-		}
-
-		const vendor = await prisma.vendor.findUnique({
-			where: { id },
-			select: { id: true, name: true, companyName: true }
-		});
-
-		if (!vendor) {
-			return fail(404, { error: 'Vendor not found' });
-		}
-
-		// Log before hard delete
-		await logDelete(locals.user!.id, 'vendors', String(id), 'Vendor', {
-			name: vendor.name,
-			companyName: vendor.companyName
-		});
-
-		await prisma.vendor.delete({
-			where: { id }
-		});
-
-		return { success: true };
-	}
+	delete: createDeleteAction({
+		permission: ['vendors', 'delete'],
+		module: 'vendors',
+		entityType: 'Vendor',
+		model: 'vendor',
+		findSelect: { id: true, name: true, companyName: true },
+		auditValues: (record) => ({ name: record.name, companyName: record.companyName })
+	})
 };

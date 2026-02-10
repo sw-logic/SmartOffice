@@ -4,14 +4,12 @@ import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { error, fail, redirect } from '@sveltejs/kit';
 import { logDelete } from '$lib/server/audit';
 import { invalidateUserValidity } from '$lib/server/user-cache';
+import { parseId } from '$lib/server/crud-helpers';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'settings', 'users');
 
-	const userId = parseInt(params.id);
-	if (isNaN(userId)) {
-		error(400, 'Invalid user ID');
-	}
+	const userId = parseId(params.id, 'user');
 
 	const canViewSalary = checkPermission(locals, 'employees', 'salary');
 
@@ -126,10 +124,7 @@ export const actions: Actions = {
 	delete: async ({ locals, params }) => {
 		await requirePermission(locals, 'settings', 'users');
 
-		const userId = parseInt(params.id);
-		if (isNaN(userId)) {
-			return fail(400, { error: 'Invalid user ID' });
-		}
+		const userId = parseId(params.id, 'user');
 
 		// Prevent deleting yourself
 		if (userId === locals.user?.id) {

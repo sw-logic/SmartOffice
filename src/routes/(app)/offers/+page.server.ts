@@ -1,19 +1,14 @@
 import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
-import { fail } from '@sveltejs/kit';
-import { logDelete } from '$lib/server/audit';
+import { parseListParams, buildPagination, createDeleteAction, createBulkDeleteAction } from '$lib/server/crud-helpers';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'offers', 'read');
 
-	const search = url.searchParams.get('search') || '';
+	const { search, sortBy, sortOrder, page, limit } = parseListParams(url, { sortBy: 'date', sortOrder: 'desc', limit: 50 });
 	const status = url.searchParams.get('status') || '';
 	const clientId = url.searchParams.get('clientId') || '';
-	const sortBy = url.searchParams.get('sortBy') || 'date';
-	const sortOrder = url.searchParams.get('sortOrder') || 'desc';
-	const page = parseInt(url.searchParams.get('page') || '1');
-	const pageSize = 50;
 
 	// Build where clause
 	const where: any = {};
@@ -66,8 +61,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			_count: { select: { options: true } }
 		},
 		orderBy,
-		skip: (page - 1) * pageSize,
-		take: pageSize
+		skip: (page - 1) * limit,
+		take: limit
 	});
 
 	const clients = await prisma.client.findMany({
@@ -99,8 +94,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		},
 		totalCount,
 		page,
-		pageSize,
-		totalPages: Math.ceil(totalCount / pageSize),
+		pageSize: limit,
+		totalPages: Math.ceil(totalCount / limit),
 		filters: {
 			search,
 			status,
@@ -111,91 +106,30 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	};
 };
 
+const offerFindSelect = { id: true, offerNumber: true, clientName: true, grandTotal: true, status: true };
+const offerAuditValues = (record: any) => ({
+	offerNumber: record.offerNumber,
+	clientName: record.clientName,
+	grandTotal: Number(record.grandTotal),
+	status: record.status
+});
+
 export const actions: Actions = {
-	delete: async ({ locals, request }) => {
-		await requirePermission(locals, 'offers', 'delete');
+	delete: createDeleteAction({
+		permission: ['offers', 'delete'],
+		module: 'offers',
+		entityType: 'Offer',
+		model: 'offer',
+		findSelect: offerFindSelect,
+		auditValues: offerAuditValues
+	}),
 
-		const formData = await request.formData();
-		const idStr = formData.get('id') as string;
-
-		if (!idStr) {
-			return fail(400, { error: 'Offer ID is required' });
-		}
-		const id = parseInt(idStr);
-		if (isNaN(id)) {
-			return fail(400, { error: 'Invalid offer ID' });
-		}
-
-		const offer = await prisma.offer.findUnique({
-			where: { id },
-			select: {
-				id: true,
-				offerNumber: true,
-				clientName: true,
-				grandTotal: true,
-				status: true
-			}
-		});
-
-		if (!offer) {
-			return fail(404, { error: 'Offer not found' });
-		}
-
-		await logDelete(locals.user!.id, 'offers', String(id), 'Offer', {
-			offerNumber: offer.offerNumber,
-			clientName: offer.clientName,
-			grandTotal: Number(offer.grandTotal),
-			status: offer.status
-		});
-
-		await prisma.offer.delete({ where: { id } });
-
-		return { success: true };
-	},
-
-	bulkDelete: async ({ locals, request }) => {
-		await requirePermission(locals, 'offers', 'delete');
-
-		const formData = await request.formData();
-		const idsStr = formData.get('ids') as string;
-
-		if (!idsStr) {
-			return fail(400, { error: 'Offer IDs are required' });
-		}
-
-		const ids = idsStr.split(',').map(Number).filter((id) => !isNaN(id));
-		if (ids.length === 0) {
-			return fail(400, { error: 'No valid offer IDs provided' });
-		}
-
-		const offers = await prisma.offer.findMany({
-			where: { id: { in: ids } },
-			select: {
-				id: true,
-				offerNumber: true,
-				clientName: true,
-				grandTotal: true,
-				status: true
-			}
-		});
-
-		if (offers.length === 0) {
-			return fail(404, { error: 'No offers found' });
-		}
-
-		for (const offer of offers) {
-			await logDelete(locals.user!.id, 'offers', String(offer.id), 'Offer', {
-				offerNumber: offer.offerNumber,
-				clientName: offer.clientName,
-				grandTotal: Number(offer.grandTotal),
-				status: offer.status
-			});
-		}
-
-		await prisma.offer.deleteMany({
-			where: { id: { in: offers.map((o) => o.id) } }
-		});
-
-		return { success: true, count: offers.length };
-	}
+	bulkDelete: createBulkDeleteAction({
+		permission: ['offers', 'delete'],
+		module: 'offers',
+		entityType: 'Offer',
+		model: 'offer',
+		findSelect: offerFindSelect,
+		auditValues: offerAuditValues
+	})
 };

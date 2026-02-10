@@ -4,15 +4,13 @@ import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { fail, redirect, error } from '@sveltejs/kit';
 import { logUpdate } from '$lib/server/audit';
 import { saveAvatar, deleteFile } from '$lib/server/file-upload';
+import { parseId } from '$lib/server/crud-helpers';
 import bcrypt from 'bcryptjs';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'settings', 'users');
 
-	const userId = parseInt(params.id);
-	if (isNaN(userId)) {
-		error(400, 'Invalid user ID');
-	}
+	const userId = parseId(params.id, 'user');
 
 	const isAdmin = checkPermission(locals, '*', '*');
 	const canManageSalary = checkPermission(locals, 'employees', 'salary');
@@ -90,10 +88,7 @@ export const actions: Actions = {
 	default: async ({ locals, request, params }) => {
 		await requirePermission(locals, 'settings', 'users');
 
-		const userId = parseInt(params.id);
-		if (isNaN(userId)) {
-			return fail(400, { errors: { name: 'Invalid user ID' } });
-		}
+		const userId = parseId(params.id, 'user');
 
 		const canManageSalary = checkPermission(locals, 'employees', 'salary');
 

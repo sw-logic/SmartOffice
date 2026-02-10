@@ -3,14 +3,12 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { logCreate, logUpdate, logDelete } from '$lib/server/audit';
 import { error, fail } from '@sveltejs/kit';
+import { parseId } from '$lib/server/crud-helpers';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'projects', 'read');
 
-	const projectId = parseInt(params.id);
-	if (isNaN(projectId)) {
-		error(400, 'Invalid project ID');
-	}
+	const projectId = parseId(params.id, 'project');
 
 	const isAdmin = checkPermission(locals, '*', '*');
 

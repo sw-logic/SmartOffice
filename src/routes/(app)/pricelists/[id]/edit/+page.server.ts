@@ -3,15 +3,12 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
 import { fail, redirect, error } from '@sveltejs/kit';
 import { logUpdate } from '$lib/server/audit';
+import { parseId } from '$lib/server/crud-helpers';
 
 export const load: PageServerLoad = async ({ locals, params, parent }) => {
 	await requirePermission(locals, 'pricelists', 'update');
 
-	// Parse item ID
-	const itemId = parseInt(params.id);
-	if (isNaN(itemId)) {
-		error(400, 'Invalid item ID');
-	}
+	const itemId = parseId(params.id, 'item');
 
 	const [parentData, itemRaw, existingCategoriesRaw] = await Promise.all([
 		parent(),

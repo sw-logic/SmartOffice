@@ -2,14 +2,12 @@ import type { PageServerLoad } from './$types';
 import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
 import { error } from '@sveltejs/kit';
+import { parseId } from '$lib/server/crud-helpers';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'offers', 'update');
 
-	const id = parseInt(params.id);
-	if (isNaN(id)) {
-		throw error(400, 'Invalid offer ID');
-	}
+	const id = parseId(params.id, 'offer');
 
 	const [offer, clients, priceListItems] = await Promise.all([
 		prisma.offer.findUnique({

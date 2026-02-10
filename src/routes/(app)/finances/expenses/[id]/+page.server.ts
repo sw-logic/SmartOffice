@@ -2,15 +2,12 @@ import type { PageServerLoad } from './$types';
 import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
 import { error } from '@sveltejs/kit';
+import { parseId } from '$lib/server/crud-helpers';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'finances.expenses', 'read');
 
-	// Parse expense ID
-	const expenseId = parseInt(params.id);
-	if (isNaN(expenseId)) {
-		error(400, 'Invalid expense ID');
-	}
+	const expenseId = parseId(params.id, 'expense');
 
 	const expense = await prisma.expense.findUnique({
 		where: { id: expenseId },

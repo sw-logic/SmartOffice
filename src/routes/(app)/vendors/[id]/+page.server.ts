@@ -3,16 +3,14 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
 import { error, fail } from '@sveltejs/kit';
 import { logCreate, logUpdate, logDelete } from '$lib/server/audit';
+import { parseId } from '$lib/server/crud-helpers';
 import { saveAvatar, deleteFile } from '$lib/server/file-upload';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'vendors', 'read');
 
 	// Parse vendor ID
-	const vendorId = parseInt(params.id);
-	if (isNaN(vendorId)) {
-		error(400, 'Invalid vendor ID');
-	}
+	const vendorId = parseId(params.id, 'vendor');
 
 	const vendor = await prisma.vendor.findUnique({
 		where: { id: vendorId },
@@ -84,10 +82,7 @@ export const actions: Actions = {
 		await requirePermission(locals, 'vendors', 'contacts');
 
 		// Parse vendor ID
-		const vendorId = parseInt(params.id);
-		if (isNaN(vendorId)) {
-			return fail(400, { error: 'Invalid vendor ID' });
-		}
+		const vendorId = parseId(params.id, 'vendor');
 
 		const formData = await request.formData();
 		const firstName = formData.get('firstName') as string;
@@ -155,10 +150,7 @@ export const actions: Actions = {
 		await requirePermission(locals, 'vendors', 'contacts');
 
 		// Parse vendor ID
-		const vendorId = parseInt(params.id);
-		if (isNaN(vendorId)) {
-			return fail(400, { error: 'Invalid vendor ID' });
-		}
+		const vendorId = parseId(params.id, 'vendor');
 
 		const formData = await request.formData();
 		const contactIdStr = formData.get('contactId') as string;
@@ -249,10 +241,7 @@ export const actions: Actions = {
 		await requirePermission(locals, 'vendors', 'contacts');
 
 		// Parse vendor ID
-		const vendorId = parseInt(params.id);
-		if (isNaN(vendorId)) {
-			return fail(400, { error: 'Invalid vendor ID' });
-		}
+		const vendorId = parseId(params.id, 'vendor');
 
 		const formData = await request.formData();
 		const contactIdStr = formData.get('contactId') as string;

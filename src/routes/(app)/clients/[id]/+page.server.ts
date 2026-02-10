@@ -1,6 +1,7 @@
 import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
+import { parseId } from '$lib/server/crud-helpers';
 import { error, fail } from '@sveltejs/kit';
 import { logCreate, logUpdate, logDelete } from '$lib/server/audit';
 import { saveAvatar, deleteFile } from '$lib/server/file-upload';
@@ -8,11 +9,7 @@ import { saveAvatar, deleteFile } from '$lib/server/file-upload';
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'clients', 'read');
 
-	// Parse client ID
-	const clientId = parseInt(params.id);
-	if (isNaN(clientId)) {
-		error(400, 'Invalid client ID');
-	}
+	const clientId = parseId(params.id, 'client');
 
 	const client = await prisma.client.findUnique({
 		where: { id: clientId },
@@ -140,11 +137,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'Last name is required' });
 		}
 
-		// Parse client ID
-		const clientId = parseInt(params.id);
-		if (isNaN(clientId)) {
-			return fail(400, { error: 'Invalid client ID' });
-		}
+		const clientId = parseId(params.id, 'client');
 
 		// Verify client exists
 		const client = await prisma.client.findUnique({
@@ -226,11 +219,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'Invalid contact ID' });
 		}
 
-		// Parse client ID
-		const clientId = parseInt(params.id);
-		if (isNaN(clientId)) {
-			return fail(400, { error: 'Invalid client ID' });
-		}
+		const clientId = parseId(params.id, 'client');
 
 		if (!firstName?.trim()) {
 			return fail(400, { error: 'First name is required' });
@@ -328,11 +317,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'Invalid contact ID' });
 		}
 
-		// Parse client ID
-		const clientId = parseInt(params.id);
-		if (isNaN(clientId)) {
-			return fail(400, { error: 'Invalid client ID' });
-		}
+		const clientId = parseId(params.id, 'client');
 
 		// Verify contact exists and belongs to this client
 		const contact = await prisma.contact.findFirst({

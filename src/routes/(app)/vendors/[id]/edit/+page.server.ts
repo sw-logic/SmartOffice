@@ -3,15 +3,13 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
 import { fail, redirect, error } from '@sveltejs/kit';
 import { logUpdate } from '$lib/server/audit';
+import { parseId } from '$lib/server/crud-helpers';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'vendors', 'update');
 
 	// Parse vendor ID
-	const vendorId = parseInt(params.id);
-	if (isNaN(vendorId)) {
-		error(400, 'Invalid vendor ID');
-	}
+	const vendorId = parseId(params.id, 'vendor');
 
 	const vendor = await prisma.vendor.findUnique({
 		where: { id: vendorId },
@@ -50,10 +48,7 @@ export const actions: Actions = {
 		await requirePermission(locals, 'vendors', 'update');
 
 		// Parse vendor ID
-		const vendorId = parseInt(params.id);
-		if (isNaN(vendorId)) {
-			return fail(400, { error: 'Invalid vendor ID' });
-		}
+		const vendorId = parseId(params.id, 'vendor');
 
 		const formData = await request.formData();
 

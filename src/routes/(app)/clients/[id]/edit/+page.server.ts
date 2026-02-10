@@ -1,16 +1,14 @@
 import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
+import { parseId } from '$lib/server/crud-helpers';
 import { fail, redirect, error } from '@sveltejs/kit';
 import { logUpdate } from '$lib/server/audit';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'clients', 'update');
 
-	const clientId = parseInt(params.id);
-	if (isNaN(clientId)) {
-		error(400, 'Invalid client ID');
-	}
+	const clientId = parseId(params.id, 'client');
 
 	const client = await prisma.client.findUnique({
 		where: { id: clientId },
@@ -106,7 +104,7 @@ export const actions: Actions = {
 			});
 		}
 
-		const clientId = parseInt(params.id);
+		const clientId = parseId(params.id, 'client');
 
 		// Get old values for audit
 		const oldClient = await prisma.client.findUnique({

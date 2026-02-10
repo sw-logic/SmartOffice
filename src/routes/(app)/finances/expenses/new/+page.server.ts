@@ -3,6 +3,7 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
 import { fail, redirect } from '@sveltejs/kit';
 import { logCreate } from '$lib/server/audit';
+import { calculateDueDate, fetchDenormalizedName } from '$lib/server/crud-helpers';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	await requirePermission(locals, 'finances.expenses', 'create');
@@ -100,11 +101,7 @@ export const actions: Actions = {
 		const parsedVendorId = vendorId ? parseInt(vendorId) : null;
 
 		// Denormalize vendor name
-		let vendorName: string | null = null;
-		if (parsedVendorId) {
-			const vendor = await prisma.vendor.findUnique({ where: { id: parsedVendorId }, select: { name: true } });
-			vendorName = vendor?.name ?? null;
-		}
+		const vendorName = await fetchDenormalizedName('vendor', parsedVendorId);
 
 		const expense = await prisma.expense.create({
 			data: {
@@ -117,7 +114,7 @@ export const actions: Actions = {
 				category,
 				status,
 				paymentTermDays,
-				dueDate: paymentTermDays && date ? new Date(new Date(date).getTime() + paymentTermDays * 86400000) : null,
+				dueDate: calculateDueDate(new Date(date), paymentTermDays),
 				isRecurring,
 				recurringPeriod: isRecurring ? recurringPeriod : null,
 				vendorId: parsedVendorId,

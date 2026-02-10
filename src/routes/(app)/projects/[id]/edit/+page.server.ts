@@ -2,6 +2,7 @@ import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
 import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { fail, redirect, error } from '@sveltejs/kit';
+import { parseId } from '$lib/server/crud-helpers';
 import { logUpdate } from '$lib/server/audit';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
@@ -11,10 +12,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const isAccountant = checkPermission(locals, 'finances.income', '*');
 	const canViewBudget = isAdmin || isAccountant;
 
-	const projectId = parseInt(params.id);
-	if (isNaN(projectId)) {
-		error(400, 'Invalid project ID');
-	}
+	const projectId = parseId(params.id, 'project');
 
 	const [project, clients, employees] = await Promise.all([
 		prisma.project.findUnique({
