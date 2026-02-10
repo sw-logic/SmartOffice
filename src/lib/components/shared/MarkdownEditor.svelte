@@ -13,37 +13,24 @@
 	} = $props();
 
 	let editor = $state<Editor>();
-	let internalUpdate = false;
-	let initialized = false;
+	let lastSyncedValue: string | null = null;
 
 	function handleUpdate() {
 		if (!editor) return;
-		if (internalUpdate) {
-			internalUpdate = false;
-			return;
-		}
-		value = editor.getMarkdown();
+		const md = editor.getMarkdown();
+		lastSyncedValue = md;
+		value = md;
 	}
 
-	// Set initial markdown content once editor is ready, then sync external changes
+	// Sync content when value changes externally or editor becomes available.
+	// Guard with lastSyncedValue to prevent infinite loop:
+	// setContent → onTransaction → editor reassign → $effect re-run
 	$effect(() => {
 		const current = value;
 		if (!editor || editor.isDestroyed) return;
-
-		if (!initialized) {
-			initialized = true;
-			if (current) {
-				internalUpdate = true;
-				editor.commands.setContent(current, { contentType: 'markdown' });
-			}
-			return;
-		}
-
-		const editorMarkdown = editor.getMarkdown();
-		if (current !== editorMarkdown) {
-			internalUpdate = true;
-			editor.commands.setContent(current, { contentType: 'markdown' });
-		}
+		if (current === lastSyncedValue) return;
+		lastSyncedValue = current;
+		editor.commands.setContent(current || '', { contentType: 'markdown' });
 	});
 </script>
 

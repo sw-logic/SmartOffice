@@ -88,7 +88,7 @@
 </script>
 
 <Dialog.Root bind:open onOpenChange={handleOpenChange}>
-	<Dialog.Content class="sm:max-w-[500px]">
+	<Dialog.Content class="min-w-[720px]">
 		<Dialog.Header>
 			<Dialog.Title>{note ? 'Edit Note' : 'New Note'}</Dialog.Title>
 			<Dialog.Description>
