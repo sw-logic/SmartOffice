@@ -5,6 +5,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY prisma ./prisma/
 RUN npm ci
+# Workaround for npm optional dependency bug (https://github.com/npm/cli/issues/4828)
+# package-lock.json from Windows doesn't include linux-musl platform binaries
+RUN npm rebuild rollup
 
 COPY . .
 
