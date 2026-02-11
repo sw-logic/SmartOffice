@@ -148,17 +148,21 @@ export function parseDateRange(url: URL): DateRange {
 // Usage:
 //   const serialized = serializeDecimals(income, ['amount', 'tax', 'tax_value']);
 
-export function serializeDecimals<T extends Record<string, unknown>>(
+type WithNumbers<T, K extends keyof T> = {
+	[P in keyof T]: P extends K ? (null extends T[P] ? number | null : number) : T[P];
+};
+
+export function serializeDecimals<T extends Record<string, unknown>, K extends keyof T>(
 	record: T,
-	fields: (keyof T)[]
-): T {
+	fields: K[]
+): WithNumbers<T, K> {
 	const result = { ...record };
 	for (const field of fields) {
 		if (result[field] != null) {
 			(result as Record<string, unknown>)[field as string] = Number(result[field]);
 		}
 	}
-	return result;
+	return result as WithNumbers<T, K>;
 }
 
 // ---------------------------------------------------------------------------

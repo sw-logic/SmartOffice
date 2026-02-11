@@ -20,18 +20,14 @@
 	} from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
 	import { formatDate } from '$lib/utils/date';
+	import { createCurrencyFormatter } from '$lib/utils/currency';
 
 	let { data } = $props();
 
+	const fmt = createCurrencyFormatter(data.enums.currency);
+
 	let deleteDialogOpen = $state(false);
 	let isDeleting = $state(false);
-
-	function formatCurrency(amount: number, currency: string = 'USD'): string {
-		return new Intl.NumberFormat('en-US', {
-			style: 'currency',
-			currency
-		}).format(amount);
-	}
 
 	async function handleDelete() {
 		isDeleting = true;
@@ -168,11 +164,11 @@
 				<div class="space-y-1">
 					<div class="flex justify-between text-sm">
 						<span class="text-muted-foreground">Subtotal:</span>
-						<span>{formatCurrency(data.offer.subtotal, data.offer.currency)}</span>
+						<span>{fmt.format(data.offer.subtotal, data.offer.currency)}</span>
 					</div>
 					<div class="flex justify-between text-sm">
 						<span class="text-muted-foreground">Tax:</span>
-						<span>{formatCurrency(data.offer.taxTotal, data.offer.currency)}</span>
+						<span>{fmt.format(data.offer.taxTotal, data.offer.currency)}</span>
 					</div>
 					{#if data.offer.discountType && data.offer.discountValue}
 						<div class="flex justify-between text-sm">
@@ -180,14 +176,14 @@
 							<span class="text-red-600">
 								-{data.offer.discountType === 'percentage'
 									? `${data.offer.discountValue}%`
-									: formatCurrency(data.offer.discountValue, data.offer.currency)}
+									: fmt.format(data.offer.discountValue, data.offer.currency)}
 							</span>
 						</div>
 					{/if}
 					{#if data.offer.showGrandTotal}
 						<div class="flex justify-between border-t pt-1 font-semibold">
 							<span>Grand Total:</span>
-							<span>{formatCurrency(data.offer.grandTotal, data.offer.currency)}</span>
+							<span>{fmt.format(data.offer.grandTotal, data.offer.currency)}</span>
 						</div>
 					{/if}
 				</div>
@@ -252,14 +248,14 @@
 									<Table.Cell class="text-right">{item.quantity}</Table.Cell>
 									<Table.Cell>{item.unitOfMeasure}</Table.Cell>
 									<Table.Cell class="text-right">
-										{formatCurrency(item.unitPrice, data.offer.currency)}
+										{fmt.format(item.unitPrice, data.offer.currency)}
 									</Table.Cell>
 									<Table.Cell class="text-right">
 										{item.discount > 0 ? `${item.discount}%` : '-'}
 									</Table.Cell>
 									<Table.Cell class="text-right">{item.taxRate}%</Table.Cell>
 									<Table.Cell class="text-right font-medium">
-										{formatCurrency(item.total, data.offer.currency)}
+										{fmt.format(item.total, data.offer.currency)}
 									</Table.Cell>
 								</Table.Row>
 							{:else}
@@ -274,20 +270,20 @@
 								<Table.Row class="bg-muted/50 font-medium">
 									<Table.Cell colspan={5}></Table.Cell>
 									<Table.Cell class="text-right text-sm">
-										Subtotal: {formatCurrency(totals.subtotal, data.offer.currency)}
+										Subtotal: {fmt.format(totals.subtotal, data.offer.currency)}
 									</Table.Cell>
 									<Table.Cell class="text-right text-sm">
 										{#if totals.discount > 0}
-											-{formatCurrency(totals.discount, data.offer.currency)}
+											-{fmt.format(totals.discount, data.offer.currency)}
 										{:else}
 											-
 										{/if}
 									</Table.Cell>
 									<Table.Cell class="text-right text-sm">
-										{formatCurrency(totals.tax, data.offer.currency)}
+										{fmt.format(totals.tax, data.offer.currency)}
 									</Table.Cell>
 									<Table.Cell class="text-right">
-										{formatCurrency(totals.total, data.offer.currency)}
+										{fmt.format(totals.total, data.offer.currency)}
 									</Table.Cell>
 								</Table.Row>
 							{/if}

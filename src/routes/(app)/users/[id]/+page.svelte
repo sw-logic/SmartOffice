@@ -23,8 +23,11 @@
 	} from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
 	import { formatDate } from '$lib/utils/date';
+	import { createCurrencyFormatter } from '$lib/utils/currency';
 
 	let { data } = $props();
+
+	const fmt = createCurrencyFormatter(data.enums.currency);
 
 	let deleteDialogOpen = $state(false);
 	let isDeleting = $state(false);
@@ -46,14 +49,6 @@
 			return `${user.firstName} ${user.lastName}`;
 		}
 		return user.name;
-	}
-
-	function formatCurrency(amount: number | null): string {
-		if (amount === null || amount === undefined) return '-';
-		return new Intl.NumberFormat('en-US', {
-			style: 'currency',
-			currency: 'USD'
-		}).format(amount);
 	}
 
 	async function handleDelete() {
@@ -292,15 +287,15 @@
 					<div class="p-4 space-y-3">
 						<div class="flex justify-between text-sm">
 							<span class="text-muted-foreground">Salary</span>
-							<span class="font-medium">{formatCurrency(data.user.salary)}</span>
+							<span class="font-medium">{fmt.format(data.user.salary)}</span>
 						</div>
 						<div class="flex justify-between text-sm">
 							<span class="text-muted-foreground">Tax</span>
-							<span>{formatCurrency(data.user.salary_tax)}</span>
+							<span>{fmt.format(data.user.salary_tax)}</span>
 						</div>
 						<div class="flex justify-between text-sm">
 							<span class="text-muted-foreground">Bonus</span>
-							<span>{formatCurrency(data.user.salary_bonus)}</span>
+							<span>{fmt.format(data.user.salary_bonus)}</span>
 						</div>
 					</div>
 				</div>

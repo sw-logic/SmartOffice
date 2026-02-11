@@ -49,10 +49,10 @@
 			</div>
 			<div class="flex items-center gap-4 text-sm">
 				{#if subtotalTaxValue !== undefined}
-					<span class="text-muted-foreground">Tax: {formatCurrency(subtotalTaxValue)}</span>
+					<span class="text-muted-foreground">Tax: {@html formatCurrency(subtotalTaxValue)}</span>
 				{/if}
 				<span class="font-semibold {colorClass}">
-					{formatCurrency(subtotalAmount)}
+					{@html formatCurrency(subtotalAmount)}
 				</span>
 			</div>
 		</div>

@@ -5,6 +5,7 @@
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import Paragraph from '@lucide/svelte/icons/pilcrow';
 	import type { Editor } from '@tiptap/core';
+	import { getContext } from 'svelte';
 	import commands from '../../../commands/toolbar-commands.js';
 	import EdraToolTip from '../EdraToolTip.svelte';
 	import strings from '../../../strings.js';
@@ -17,6 +18,13 @@
 
 	const headings = commands['headings'];
 
+	const toolbar = getContext<{ current: string | null; open: (n: string) => void; close: (n: string) => void } | undefined>('edra-toolbar-dropdown');
+	let isOpen = $derived(toolbar?.current === 'headings');
+	function handleOpenChange(open: boolean) {
+		if (open) toolbar?.open('headings');
+		else toolbar?.close('headings');
+	}
+
 	const isActive = $derived.by(() => {
 		return headings.find((h) => h.isActive?.(editor)) !== undefined;
 	});
@@ -27,7 +35,7 @@
 	});
 </script>
 
-<DropdownMenu.Root>
+<DropdownMenu.Root open={isOpen} onOpenChange={handleOpenChange}>
 	<EdraToolTip tooltip={strings.toolbar.heading.buttonTitle}>
 		<DropdownMenu.Trigger
 			class={buttonVariants({

@@ -32,6 +32,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 					name: true,
 					order: true,
 					color: true,
+					isCompleteColumn: true,
 					_count: { select: { tasks: true } }
 				}
 			},
@@ -97,6 +98,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			name: c.name,
 			order: c.order,
 			color: c.color,
+			isCompleteColumn: c.isCompleteColumn,
 			taskCount: c._count.tasks
 		})),
 		swimlanes: board.swimlanes.map((s) => ({
@@ -271,6 +273,67 @@ export const actions: Actions = {
 			entityType: 'KanbanColumn',
 			newValues: { reordered: validOrders.map((o) => o.id), count: validOrders.length }
 		});
+
+		return { success: true };
+	},
+
+	toggleCompleteColumn: async ({ locals, request, params }) => {
+		await requirePermission(locals, 'projects', 'kanban');
+
+		const boardId = parseInt(params.id);
+		const formData = await request.formData();
+		const id = parseInt(formData.get('id') as string);
+
+		if (!id) {
+			return fail(400, { error: 'ID is required' });
+		}
+
+		const column = await prisma.kanbanColumn.findUnique({ where: { id } });
+		if (!column || column.kanbanBoardId !== boardId) {
+			return fail(404, { error: 'Column not found' });
+		}
+
+		const newValue = !column.isCompleteColumn;
+
+		// Clear isCompleteColumn on all columns of this board, then set on target (if toggling on)
+		await prisma.$transaction([
+			prisma.kanbanColumn.updateMany({
+				where: { kanbanBoardId: boardId },
+				data: { isCompleteColumn: false }
+			}),
+			...(newValue
+				? [prisma.kanbanColumn.update({ where: { id }, data: { isCompleteColumn: true } })]
+				: [])
+		]);
+
+		// Bulk update tasks: tasks in the complete column get isComplete = true, others get false
+		if (newValue) {
+			await prisma.$transaction([
+				prisma.task.updateMany({
+					where: { kanbanBoardId: boardId, columnId: id },
+					data: { isComplete: true }
+				}),
+				prisma.task.updateMany({
+					where: { kanbanBoardId: boardId, columnId: { not: id } },
+					data: { isComplete: false }
+				})
+			]);
+		} else {
+			// No complete column — all tasks are not complete
+			await prisma.task.updateMany({
+				where: { kanbanBoardId: boardId },
+				data: { isComplete: false }
+			});
+		}
+
+		await logUpdate(
+			locals.user!.id,
+			'projects.kanban',
+			String(id),
+			'KanbanColumn',
+			{ isCompleteColumn: column.isCompleteColumn },
+			{ isCompleteColumn: newValue }
+		);
 
 		return { success: true };
 	},

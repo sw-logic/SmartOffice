@@ -226,6 +226,20 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 		}
 	}
 
+	// Sync isComplete when columnId changes
+	const newColumnId = data.columnId as number | null | undefined;
+	if ('columnId' in data) {
+		if (newColumnId) {
+			const col = await prisma.kanbanColumn.findUnique({
+				where: { id: newColumnId },
+				select: { isCompleteColumn: true }
+			});
+			data.isComplete = col?.isCompleteColumn ?? false;
+		} else {
+			data.isComplete = false;
+		}
+	}
+
 	const updated = await prisma.task.update({
 		where: { id },
 		data

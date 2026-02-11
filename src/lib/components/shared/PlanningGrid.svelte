@@ -17,6 +17,7 @@
 		status: string;
 		priority: string;
 		type: string | null;
+		isComplete: boolean;
 		startDate: string | Date | null;
 		dueDate: string | Date | null;
 		estimatedTime: number | null;
@@ -36,12 +37,12 @@
 		tasks: PlanningTask[];
 		employees: Employee[];
 		days: Date[];
-		priorityEnums: EnumOption[];
+		statusEnums: EnumOption[];
 		onTaskMoved: (taskId: number, newStartDate: string | null, newAssigneeId: number | null) => void;
 		onTaskClick: (taskId: number) => void;
 	}
 
-	let { tasks, employees, days, priorityEnums, onTaskMoved, onTaskClick }: Props = $props();
+	let { tasks, employees, days, statusEnums, onTaskMoved, onTaskClick }: Props = $props();
 
 	const flipDurationMs = 150;
 	let isDragging = $state(false);
@@ -146,16 +147,12 @@
 <div class="overflow-auto border rounded-md bg-background">
 	<!-- Grid -->
 	<div
-		class="grid min-w-fit"
-		style="grid-template-columns: 180px repeat({dayCount}, minmax(150px, 1fr));"
+		class="grid grid-cols-{dayCount}"
 	>
 		<!-- Header row -->
-		<div class="sticky left-0 z-20 bg-muted/50 border-b border-r p-2 font-medium text-sm">
-			Team
-		</div>
 		{#each days as day}
 			<div
-				class="border-b border-r p-2 text-center text-sm {isToday(day) ? 'bg-primary/5' : 'bg-muted/50'}"
+				class="border-b border-r p-2 text-center text-sm {isToday(day) ? 'bg-primary/10' : 'bg-muted/50'}"
 			>
 				<div class="font-medium">{format(day, 'EEE')}</div>
 				<div class="text-xs text-muted-foreground">{format(day, 'MMM d')}</div>
@@ -166,22 +163,24 @@
 		{#each employees as employee}
 			{@const weeklyMinutes = getPersonWeeklyMinutes(employee.id)}
 			<!-- Person label -->
-			<div class="sticky left-0 z-10 bg-background border-b border-r p-2 flex items-center gap-2">
-				<Avatar.Root class="h-6 w-6 shrink-0">
-					{#if employee.image}
-						<Avatar.Image src="/api/uploads/{employee.image}" alt="{employee.firstName} {employee.lastName}" />
-					{/if}
-					<Avatar.Fallback class="text-[10px]">
-						{getInitials(employee.firstName, employee.lastName)}
-					</Avatar.Fallback>
-				</Avatar.Root>
-				<div class="min-w-0">
-					<div class="text-xs font-medium truncate">{employee.firstName} {employee.lastName}</div>
-					{#if weeklyMinutes > 0}
-						<div class="text-xs text-muted-foreground">{formatMinutes(weeklyMinutes)}/week</div>
-					{/if}
-				</div>
-			</div>
+            <div class="col-span-full">
+                <div class="z-10 bg-primary/5 border-b border-r p-2 flex items-center gap-2">
+                    <Avatar.Root class="h-10 w-10 shrink-0">
+                        {#if employee.image}
+                            <Avatar.Image src="/api/uploads/{employee.image}" alt="{employee.firstName} {employee.lastName}" />
+                        {/if}
+                        <Avatar.Fallback class="text-[10px]">
+                            {getInitials(employee.firstName, employee.lastName)}
+                        </Avatar.Fallback>
+                    </Avatar.Root>
+                    <div class="min-w-0">
+                        <div class="text-sm font-medium truncate">{employee.firstName} {employee.lastName}</div>
+                    </div>
+                    {#if weeklyMinutes > 0}
+                        <div class="ml-auto mr-4 text-sm ">Total: <strong>{formatMinutes(weeklyMinutes)}</strong> / week</div>
+                    {/if}
+                </div>
+            </div>
 
 			<!-- Day cells for this employee -->
 			{#each days as day}
@@ -189,7 +188,7 @@
 				{@const cellMin = getCellMinutes(cellKey)}
 				{@const overloaded = cellMin > 480}
 				<div
-					class="border-b border-r min-h-[80px] {isToday(day) ? 'bg-primary/5' : ''} {overloaded ? 'bg-destructive/5' : ''}"
+					class="col- border-b border-r min-h-[80px] {overloaded ? 'bg-destructive/5' : ''}"
 				>
 					{#if cellMin > 0}
 						<div class="px-1.5 pt-1 text-[10px] {overloaded ? 'text-destructive font-medium' : 'text-muted-foreground'} text-right">
@@ -214,7 +213,7 @@
 							<div animate:flip={{ duration: flipDurationMs }}>
 								<PlanningTaskCard
 									{task}
-									{priorityEnums}
+									{statusEnums}
 									onclick={() => { if (!isDragging) onTaskClick(task.id); }}
 								/>
 							</div>
@@ -265,7 +264,7 @@
 							<div animate:flip={{ duration: flipDurationMs }}>
 								<PlanningTaskCard
 									{task}
-									{priorityEnums}
+									{statusEnums}
 									onclick={() => { if (!isDragging) onTaskClick(task.id); }}
 								/>
 							</div>

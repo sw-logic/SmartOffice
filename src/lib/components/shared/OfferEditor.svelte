@@ -20,6 +20,7 @@
 		GripHorizontal
 	} from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
+	import { createCurrencyFormatter } from '$lib/utils/currency';
 
 	interface ClientData {
 		id: number;
@@ -135,7 +136,8 @@
 	let clientId = $state<number | null>(offer?.clientId ?? null);
 	let offerDate = $state(offer?.date ? offer.date.split('T')[0] : new Date().toISOString().split('T')[0]);
 	let validUntil = $state(offer?.validUntil ? offer.validUntil.split('T')[0] : '');
-	let currency = $state(offer?.currency ?? 'USD');
+	const defaultCurrency = enums.currency?.find((c: any) => c.isDefault)?.value || 'USD';
+	let currency = $state(offer?.currency ?? defaultCurrency);
 	let notes = $state(offer?.notes ?? '');
 	let terms = $state(offer?.terms ?? '');
 	let discountType = $state<string | null>(offer?.discountType ?? null);
@@ -373,12 +375,7 @@
 		options[optionIndex].items = newItems;
 	}
 
-	function formatCurrency(amount: number): string {
-		return new Intl.NumberFormat('en-US', {
-			style: 'currency',
-			currency: currency
-		}).format(amount);
-	}
+	let fmt = $derived(createCurrencyFormatter(enums.currency || [], currency));
 
 	function getOptionTotal(opt: OptionState) {
 		let subtotal = 0;
@@ -525,7 +522,7 @@
 					{/if}
 					<div class="flex items-center justify-between">
 						<span class="text-xs text-muted-foreground">
-							{formatCurrency(item.unitPrice)}/{item.unitOfMeasure}
+							{@html fmt.formatHtml(item.unitPrice)}/{item.unitOfMeasure}
 						</span>
 						{#if item.taxRate}
 							<span class="text-xs text-muted-foreground">Tax: {item.taxRate}%</span>
@@ -731,7 +728,7 @@
 												/>
 											</td>
 											<td class="p-1 text-right font-medium pr-2">
-												{formatCurrency(item.total)}
+												{@html fmt.formatHtml(item.total)}
 											</td>
 											<td class="p-1">
 												<Button
@@ -759,13 +756,13 @@
 							</Button>
 							<div class="text-sm space-x-4">
 								<span class="text-muted-foreground">
-									Subtotal: <strong>{formatCurrency(optTotal.subtotal)}</strong>
+									Subtotal: <strong>{@html fmt.formatHtml(optTotal.subtotal)}</strong>
 								</span>
 								<span class="text-muted-foreground">
-									Tax: <strong>{formatCurrency(optTotal.tax)}</strong>
+									Tax: <strong>{@html fmt.formatHtml(optTotal.tax)}</strong>
 								</span>
 								<span>
-									Total: <strong>{formatCurrency(optTotal.total)}</strong>
+									Total: <strong>{@html fmt.formatHtml(optTotal.total)}</strong>
 								</span>
 							</div>
 						</div>
@@ -854,17 +851,17 @@
 						<div class="flex items-center justify-between">
 							<div class="space-y-1 text-sm">
 								<div class="flex gap-6">
-									<span>Subtotal: <strong>{formatCurrency(grandTotalInfo().subtotal)}</strong></span>
-									<span>Tax: <strong>{formatCurrency(grandTotalInfo().taxTotal)}</strong></span>
+									<span>Subtotal: <strong>{@html fmt.formatHtml(grandTotalInfo().subtotal)}</strong></span>
+									<span>Tax: <strong>{@html fmt.formatHtml(grandTotalInfo().taxTotal)}</strong></span>
 									{#if grandTotalInfo().discountApplied > 0}
 										<span class="text-red-600">
-											Discount: <strong>-{formatCurrency(grandTotalInfo().discountApplied)}</strong>
+											Discount: <strong>-{@html fmt.formatHtml(grandTotalInfo().discountApplied)}</strong>
 										</span>
 									{/if}
 								</div>
 							</div>
 							<div class="text-2xl font-bold">
-								{formatCurrency(grandTotalInfo().grandTotal)}
+								{@html fmt.formatHtml(grandTotalInfo().grandTotal)}
 							</div>
 						</div>
 					</Card.Content>

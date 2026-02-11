@@ -503,10 +503,10 @@ async function main() {
 			group: 'Generic',
 			isSystem: true,
 			values: [
-				{ value: 'HUF', label: 'Hungarian Forint', sortOrder: 1, isDefault: true, metadata: { symbol: 'HUF', code: 'HUF' } },
-				{ value: 'USD', label: 'US Dollar', sortOrder: 1, metadata: { symbol: '$', code: 'USD' } },
-				{ value: 'EUR', label: 'Euro', sortOrder: 2, metadata: { symbol: '\u20ac', code: 'EUR' } },
-				{ value: 'GBP', label: 'British Pound', sortOrder: 3, metadata: { symbol: '\u00a3', code: 'GBP' } },
+				{ value: 'HUF', label: 'Hungarian Forint', sortOrder: 1, isDefault: true, metadata: { symbol: 'Ft', code: 'HUF', decimals: 0, locale: 'hu-HU' } },
+				{ value: 'USD', label: 'US Dollar', sortOrder: 2, metadata: { symbol: '$', code: 'USD', decimals: 2, locale: 'en-US' } },
+				{ value: 'EUR', label: 'Euro', sortOrder: 3, metadata: { symbol: '\u20ac', code: 'EUR', decimals: 2, locale: 'de-DE' } },
+				{ value: 'GBP', label: 'British Pound', sortOrder: 4, metadata: { symbol: '\u00a3', code: 'GBP', decimals: 2, locale: 'en-GB' } },
 			]
 		},
 		{

@@ -32,10 +32,13 @@
 	} from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
 	import { formatDate } from '$lib/utils/date';
+	import { createCurrencyFormatter } from '$lib/utils/currency';
 	import { groupFinanceRecords, type GroupByField } from '$lib/utils/group-by';
 	import GroupHeaderRow from '$lib/components/shared/GroupHeaderRow.svelte';
 
 	let { data } = $props();
+
+	const fmt = createCurrencyFormatter(data.enums.currency);
 
 	// Persist/restore list view state
 	const LIST_ROUTE = '/finances/income';
@@ -246,27 +249,20 @@
 		deleteDialogOpen = true;
 	}
 
-	function formatCurrency(amount: number, currency: string = 'USD'): string {
-		return new Intl.NumberFormat('en-US', {
-			style: 'currency',
-			currency
-		}).format(amount);
-	}
-
 	let average = $derived(data.summary.count > 0 ? data.summary.totalAmount / data.summary.count : 0);
 
 	// Group-by
 	let groupBy = $derived(($page.url.searchParams.get('groupBy') as GroupByField) || 'none');
-	let collapsedGroups = $state<Set<string>>(new Set());
+	let expandedGroups = $state<Set<string>>(new Set());
 
 	function toggleGroup(key: string) {
-		const next = new Set(collapsedGroups);
+		const next = new Set(expandedGroups);
 		if (next.has(key)) {
 			next.delete(key);
 		} else {
 			next.add(key);
 		}
-		collapsedGroups = next;
+		expandedGroups = next;
 	}
 
 	let groupedData = $derived(
@@ -345,7 +341,7 @@
 			</Card.Header>
 			<Card.Content>
 				<div class="text-2xl font-bold text-green-600">
-					{formatCurrency(data.summary.totalAmount)}
+					{@html fmt.formatHtml(data.summary.totalAmount)}
 				</div>
 				<p class="text-muted-foreground text-xs">
 					For selected period
@@ -360,7 +356,7 @@
 			</Card.Header>
 			<Card.Content>
 				<div class="text-2xl font-bold">
-					{formatCurrency(data.summary.totalTaxValue)}
+					{@html fmt.formatHtml(data.summary.totalTaxValue)}
 				</div>
 				<p class="text-muted-foreground text-xs">
 					Total tax on income
@@ -390,7 +386,7 @@
 			</Card.Header>
 			<Card.Content>
 				<div class="text-2xl font-bold">
-					{formatCurrency(average)}
+					{@html fmt.formatHtml(average)}
 				</div>
 				<p class="text-muted-foreground text-xs">
 					Per record
@@ -406,10 +402,10 @@
 				</Card.Header>
 				<Card.Content>
 					<div class="text-2xl font-bold" class:text-green-600={data.cumulativeBalance.balance >= 0} class:text-red-600={data.cumulativeBalance.balance < 0}>
-						{formatCurrency(data.cumulativeBalance.balance)}
+						{@html fmt.formatHtml(data.cumulativeBalance.balance)}
 					</div>
 					<p class="text-muted-foreground text-xs">
-						Income: {formatCurrency(data.cumulativeBalance.income)} &middot; Expenses: {formatCurrency(data.cumulativeBalance.expenses)}
+						Income: {@html fmt.formatHtml(data.cumulativeBalance.income)} &middot; Expenses: {@html fmt.formatHtml(data.cumulativeBalance.expenses)}
 					</p>
 				</Card.Content>
 			</Card.Root>
@@ -558,12 +554,12 @@
 							subtotalAmount={group.subtotals.amount}
 							subtotalTaxValue={group.subtotals.taxValue}
 							colspan={11}
-							expanded={!collapsedGroups.has(group.key)}
+							expanded={expandedGroups.has(group.key)}
 							onToggle={() => toggleGroup(group.key)}
-							formatCurrency={(v) => formatCurrency(v)}
+							formatCurrency={fmt.formatHtml}
 							colorClass="text-green-600"
 						/>
-						{#if !collapsedGroups.has(group.key)}
+						{#if expandedGroups.has(group.key)}
 							{#each group.items as income}
 								<Table.Row class={income.status === 'projected' ? 'opacity-60 border-dashed' : ''}>
 									<Table.Cell>
@@ -633,13 +629,13 @@
 										{/if}
 									</Table.Cell>
 									<Table.Cell class="text-right font-medium text-green-600">
-										{formatCurrency(Number(income.amount), income.currency)}
+										{@html fmt.formatHtml(Number(income.amount), income.currency)}
 									</Table.Cell>
 									<Table.Cell class="text-right">
 										{income.tax}%
 									</Table.Cell>
 									<Table.Cell class="text-right">
-										{formatCurrency(income.tax_value, income.currency)}
+										{@html fmt.formatHtml(income.tax_value, income.currency)}
 									</Table.Cell>
 									<Table.Cell>
 										<div class="flex items-center gap-1">
@@ -741,13 +737,13 @@
 								{/if}
 							</Table.Cell>
 							<Table.Cell class="text-right font-medium text-green-600">
-								{formatCurrency(Number(income.amount), income.currency)}
+								{@html fmt.formatHtml(Number(income.amount), income.currency)}
 							</Table.Cell>
 							<Table.Cell class="text-right">
 								{income.tax}%
 							</Table.Cell>
 							<Table.Cell class="text-right">
-								{formatCurrency(income.tax_value, income.currency)}
+								{@html fmt.formatHtml(income.tax_value, income.currency)}
 							</Table.Cell>
 							<Table.Cell>
 								<div class="flex items-center gap-1">
@@ -789,11 +785,11 @@
 							</div>
 						</Table.Cell>
 						<Table.Cell class="text-right text-green-600">
-							{formatCurrency(data.summary.totalAmount)}
+							{@html fmt.formatHtml(data.summary.totalAmount)}
 						</Table.Cell>
 						<Table.Cell class="text-right">-</Table.Cell>
 						<Table.Cell class="text-right">
-							{formatCurrency(data.summary.totalTaxValue)}
+							{@html fmt.formatHtml(data.summary.totalTaxValue)}
 						</Table.Cell>
 						<Table.Cell></Table.Cell>
 					</Table.Row>

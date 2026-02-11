@@ -26,7 +26,7 @@ logging.
 - **UI**: shadcn-svelte + TailwindCSS + lucide-svelte
 - **Forms**: Superforms with Zod validation (full-page forms), fetch-based API calls (modals)
 - **Notifications**: svelte-sonner
-- **Rich Text**: Edra (Tiptap-based WYSIWYG editor, shadcn variant) with `@tiptap/markdown` for markdown I/O
+- **Rich Text**: Tiptap core with `@tiptap/markdown` for markdown I/O; Edra vendored for toolbar/menu UI only
 
 ### Additional Libraries
 
@@ -54,11 +54,12 @@ src/
 ├── lib/
 │   ├── components/
 │   │   ├── ui/           # shadcn-svelte components (Button, Input, Select, etc.)
-│   │   ├── edra/         # Edra WYSIWYG editor (vendored Tiptap + shadcn wrapper)
+│   │   ├── edra/         # Edra vendored toolbar/menu UI components (Tiptap + shadcn wrapper)
 │   │   ├── layout/       # AppShell, Sidebar, Header
 │   │   └── shared/       # IncomeFormModal, ExpenseFormModal, NotesList, TaskCard,
-│   │                     # MarkdownEditor, MarkdownViewer, ColorInput, DurationInput,
-│   │                     # TaskDetailModal, TaskTimeRecordsList, TimeRecordFormModal,
+│   │                     # MarkdownEditor, MarkdownViewer, TextareaWithVoice,
+│   │                     # ColorInput, DurationInput, TaskDetailModal,
+│   │                     # TaskTimeRecordsList, TimeRecordFormModal,
 │   │                     # NoteFormModal, DateRangeSelector
 │   ├── server/
 │   │   ├── prisma.ts     # Prisma client singleton
@@ -476,17 +477,32 @@ Reference implementations:
 ## Shared Components
 
 ### MarkdownEditor (`src/lib/components/shared/MarkdownEditor.svelte`)
-- WYSIWYG editor built on Edra (Tiptap + shadcn-svelte)
+- Lightweight WYSIWYG markdown editor — creates its own Tiptap `Editor` instance directly (does NOT use the heavy `EdraEditor` component)
+- Uses only Edra's `EdraToolBar` for toolbar UI and BubbleMenu components (Link, TableCol, TableRow) for inline editing
 - Stores/loads content as markdown via `@tiptap/markdown` (`editor.getMarkdown()` / `setContent(md, { contentType: 'markdown' })`)
-- Toolbar with: bold, italic, underline, strike, headings, lists (including task lists/checkboxes), blockquote, code, link, table, undo/redo, font size, colors, alignment
-- Excluded toolbar groups: `media`, `math`
+- **Loaded extensions**: StarterKit (bold, italic, strike, headings, blockquote, codeBlock, lists, link, history), TaskList, TaskItem, Table, Typography, Placeholder, AutoJoiner, Markdown
+- **NOT loaded** (stripped for performance): media (image/video/audio/iframe), math/KaTeX, CodeBlockLowlight, SlashCommand, FileDrop, Highlight, Color/TextStyle/FontSize, Subscript/Superscript, TextAlign, SearchAndReplace, TableOfContents
+- Toolbar: undo/redo, headings, bold, italic, strike, blockquote, code, link, lists (bullet, ordered, task), table
+- Excluded from toolbar: `media`, `math`, `alignment`, `fontSize`, `colors`, `underline`, `superscript`, `subscript`
+- Voice dictation: Web Speech API with Hungarian (`hu-HU`) language, real-time transcription with interim results, punctuation word replacement (pont→`.`, vessző→`,`, etc.), auto-capitalization after sentence-ending punctuation
+- Auto-focuses editor content area on open (via `requestAnimationFrame`)
+- Compact toolbar: 28px buttons with flex-wrap via scoped CSS
 - Props: `value` (bindable markdown string), `placeholder`, `class`
 
 ### MarkdownViewer (`src/lib/components/shared/MarkdownViewer.svelte`)
-- Read-only Edra editor (`editable={false}`) for rendering markdown content
+- Read-only Tiptap editor (`editable={false}`) for rendering markdown content — creates its own `Editor` instance directly
 - Loads content via `editor.commands.setContent(value, { contentType: 'markdown' })`
 - Syncs when `value` prop changes externally via `$effect`
-- Props: `value` (markdown string), `class`
+- Supports interactive task list checkboxes with DOM→document sync
+- Props: `value` (markdown string), `class`, `onchange`
+
+### TextareaWithVoice (`src/lib/components/shared/TextareaWithVoice.svelte`)
+- Plain textarea with label, voice dictation button, and character counter
+- Same speech recognition logic as MarkdownEditor (Hungarian, punctuation rules, auto-capitalization)
+- Mic button appears inline with label when Web Speech API is available
+- Character counter bottom-right, turns red when over limit
+- Props: `value` (bindable string), `label`, `id`, `placeholder`, `maxlength` (default 160), `rows`, `class`
+- Used in: `TimeRecordFormModal` (description field)
 
 ### ColorInput (`src/lib/components/shared/ColorInput.svelte`)
 - Combined color picker + hex text input
@@ -580,7 +596,7 @@ npm run build
 
 ### Known Issues
 
-- 8 pre-existing lucide-svelte type compatibility errors (`Type 'typeof X' is not assignable to type 'Component<...>'`). These are false positives from icon type definitions and do not affect runtime behavior.
+- 9 pre-existing lucide-svelte type compatibility errors (`Type 'typeof X' is not assignable to type 'Component<...>'`). These are false positives from icon type definitions and do not affect runtime behavior.
 
 ---
 
@@ -649,5 +665,6 @@ Two patterns are used for CRUD operations:
 - [Prisma Docs](https://www.prisma.io/docs)
 - [shadcn-svelte](https://www.shadcn-svelte.com)
 - [Superforms](https://superforms.rocks)
-- [Edra (Tiptap editor for Svelte)](https://github.com/Tsuzat/Edra)
+- [Tiptap Docs](https://tiptap.dev/docs)
 - [Tiptap Markdown](https://tiptap.dev/docs/editor/markdown)
+- [Edra (vendored toolbar/menu UI)](https://github.com/Tsuzat/Edra)

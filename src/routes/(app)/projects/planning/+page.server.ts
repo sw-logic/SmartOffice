@@ -15,7 +15,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const clientId = url.searchParams.get('clientId');
 	const assigneeId = url.searchParams.get('assigneeId');
 	const hideDone = url.searchParams.get('hideDone') !== 'false'; // default true
-	const priority = url.searchParams.get('priority');
+	const status = url.searchParams.get('status');
 
 	// Determine week start (Monday)
 	const weekStart = weekParam
@@ -37,11 +37,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	if (assigneeId) {
 		taskFilter.assignedToId = parseInt(assigneeId);
 	}
-	if (hideDone) {
-		taskFilter.status = { not: 'done' };
-	}
-	if (priority) {
-		taskFilter.priority = priority;
+	if (status) {
+		taskFilter.status = status;
+	} else if (hideDone) {
+		taskFilter.isComplete = false;
 	}
 
 	const taskSelect = {
@@ -50,6 +49,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		status: true,
 		priority: true,
 		type: true,
+		isComplete: true,
 		startDate: true,
 		dueDate: true,
 		estimatedTime: true,
@@ -149,7 +149,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			clientId: clientId || '',
 			assigneeId: assigneeId || '',
 			hideDone,
-			priority: priority || ''
+			status: status || ''
 		},
 		isAdmin
 	};

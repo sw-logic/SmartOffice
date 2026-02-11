@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { cn } from '$lib/utils.js';
-	import { slide } from 'svelte/transition';
+	import { setContext } from 'svelte';
 	import commands from '../commands/toolbar-commands.js';
 	import type { EdraToolbarProps } from '../types.js';
 	import ToolBarIcon from './components/ToolBarIcon.svelte';
@@ -15,14 +15,21 @@
 	const { editor, class: className, excludedCommands, children }: EdraToolbarProps = $props();
 
 	const toolbarCommands = Object.keys(commands).filter((key) => !excludedCommands?.includes(key));
+
+	// Shared dropdown state — only one dropdown open at a time
+	let openDropdown = $state<string | null>(null);
+	setContext('edra-toolbar-dropdown', {
+		get current() { return openDropdown; },
+		open(name: string) { openDropdown = name; },
+		close(name: string) { if (openDropdown === name) openDropdown = null; }
+	});
 </script>
 
 <div
 	class={cn(
-		'edra-toolbar bg-muted/25 mx-auto flex items-center gap-0.5 rounded-lg border-[0.5px] border-dashed',
+		'edra-toolbar flex items-center gap-0.5',
 		className
 	)}
-	transition:slide
 >
 	{#if children}
 		{@render children()}
@@ -34,12 +41,12 @@
 				<Alignment {editor} />
 			{:else if cmd === 'lists'}
 				<Lists {editor} />
-			{:else if ['media', 'table'].includes(cmd)}
-				<span></span>
 			{:else}
 				{@const commandGroup = commands[cmd]}
 				{#each commandGroup as command (command)}
-					{#if command.name === 'link'}
+					{#if excludedCommands?.includes(command.name)}
+						<!-- individual command excluded -->
+					{:else if command.name === 'link'}
 						<Link {editor} />
 					{:else if command.name === 'paragraph'}
 						<span></span>
@@ -49,7 +56,11 @@
 				{/each}
 			{/if}
 		{/each}
-		<FontSize {editor} />
-		<QuickColors {editor} />
+		{#if !excludedCommands?.includes('fontSize')}
+			<FontSize {editor} />
+		{/if}
+		{#if !excludedCommands?.includes('colors')}
+			<QuickColors {editor} />
+		{/if}
 	{/if}
 </div>

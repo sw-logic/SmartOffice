@@ -14,8 +14,11 @@
 		RefreshCw
 	} from 'lucide-svelte';
 	import { formatDate } from '$lib/utils/date';
+	import { createCurrencyFormatter } from '$lib/utils/currency';
 
 	let { data } = $props();
+
+	const fmt = createCurrencyFormatter(data.enums.currency);
 
 	const categoryLabels: Record<string, string> = {
 		project_payment: 'Project Payment',
@@ -33,14 +36,6 @@
 		quarterly: 'Quarterly',
 		yearly: 'Yearly'
 	};
-
-	function formatCurrency(amount: number, currency: string = 'USD'): string {
-		return new Intl.NumberFormat('en-US', {
-			style: 'currency',
-			currency
-		}).format(amount);
-	}
-
 
 	const taxAmount = data.income.taxRate
 		? Number(data.income.amount) * (Number(data.income.taxRate) / 100)
@@ -80,7 +75,7 @@
 					<div>
 						<div class="text-sm text-muted-foreground">Amount</div>
 						<div class="text-2xl font-bold text-green-600">
-							{formatCurrency(Number(data.income.amount), data.income.currency)}
+							{fmt.format(Number(data.income.amount), data.income.currency)}
 						</div>
 					</div>
 					<div>
@@ -96,19 +91,19 @@
 						<div>
 							<div class="text-sm text-muted-foreground">Gross Amount</div>
 							<div class="font-medium">
-								{formatCurrency(Number(data.income.amount), data.income.currency)}
+								{fmt.format(Number(data.income.amount), data.income.currency)}
 							</div>
 						</div>
 						<div>
 							<div class="text-sm text-muted-foreground">Tax ({Number(data.income.taxRate)}%)</div>
 							<div class="font-medium">
-								{formatCurrency(taxAmount, data.income.currency)}
+								{fmt.format(taxAmount, data.income.currency)}
 							</div>
 						</div>
 						<div>
 							<div class="text-sm text-muted-foreground">Net Amount</div>
 							<div class="font-medium">
-								{formatCurrency(netAmount, data.income.currency)}
+								{fmt.format(netAmount, data.income.currency)}
 							</div>
 						</div>
 					</div>

@@ -5,6 +5,7 @@
 	import { cn } from '$lib/utils.js';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import type { Editor } from '@tiptap/core';
+	import { getContext } from 'svelte';
 	import EdraToolTip from '../EdraToolTip.svelte';
 	import strings from '../../../strings.js';
 
@@ -14,11 +15,18 @@
 	}
 	const { class: className = '', editor }: Props = $props();
 
+	const toolbar = getContext<{ current: string | null; open: (n: string) => void; close: (n: string) => void } | undefined>('edra-toolbar-dropdown');
+	let isOpen = $derived(toolbar?.current === 'colors');
+	function handleOpenChange(open: boolean) {
+		if (open) toolbar?.open('colors');
+		else toolbar?.close('colors');
+	}
+
 	const currentColor = $derived.by(() => editor.getAttributes('textStyle').color);
 	const currentHighlight = $derived.by(() => editor.getAttributes('highlight').color);
 </script>
 
-<Popover.Root>
+<Popover.Root open={isOpen} onOpenChange={handleOpenChange}>
 	<Popover.Trigger>
 		<EdraToolTip tooltip={strings.toolbar.color.buttonTitle}>
 			<div

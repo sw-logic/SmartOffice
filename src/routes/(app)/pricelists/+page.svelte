@@ -12,8 +12,11 @@
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Pencil, Trash2, Plus, Search, ArrowUpDown } from 'lucide-svelte';
 	import { formatDate } from '$lib/utils/date';
+	import { createCurrencyFormatter } from '$lib/utils/currency';
 
 	let { data } = $props();
+
+	const fmt = createCurrencyFormatter(data.enums.currency);
 
 	// Persist/restore list view state
 	const LIST_ROUTE = '/pricelists';
@@ -80,14 +83,6 @@
 		selectedItem = item;
 		deleteDialogOpen = true;
 	}
-
-	function formatCurrency(amount: number, currency: string = 'USD'): string {
-		return new Intl.NumberFormat('en-US', {
-			style: 'currency',
-			currency
-		}).format(amount);
-	}
-
 
 	function isValidNow(validFrom: Date | null, validTo: Date | null): boolean {
 		const now = new Date();
@@ -211,7 +206,7 @@
 							{/if}
 						</Table.Cell>
 						<Table.Cell class="text-right font-medium">
-							{formatCurrency(Number(item.unitPrice), item.currency)}
+							{fmt.format(Number(item.unitPrice), item.currency)}
 						</Table.Cell>
 						<Table.Cell>
 							{unitLabels[item.unitOfMeasure] || item.unitOfMeasure}

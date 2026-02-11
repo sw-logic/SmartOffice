@@ -1,7 +1,7 @@
 import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
-import { parseListParams, buildPagination, createDeleteAction, createBulkDeleteAction } from '$lib/server/crud-helpers';
+import { parseListParams, buildPagination, serializeDecimals, createDeleteAction, createBulkDeleteAction } from '$lib/server/crud-helpers';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'offers', 'read');
@@ -70,13 +70,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		orderBy: { name: 'asc' }
 	});
 
-	const serializedOffers = offers.map((o) => ({
-		...o,
-		subtotal: Number(o.subtotal),
-		taxTotal: Number(o.taxTotal),
-		grandTotal: Number(o.grandTotal),
-		discountValue: o.discountValue ? Number(o.discountValue) : null
-	}));
+	const serializedOffers = offers.map((o) => serializeDecimals(o, ['subtotal', 'taxTotal', 'grandTotal', 'discountValue']));
 
 	// Summary
 	const summaryData = await prisma.offer.aggregate({

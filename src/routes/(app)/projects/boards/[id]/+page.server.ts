@@ -39,7 +39,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 					id: true,
 					name: true,
 					order: true,
-					color: true
+					color: true,
+					isCompleteColumn: true
 				}
 			},
 			swimlanes: {
@@ -199,9 +200,15 @@ export const actions: Actions = {
 			return fail(404, { error: 'Task not found' });
 		}
 
+		// Fetch isCompleteColumn flag for target column
+		const targetColumn = await prisma.kanbanColumn.findUnique({
+			where: { id: columnId },
+			select: { isCompleteColumn: true }
+		});
+
 		await prisma.task.update({
 			where: { id: taskId },
-			data: { columnId, swimlaneId, order }
+			data: { columnId, swimlaneId, order, isComplete: targetColumn?.isCompleteColumn ?? false }
 		});
 
 		await logAction({
@@ -234,12 +241,28 @@ export const actions: Actions = {
 			return fail(400, { error: 'Invalid updates format' });
 		}
 
-		// Batch update all tasks
+		// Fetch isCompleteColumn flag for target columns
+		const uniqueColumnIds = [...new Set(updates.map(u => u.columnId))];
+		const columns = await prisma.kanbanColumn.findMany({
+			where: { id: { in: uniqueColumnIds } },
+			select: { id: true, isCompleteColumn: true }
+		});
+		const columnCompleteMap = new Map<number, boolean>();
+		for (const col of columns) {
+			columnCompleteMap.set(col.id, col.isCompleteColumn);
+		}
+
+		// Batch update all tasks (sync isComplete based on column's isCompleteColumn flag)
 		await Promise.all(
 			updates.map(u =>
 				prisma.task.update({
 					where: { id: u.id },
-					data: { columnId: u.columnId, swimlaneId: u.swimlaneId, order: u.order }
+					data: {
+						columnId: u.columnId,
+						swimlaneId: u.swimlaneId,
+						order: u.order,
+						isComplete: columnCompleteMap.get(u.columnId) ?? false
+					}
 				})
 			)
 		);

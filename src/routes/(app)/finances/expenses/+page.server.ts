@@ -7,6 +7,7 @@ import { promoteProjectedRecords } from '$lib/server/recurring';
 import {
 	parseListParams,
 	parseDateRange,
+	serializeDecimals,
 	createDeleteAction,
 	createBulkDeleteAction,
 	parseFormId
@@ -140,12 +141,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	];
 
 	// Convert Decimal fields to numbers for serialization
-	const serializedExpenses = expenses.map(exp => ({
-		...exp,
-		amount: Number(exp.amount),
-		tax: Number(exp.tax),
-		tax_value: Number(exp.tax_value)
-	}));
+	const serializedExpenses = expenses.map(exp => serializeDecimals(exp, ['amount', 'tax', 'tax_value']));
 
 	// Load data needed for the form modal
 	const projects = await prisma.project.findMany({

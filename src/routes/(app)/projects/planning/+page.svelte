@@ -184,14 +184,14 @@
 		}
 	}
 
-	let priorityEnums = $derived(data.enums?.priority || []);
+	let statusEnums = $derived(data.enums?.task_status || []);
 </script>
 
 <div class="flex h-full overflow-hidden">
 	<!-- LEFT PANEL: Task List with Filters (1/3) -->
-	<div class="w-1/4 max-w-[420px] min-w-[300px] shrink-0 flex flex-col border-r bg-background">
+	<div class="w-1/5 max-w-[420px] min-w-[300px] shrink-0 flex flex-col border-r bg-background">
 		<!-- Panel header -->
-		<div class="p-4 pb-3 border-b space-y-3">
+		<div class="pr-2 pb-3 border-b space-y-3">
 			<div class="flex items-center gap-2">
 				<CalendarDays class="h-5 w-5 text-muted-foreground" />
 				<h1 class="text-lg font-bold">Resource Planning</h1>
@@ -199,7 +199,7 @@
 
 			<!-- Filters -->
 			<div class="space-y-2">
-                <div class="flex gap-2">
+                <div class="grid grid-cols-2 gap-2">
 
                     <Select.Root
                         type="single"
@@ -220,13 +220,12 @@
                         </Select.Content>
                     </Select.Root>
 
-
 					<Select.Root
-						type="single"
+                        type="single"
 						value={data.filters.clientId || 'all'}
 						onValueChange={(v) => updateFilters({ clientId: v === 'all' ? '' : v })}
 					>
-						<Select.Trigger class="h-8 flex-1 text-sm">
+						<Select.Trigger class="w-full h-8 flex-1 text-sm">
 							{data.filters.clientId ? data.clients.find(c => c.id === parseInt(data.filters.clientId))?.name || 'Client' : 'All Clients'}
 						</Select.Trigger>
 						<Select.Content>
@@ -238,40 +237,44 @@
 					</Select.Root>
 
 					<Select.Root
+                        class="w-full"
 						type="single"
-						value={data.filters.priority || 'all'}
-						onValueChange={(v) => updateFilters({ priority: v === 'all' ? '' : v })}
+						value={data.filters.status || 'all'}
+						onValueChange={(v) => updateFilters({ status: v === 'all' ? '' : v })}
 					>
-						<Select.Trigger class="h-8 flex-1 text-sm">
-							{data.filters.priority
-								? priorityEnums.find((p: { value: string }) => p.value === data.filters.priority)?.label || 'Priority'
-								: 'All Priorities'}
+						<Select.Trigger class="w-full h-8 flex-1 text-sm">
+							{data.filters.status
+								? statusEnums.find((s: { value: string }) => s.value === data.filters.status)?.label || 'Status'
+								: 'All Statuses'}
 						</Select.Trigger>
 						<Select.Content>
-							<Select.Item value="all">All Priorities</Select.Item>
-							{#each priorityEnums as p}
-								<Select.Item value={p.value}>{p.label}</Select.Item>
+							<Select.Item value="all">All Statuses</Select.Item>
+							{#each statusEnums as s}
+								<Select.Item value={s.value}>{s.label}</Select.Item>
 							{/each}
 						</Select.Content>
 					</Select.Root>
+
+                    <Select.Root
+                            class="w-full"
+                            type="single"
+                            value={data.filters.assigneeId || 'all'}
+                            onValueChange={(v) => updateFilters({ assigneeId: v === 'all' ? '' : v })}
+                    >
+                        <Select.Trigger class="h-8 w-full text-sm">
+                            {@const emp = data.filters.assigneeId ? data.employees.find(e => e.id === parseInt(data.filters.assigneeId)) : null}
+                            {emp ? `${emp.firstName} ${emp.lastName}` : 'All Assignees'}
+                        </Select.Trigger>
+                        <Select.Content>
+                            <Select.Item value="all">All Assignees</Select.Item>
+                            {#each data.employees as emp}
+                                <Select.Item value={String(emp.id)}>{emp.firstName} {emp.lastName}</Select.Item>
+                            {/each}
+                        </Select.Content>
+                    </Select.Root>
 				</div>
 
-				<Select.Root
-					type="single"
-					value={data.filters.assigneeId || 'all'}
-					onValueChange={(v) => updateFilters({ assigneeId: v === 'all' ? '' : v })}
-				>
-					<Select.Trigger class="h-8 w-full text-sm">
-						{@const emp = data.filters.assigneeId ? data.employees.find(e => e.id === parseInt(data.filters.assigneeId)) : null}
-						{emp ? `${emp.firstName} ${emp.lastName}` : 'All Assignees'}
-					</Select.Trigger>
-					<Select.Content>
-						<Select.Item value="all">All Assignees</Select.Item>
-						{#each data.employees as emp}
-							<Select.Item value={String(emp.id)}>{emp.firstName} {emp.lastName}</Select.Item>
-						{/each}
-					</Select.Content>
-				</Select.Root>
+
 
 				<label class="flex items-center gap-1.5 text-sm cursor-pointer">
 					<Checkbox
@@ -283,25 +286,9 @@
 			</div>
 		</div>
 
-		<!-- Task list header with search and count -->
-		<div class="px-4 py-2 border-b flex items-center gap-2">
-			<div class="relative flex-1">
-				<Search class="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-				<Input
-					type="text"
-					placeholder="Search tasks..."
-					bind:value={taskSearch}
-					class="h-7 pl-7 text-sm"
-				/>
-			</div>
-			<Badge variant="secondary" class="text-xs shrink-0">
-				{filteredUnscheduled.length}
-			</Badge>
-		</div>
-
 		<!-- Scrollable task list (DnD zone) -->
 		<div
-			class="flex-1 overflow-y-auto p-2 flex flex-col gap-1.5 min-h-[80px]"
+			class="flex-1 overflow-y-auto pt-2 pr-2 flex flex-col gap-1.5 min-h-[80px]"
 			use:dndzone={{
 				items: filteredUnscheduled,
 				flipDurationMs,
@@ -318,7 +305,7 @@
 				<div animate:flip={{ duration: flipDurationMs }}>
 					<PlanningTaskCard
 						{task}
-						{priorityEnums}
+						{statusEnums}
 						onclick={() => { if (!isDragging) openTaskModal(task.id); }}
 					/>
 				</div>
@@ -334,7 +321,7 @@
 	<!-- RIGHT PANEL: Calendar Grid (2/3) -->
 	<div class="flex-1 min-w-0 flex flex-col overflow-hidden">
 		<!-- Week navigator bar -->
-		<div class="p-4 pb-3 border-b flex items-center">
+		<div class="p-2 pt-0 border-b flex items-center">
 			<WeekNavigator
 				weekStart={data.filters.week}
 				viewMode={data.filters.viewMode}
@@ -344,12 +331,12 @@
 		</div>
 
 		<!-- Planning grid -->
-		<div class="flex-1 min-h-0 overflow-auto p-4 pt-3">
+		<div class="flex-1 min-h-0 overflow-auto p-2">
 			<PlanningGrid
 				tasks={data.tasks as any}
 				employees={data.employees}
 				days={days()}
-				{priorityEnums}
+				{statusEnums}
 				onTaskMoved={handleTaskMoved}
 				onTaskClick={openTaskModal}
 			/>

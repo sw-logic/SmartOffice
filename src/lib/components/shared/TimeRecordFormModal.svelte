@@ -3,7 +3,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import DurationInput from '$lib/components/shared/DurationInput.svelte';
-	import { Textarea } from '$lib/components/ui/textarea';
+	import TextareaWithVoice from '$lib/components/shared/TextareaWithVoice.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Select from '$lib/components/ui/select';
@@ -210,15 +210,14 @@
 				</div>
 			</div>
 
-            <div class="space-y-2">
-                <Label for="trDescription">Description</Label>
-                <Textarea
-                        id="trDescription"
-                        placeholder="What did you work on?"
-                        bind:value={description}
-                        rows={3}
-                />
-            </div>
+            <TextareaWithVoice
+                id="trDescription"
+                label="Description"
+                placeholder="What did you work on?"
+                bind:value={description}
+                maxlength={500}
+                rows={3}
+            />
 
 			<div class="grid grid-cols-2 gap-4">
 				{#if typeOptions.length > 0}

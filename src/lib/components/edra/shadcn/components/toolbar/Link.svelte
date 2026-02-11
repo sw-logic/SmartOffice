@@ -8,6 +8,7 @@
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import Link from '@lucide/svelte/icons/link';
 	import type { Editor } from '@tiptap/core';
+	import { getContext } from 'svelte';
 	import EdraToolTip from '../EdraToolTip.svelte';
 	import strings from '../../../strings.js';
 
@@ -18,6 +19,16 @@
 
 	let { editor, open = $bindable(false) }: Props = $props();
 
+	const toolbar = getContext<{ current: string | null; open: (n: string) => void; close: (n: string) => void } | undefined>('edra-toolbar-dropdown');
+	let isOpen = $derived(toolbar ? toolbar.current === 'link' : open);
+	function handleOpenChange(newOpen: boolean) {
+		if (toolbar) {
+			if (newOpen) toolbar.open('link');
+			else toolbar.close('link');
+		}
+		open = newOpen;
+	}
+
 	let value = $state<string>();
 
 	function handleSubmit(e: Event) {
@@ -25,11 +36,12 @@
 		if (value === undefined || value.trim() === '') return;
 		editor.chain().focus().setLink({ href: value }).run();
 		value = undefined;
-		open = false;
+		if (toolbar) toolbar.close('link');
+		else open = false;
 	}
 </script>
 
-<Popover.Root bind:open>
+<Popover.Root open={isOpen} onOpenChange={handleOpenChange}>
 	<Popover.Trigger>
 		{@const isActive = editor.isActive('link')}
 		<EdraToolTip tooltip={strings.toolbar.link.buttonTitle}>
@@ -48,6 +60,8 @@
 	</Popover.Trigger>
 	<Popover.Content
 		portalProps={{ to: document.getElementById('edra-editor') ?? undefined }}
+		align="start"
+		avoidCollisions={true}
 		class="h-fit w-80 rounded-lg p-0!"
 	>
 		<form class="flex items-center gap-0.5" onsubmit={handleSubmit}>

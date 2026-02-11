@@ -14,8 +14,11 @@
 		Receipt
 	} from 'lucide-svelte';
 	import { formatDate } from '$lib/utils/date';
+	import { createCurrencyFormatter } from '$lib/utils/currency';
 
 	let { data } = $props();
+
+	const fmt = createCurrencyFormatter(data.enums.currency);
 
 	const categoryLabels: Record<string, string> = {
 		salary: 'Salary',
@@ -39,12 +42,6 @@
 		yearly: 'Yearly'
 	};
 
-	function formatCurrency(amount: number, currency: string = 'USD'): string {
-		return new Intl.NumberFormat('en-US', {
-			style: 'currency',
-			currency
-		}).format(amount);
-	}
 
 </script>
 
@@ -80,7 +77,7 @@
 					<div>
 						<div class="text-sm text-muted-foreground">Amount</div>
 						<div class="text-2xl font-bold text-red-600">
-							{formatCurrency(Number(data.expense.amount), data.expense.currency)}
+							{fmt.format(Number(data.expense.amount), data.expense.currency)}
 						</div>
 					</div>
 					<div>

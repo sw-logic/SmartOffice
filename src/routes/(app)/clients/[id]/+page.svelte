@@ -29,8 +29,11 @@
 		Trash2
 	} from 'lucide-svelte';
 	import { formatDate } from '$lib/utils/date';
+	import { createCurrencyFormatter } from '$lib/utils/currency';
 
 	let { data } = $props();
+
+	const fmt = createCurrencyFormatter(data.enums.currency);
 
 	// Contact modal state
 	let contactModalOpen = $state(false);
@@ -146,13 +149,6 @@
 		}
 	}
 
-	function formatCurrency(amount: number | string, currency: string): string {
-		const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-		return new Intl.NumberFormat('en-US', {
-			style: 'currency',
-			currency: currency
-		}).format(num);
-	}
 
 </script>
 
@@ -285,7 +281,7 @@
 						<span>Total Income</span>
 					</div>
 					<span class="font-semibold text-green-600">
-						{formatCurrency(data.client.totalIncome, data.client.currency)}
+						{fmt.format(Number(data.client.totalIncome), data.client.currency)}
 					</span>
 				</div>
 
@@ -491,7 +487,7 @@
 									</div>
 									<div class="text-right">
 										<p class="font-medium">
-											{formatCurrency(Number(offer.grandTotal), offer.currency)}
+											{fmt.format(Number(offer.grandTotal), offer.currency)}
 										</p>
 										<EnumBadge enums={data.enums.offer_status} value={offer.status} />
 									</div>
@@ -535,7 +531,7 @@
 										</p>
 									</div>
 									<p class="font-medium text-green-600">
-										{formatCurrency(Number(income.amount), income.currency)}
+										{fmt.format(Number(income.amount), income.currency)}
 									</p>
 								</a>
 							{/each}

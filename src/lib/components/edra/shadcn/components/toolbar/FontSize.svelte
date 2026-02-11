@@ -4,6 +4,7 @@
 	import { cn } from '$lib/utils.js';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import { Editor } from '@tiptap/core';
+	import { getContext } from 'svelte';
 	import EdraToolTip from '../EdraToolTip.svelte';
 	import strings from '../../../strings.js';
 
@@ -13,6 +14,13 @@
 	}
 
 	const { class: className = '', editor }: Props = $props();
+
+	const toolbar = getContext<{ current: string | null; open: (n: string) => void; close: (n: string) => void } | undefined>('edra-toolbar-dropdown');
+	let isOpen = $derived(toolbar?.current === 'fontSize');
+	function handleOpenChange(open: boolean) {
+		if (open) toolbar?.open('fontSize');
+		else toolbar?.close('fontSize');
+	}
 
 	const FONT_SIZE = [
 		{ label: strings.toolbar.font.tiny, value: '0.7rem' },
@@ -32,7 +40,7 @@
 	});
 </script>
 
-<DropdownMenu.Root>
+<DropdownMenu.Root open={isOpen} onOpenChange={handleOpenChange}>
 	<EdraToolTip tooltip={strings.toolbar.font.buttonTitle}>
 		<DropdownMenu.Trigger
 			class={buttonVariants({

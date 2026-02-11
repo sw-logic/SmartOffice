@@ -18,10 +18,13 @@
 		RefreshCw
 	} from 'lucide-svelte';
 	import { formatDate } from '$lib/utils/date';
+	import { createCurrencyFormatter } from '$lib/utils/currency';
 	import { groupFinanceRecords, type GroupByField } from '$lib/utils/group-by';
 	import GroupHeaderRow from '$lib/components/shared/GroupHeaderRow.svelte';
 
 	let { data } = $props();
+
+	const fmt = createCurrencyFormatter(data.enums.currency);
 
 	const monthNames = [
 		'Jan',
@@ -66,14 +69,6 @@
 		suspended: 'Suspended'
 	};
 
-	function formatCurrency(amount: number, currency: string = 'USD'): string {
-		return new Intl.NumberFormat('en-US', {
-			style: 'currency',
-			currency
-		}).format(amount);
-	}
-
-
 	const periodLabels: Record<string, string> = {
 		q1: 'Q1 (Jan–Mar)',
 		q2: 'Q2 (Apr–Jun)',
@@ -113,19 +108,19 @@
 
 	// Group-by
 	let groupBy = $derived(($page.url.searchParams.get('groupBy') as GroupByField) || 'none');
-	let collapsedIncomeGroups = $state<Set<string>>(new Set());
-	let collapsedExpenseGroups = $state<Set<string>>(new Set());
+	let expandedIncomeGroups = $state<Set<string>>(new Set());
+	let expandedExpenseGroups = $state<Set<string>>(new Set());
 
 	function toggleIncomeGroup(key: string) {
-		const next = new Set(collapsedIncomeGroups);
+		const next = new Set(expandedIncomeGroups);
 		if (next.has(key)) { next.delete(key); } else { next.add(key); }
-		collapsedIncomeGroups = next;
+		expandedIncomeGroups = next;
 	}
 
 	function toggleExpenseGroup(key: string) {
-		const next = new Set(collapsedExpenseGroups);
+		const next = new Set(expandedExpenseGroups);
 		if (next.has(key)) { next.delete(key); } else { next.add(key); }
-		collapsedExpenseGroups = next;
+		expandedExpenseGroups = next;
 	}
 
 	function updateGroupBy(v: string) {
@@ -223,10 +218,10 @@
 			</Card.Header>
 			<Card.Content>
 				<div class="text-2xl font-bold text-green-600">
-					{formatCurrency(data.summary.totalIncome)}
+					{@html fmt.formatHtml(data.summary.totalIncome)}
 				</div>
 				<p class="text-muted-foreground text-xs">
-					{data.summary.incomeCount} records &middot; Tax: {formatCurrency(
+					{data.summary.incomeCount} records &middot; Tax: {@html fmt.formatHtml(
 						data.summary.totalIncomeTax
 					)}
 				</p>
@@ -240,10 +235,10 @@
 			</Card.Header>
 			<Card.Content>
 				<div class="text-2xl font-bold text-red-600">
-					{formatCurrency(data.summary.totalExpenses)}
+					{@html fmt.formatHtml(data.summary.totalExpenses)}
 				</div>
 				<p class="text-muted-foreground text-xs">
-					{data.summary.expenseCount} records &middot; Tax: {formatCurrency(
+					{data.summary.expenseCount} records &middot; Tax: {@html fmt.formatHtml(
 						data.summary.totalExpensesTax
 					)}
 				</p>
@@ -257,10 +252,10 @@
 			</Card.Header>
 			<Card.Content>
 				<div class="text-2xl font-bold text-orange-600">
-					{formatCurrency(data.summary.totalEmployeeCost)}
+					{@html fmt.formatHtml(data.summary.totalEmployeeCost)}
 				</div>
 				<p class="text-muted-foreground text-xs">
-					{data.employees.length} employees &middot; Salary: {formatCurrency(
+					{data.employees.length} employees &middot; Salary: {@html fmt.formatHtml(
 						data.summary.totalSalary
 					)}
 				</p>
@@ -274,7 +269,7 @@
 			</Card.Header>
 			<Card.Content>
 				<div class="text-2xl font-bold" class:text-green-600={balancePositive} class:text-red-600={!balancePositive}>
-					{formatCurrency(data.summary.balance)}
+					{@html fmt.formatHtml(data.summary.balance)}
 				</div>
 				<p class="text-muted-foreground text-xs">
 					Income - (Expenses + Salaries){#if isMultiMonth} &middot; {periodLabels[data.period]}{/if}
@@ -310,12 +305,12 @@
 									count={group.subtotals.count}
 									subtotalAmount={group.subtotals.amount}
 									colspan={4}
-									expanded={!collapsedIncomeGroups.has(group.key)}
+									expanded={expandedIncomeGroups.has(group.key)}
 									onToggle={() => toggleIncomeGroup(group.key)}
-									formatCurrency={(v) => formatCurrency(v)}
+									formatCurrency={fmt.formatHtml}
 									colorClass="text-green-600"
 								/>
-								{#if !collapsedIncomeGroups.has(group.key)}
+								{#if expandedIncomeGroups.has(group.key)}
 									{#each group.items as income}
 										<Table.Row>
 											<Table.Cell class="whitespace-nowrap text-xs">{formatDate(income.date)}</Table.Cell>
@@ -338,7 +333,7 @@
 												<EnumBadge enums={data.enums.income_status} value={income.status} class="text-xs" />
 											</Table.Cell>
 											<Table.Cell class="text-right font-medium text-green-600 whitespace-nowrap">
-												{formatCurrency(income.amount, income.currency)}
+												{@html fmt.formatHtml(income.amount, income.currency)}
 											</Table.Cell>
 										</Table.Row>
 									{/each}
@@ -375,7 +370,7 @@
 										<EnumBadge enums={data.enums.income_status} value={income.status} class="text-xs" />
 									</Table.Cell>
 									<Table.Cell class="text-right font-medium text-green-600 whitespace-nowrap">
-										{formatCurrency(income.amount, income.currency)}
+										{@html fmt.formatHtml(income.amount, income.currency)}
 									</Table.Cell>
 								</Table.Row>
 							{:else}
@@ -395,7 +390,7 @@
 									Total ({data.summary.incomeCount})
 								</Table.Cell>
 								<Table.Cell class="text-right text-green-600 whitespace-nowrap">
-									{formatCurrency(data.summary.totalIncome)}
+									{@html fmt.formatHtml(data.summary.totalIncome)}
 								</Table.Cell>
 							</Table.Row>
 						{/if}
@@ -429,12 +424,12 @@
 									count={group.subtotals.count}
 									subtotalAmount={group.subtotals.amount}
 									colspan={4}
-									expanded={!collapsedExpenseGroups.has(group.key)}
+									expanded={expandedExpenseGroups.has(group.key)}
 									onToggle={() => toggleExpenseGroup(group.key)}
-									formatCurrency={(v) => formatCurrency(v)}
+									formatCurrency={fmt.formatHtml}
 									colorClass="text-red-600"
 								/>
-								{#if !collapsedExpenseGroups.has(group.key)}
+								{#if expandedExpenseGroups.has(group.key)}
 									{#each group.items as expense}
 										<Table.Row>
 											<Table.Cell class="whitespace-nowrap text-xs">{formatDate(expense.date)}</Table.Cell>
@@ -457,7 +452,7 @@
 												<EnumBadge enums={data.enums.expense_status} value={expense.status} class="text-xs" />
 											</Table.Cell>
 											<Table.Cell class="text-right font-medium text-red-600 whitespace-nowrap">
-												{formatCurrency(expense.amount, expense.currency)}
+												{@html fmt.formatHtml(expense.amount, expense.currency)}
 											</Table.Cell>
 										</Table.Row>
 									{/each}
@@ -494,7 +489,7 @@
 										<EnumBadge enums={data.enums.expense_status} value={expense.status} class="text-xs" />
 									</Table.Cell>
 									<Table.Cell class="text-right font-medium text-red-600 whitespace-nowrap">
-										{formatCurrency(expense.amount, expense.currency)}
+										{@html fmt.formatHtml(expense.amount, expense.currency)}
 									</Table.Cell>
 								</Table.Row>
 							{:else}
@@ -514,7 +509,7 @@
 									Total ({data.summary.expenseCount})
 								</Table.Cell>
 								<Table.Cell class="text-right text-red-600 whitespace-nowrap">
-									{formatCurrency(data.summary.totalExpenses)}
+									{@html fmt.formatHtml(data.summary.totalExpenses)}
 								</Table.Cell>
 							</Table.Row>
 						{/if}
@@ -566,13 +561,13 @@
 									</div>
 								</Table.Cell>
 								<Table.Cell class="text-right whitespace-nowrap">
-									{formatCurrency(emp.salary)}
+									{@html fmt.formatHtml(emp.salary)}
 								</Table.Cell>
 								<Table.Cell class="text-right whitespace-nowrap">
-									{formatCurrency(emp.salary_tax)}
+									{@html fmt.formatHtml(emp.salary_tax)}
 								</Table.Cell>
 								<Table.Cell class="text-right font-medium text-orange-600 whitespace-nowrap">
-									{formatCurrency(emp.salary_bonus)}
+									{@html fmt.formatHtml(emp.salary_bonus)}
 								</Table.Cell>
 							</Table.Row>
 						{:else}
@@ -589,13 +584,13 @@
 									Total ({data.employees.length})
 								</Table.Cell>
 								<Table.Cell class="text-right whitespace-nowrap">
-									{formatCurrency(data.summary.totalSalary)}
+									{@html fmt.formatHtml(data.summary.totalSalary)}
 								</Table.Cell>
 								<Table.Cell class="text-right whitespace-nowrap">
-									{formatCurrency(data.summary.totalSalaryTax)}
+									{@html fmt.formatHtml(data.summary.totalSalaryTax)}
 								</Table.Cell>
 								<Table.Cell class="text-right text-orange-600 whitespace-nowrap">
-									{formatCurrency(data.summary.totalSalaryBonus)}
+									{@html fmt.formatHtml(data.summary.totalSalaryBonus)}
 								</Table.Cell>
 							</Table.Row>
 						{/if}

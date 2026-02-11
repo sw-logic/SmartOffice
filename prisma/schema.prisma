@@ -428,8 +428,9 @@ model Task {
 
   type     String? // Managed via enums: "bug", "feature", "task", "improvement", etc.
   category String? // Managed via enums
-  status   String  @default("todo") // "backlog", "todo", "in_progress", "review", "done"
-  priority String  @default("medium") // "low", "medium", "high", "urgent"
+  status     String  @default("todo") // "backlog", "todo", "in_progress", "review", "done"
+  priority   String  @default("medium") // "low", "medium", "high", "urgent"
+  isComplete Boolean @default(false)
 
   // Project (required - every task belongs to a project)
   projectId Int
@@ -472,6 +473,7 @@ model Task {
   @@index([projectId])
   @@index([kanbanBoardId])
   @@index([status])
+  @@index([isComplete])
   @@index([assignedToId])
   @@index([startDate])
   @@index([columnId])
@@ -579,9 +581,10 @@ model KanbanColumn {
   kanbanBoardId Int
   kanbanBoard   KanbanBoard @relation(fields: [kanbanBoardId], references: [id], onDelete: Cascade)
 
-  name  String
-  order Int     @default(0)
-  color String? // Hex color for visual distinction
+  name             String
+  order            Int     @default(0)
+  color            String? // Hex color for visual distinction
+  isCompleteColumn Boolean @default(false)
 
   tasks Task[]
 

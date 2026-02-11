@@ -6,6 +6,7 @@
 	import AlignLeft from '@lucide/svelte/icons/align-left';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import type { Editor } from '@tiptap/core';
+	import { getContext } from 'svelte';
 	import EdraToolTip from '../EdraToolTip.svelte';
 	import strings from '../../../strings.js';
 
@@ -17,6 +18,13 @@
 
 	const alignments = commands['alignment'];
 
+	const toolbar = getContext<{ current: string | null; open: (n: string) => void; close: (n: string) => void } | undefined>('edra-toolbar-dropdown');
+	let isOpen = $derived(toolbar?.current === 'alignment');
+	function handleOpenChange(open: boolean) {
+		if (open) toolbar?.open('alignment');
+		else toolbar?.close('alignment');
+	}
+
 	const isActive = $derived.by(() => {
 		return alignments.find((h) => h.isActive?.(editor)) !== undefined;
 	});
@@ -27,7 +35,7 @@
 	});
 </script>
 
-<DropdownMenu.Root>
+<DropdownMenu.Root open={isOpen} onOpenChange={handleOpenChange}>
 	<EdraToolTip tooltip={strings.toolbar.alignment.buttonTitle}>
 		<DropdownMenu.Trigger
 			class={buttonVariants({

@@ -6,6 +6,7 @@
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import Minus from '@lucide/svelte/icons/minus';
 	import type { Editor } from '@tiptap/core';
+	import { getContext } from 'svelte';
 	import EdraToolTip from '../EdraToolTip.svelte';
 	import strings from '../../../strings.js';
 
@@ -17,6 +18,13 @@
 
 	const lists = commands['lists'];
 
+	const toolbar = getContext<{ current: string | null; open: (n: string) => void; close: (n: string) => void } | undefined>('edra-toolbar-dropdown');
+	let isOpen = $derived(toolbar?.current === 'lists');
+	function handleOpenChange(open: boolean) {
+		if (open) toolbar?.open('lists');
+		else toolbar?.close('lists');
+	}
+
 	const isActive = $derived.by(() => {
 		return lists.find((h) => h.isActive?.(editor)) !== undefined;
 	});
@@ -27,7 +35,7 @@
 	});
 </script>
 
-<DropdownMenu.Root>
+<DropdownMenu.Root open={isOpen} onOpenChange={handleOpenChange}>
 	<EdraToolTip tooltip={strings.toolbar.list.buttonTitle}>
 		<DropdownMenu.Trigger
 			class={buttonVariants({

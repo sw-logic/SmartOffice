@@ -26,8 +26,11 @@
 	} from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
 	import { formatDate } from '$lib/utils/date';
+	import { createCurrencyFormatter } from '$lib/utils/currency';
 
 	let { data } = $props();
+
+	const fmt = createCurrencyFormatter(data.enums.currency);
 
 	// Persist/restore list view state
 	const LIST_ROUTE = '/users';
@@ -185,14 +188,6 @@
 
 		isBulkDeleting = false;
 		bulkDeleteDialogOpen = false;
-	}
-
-	function formatCurrency(amount: number | null): string {
-		if (amount === null || amount === undefined) return '-';
-		return new Intl.NumberFormat('en-US', {
-			style: 'currency',
-			currency: 'USD'
-		}).format(amount);
 	}
 
 	function getInitials(user: { name: string; firstName?: string | null; lastName?: string | null }): string {
@@ -404,7 +399,7 @@
 							</Table.Cell>
 							{#if data.canViewSalary}
 								<Table.Cell class="text-right">
-									{formatCurrency(user.salary)}
+									{fmt.format(user.salary)}
 								</Table.Cell>
 							{/if}
 							<Table.Cell>

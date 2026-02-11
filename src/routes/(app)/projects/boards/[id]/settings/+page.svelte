@@ -18,7 +18,8 @@
 		GripVertical,
 		Check,
 		X,
-		ChevronsUpDown
+		ChevronsUpDown,
+		CircleCheckBig
 	} from 'lucide-svelte';
 	import ColorInput from '$lib/components/shared/ColorInput.svelte';
 	import { toast } from 'svelte-sonner';
@@ -75,6 +76,7 @@
 		name: string;
 		order: number;
 		color: string | null;
+		isCompleteColumn: boolean;
 		taskCount: number;
 	};
 
@@ -159,6 +161,18 @@
 			invalidateAll();
 		} else {
 			toast.error(result.data?.error || 'Failed to update column');
+		}
+		isProcessing = false;
+	}
+
+	async function toggleCompleteColumn(colId: number) {
+		isProcessing = true;
+		const result = await postAction('toggleCompleteColumn', { id: String(colId) });
+		if (result.type === 'success') {
+			toast.success('Complete column updated');
+			invalidateAll();
+		} else {
+			toast.error(result.data?.error || 'Failed to update');
 		}
 		isProcessing = false;
 	}
@@ -442,6 +456,16 @@
 									{/if}
 									<span class="text-sm flex-1 truncate">{col.name}</span>
 									<Badge variant="secondary" class="text-xs shrink-0">{col.taskCount}</Badge>
+									<Button
+										variant="ghost"
+										size="icon"
+										class="h-7 w-7 shrink-0"
+										title={col.isCompleteColumn ? 'This is the complete column (click to unset)' : 'Mark as complete column'}
+										onclick={() => toggleCompleteColumn(col.id)}
+										disabled={isProcessing}
+									>
+										<CircleCheckBig class="h-3.5 w-3.5 {col.isCompleteColumn ? 'text-green-600' : 'text-muted-foreground/40'}" />
+									</Button>
 									<Button
 										variant="ghost"
 										size="icon"

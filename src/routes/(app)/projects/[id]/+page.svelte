@@ -32,8 +32,11 @@
 		ChevronsUpDown
 	} from 'lucide-svelte';
 	import { formatDate } from '$lib/utils/date';
+	import { createCurrencyFormatter } from '$lib/utils/currency';
 
 	let { data } = $props();
+
+	const fmt = createCurrencyFormatter(data.enums.currency);
 
 	// Team management state
 	let teamPopoverOpen = $state(false);
@@ -154,12 +157,6 @@
 		return `${(firstName ?? '').charAt(0)}${(lastName ?? '').charAt(0)}`.toUpperCase();
 	}
 
-	function formatCurrency(amount: number): string {
-		return new Intl.NumberFormat('en-US', {
-			style: 'currency',
-			currency: 'USD'
-		}).format(amount);
-	}
 
 </script>
 
@@ -365,7 +362,7 @@
 								<span>Budget</span>
 							</div>
 							<span class="font-semibold">
-								{formatCurrency(data.project.budgetEstimate)}
+								{fmt.format(data.project.budgetEstimate)}
 							</span>
 						</div>
 					{/if}
@@ -395,7 +392,7 @@
 								<span>Total Income</span>
 							</div>
 							<span class="font-semibold text-green-600">
-								{formatCurrency(data.project.totalIncome)}
+								{fmt.format(data.project.totalIncome)}
 							</span>
 						</div>
 
@@ -405,7 +402,7 @@
 								<span>Total Expenses</span>
 							</div>
 							<span class="font-semibold text-red-600">
-								{formatCurrency(data.project.totalExpenses)}
+								{fmt.format(data.project.totalExpenses)}
 							</span>
 						</div>
 					{/if}

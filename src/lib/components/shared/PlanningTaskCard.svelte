@@ -17,20 +17,22 @@
 		task: {
 			id: number;
 			name: string;
-			priority: string;
+			status: string;
 			type: string | null;
+			isComplete?: boolean;
 			dueDate?: string | Date | null;
 			estimatedTime: number | null;
 			project: { name: string; client?: { name: string } };
 			tags?: TaskTag[];
 		};
+		statusEnums?: EnumOption[];
 		priorityEnums?: EnumOption[];
 		onclick?: () => void;
 	}
 
-	let { task, priorityEnums, onclick }: Props = $props();
+	let { task, statusEnums, priorityEnums, onclick }: Props = $props();
 
-	let priorityColor = $derived(priorityEnums?.find(e => e.value === task.priority)?.color || '#D1D5DB');
+	let statusColor = $derived(statusEnums?.find(e => e.value === task.status)?.color || '#D1D5DB');
 
 	function formatDuration(minutes: number): string {
 		const h = Math.floor(minutes / 60);
@@ -41,44 +43,49 @@
 	}
 
 	let clientName = $derived(task.project.client?.name);
+
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-	class="rounded-sm border bg-card shadow-sm px-2 py-1.5 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow border-l-[3px]"
-	style="border-left-color: {priorityColor}"
+	class="rounded-sm border bg-card shadow-sm px-2 py-1.5 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow border-l-[3px] {task.isComplete ? 'planning-card-done' : ''}"
+    style="border-left-color: {statusColor}"
 	{onclick}
 >
-	<p class="text-xs font-medium leading-snug truncate">{task.name}</p>
+    <div class="flex items-center gap-2 mt-0.5">
+        <p class="text-sm font-medium leading-snug truncate">{task.name}</p>
+        {#if task.estimatedTime}
+			<span class="ml-auto text-xs text-muted-foreground flex items-center gap-0.5">
+				<Clock class="h-2.5 w-2.5" />
+                {formatDuration(task.estimatedTime)}
+			</span>
+        {/if}
+    </div>
+
 	{#if task.tags?.length}
 		<div class="flex flex-wrap gap-0.5 mt-0.5">
 			{#each task.tags as tag}
 				<span
-					class="text-[9px] leading-tight px-0.5 rounded border font-medium"
+					class="text-[10px] leading-tight px-0.5 rounded border font-medium"
 					style={tag.color ? `border-color: ${tag.color}; color: ${tag.color}` : ''}
 				>{tag.label}</span>
 			{/each}
 		</div>
 	{/if}
 	<div class="flex items-center gap-2 mt-0.5">
-        <span class="text-[10px] text-muted-foreground mt-0.5 truncate">
+        <span class="text-xs text-muted-foreground mt-0.5 truncate">
             {#if clientName}
                 <span>{clientName} / </span>
             {/if}
             <span>{task.project.name}</span>
         </span>
 		{#if task.dueDate}
-			<span class="text-[10px] text-muted-foreground flex items-center gap-0.5">
+			<span class="text-xs text-muted-foreground flex items-center gap-0.5">
 				<Calendar class="h-2.5 w-2.5" />
 				{formatDate(task.dueDate)}
 			</span>
 		{/if}
-		{#if task.estimatedTime}
-			<span class="text-[10px] text-muted-foreground flex items-center gap-0.5">
-				<Clock class="h-2.5 w-2.5" />
-				{formatDuration(task.estimatedTime)}
-			</span>
-		{/if}
+
 	</div>
 </div>

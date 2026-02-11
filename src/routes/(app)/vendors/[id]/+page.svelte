@@ -29,8 +29,11 @@
 		Tag
 	} from 'lucide-svelte';
 	import { formatDate } from '$lib/utils/date';
+	import { createCurrencyFormatter } from '$lib/utils/currency';
 
 	let { data } = $props();
+
+	const fmt = createCurrencyFormatter(data.enums.currency);
 
 	// Contact modal state
 	let contactModalOpen = $state(false);
@@ -164,13 +167,6 @@
 		}
 	}
 
-	function formatCurrency(amount: number | string, currency: string): string {
-		const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-		return new Intl.NumberFormat('en-US', {
-			style: 'currency',
-			currency: currency
-		}).format(num);
-	}
 
 </script>
 
@@ -302,7 +298,7 @@
 						<span>Total Expenses</span>
 					</div>
 					<span class="font-semibold text-red-600">
-						{formatCurrency(Number(data.vendor.totalExpenses), data.vendor.currency)}
+						{fmt.format(Number(data.vendor.totalExpenses), data.vendor.currency)}
 					</span>
 				</div>
 
@@ -451,7 +447,7 @@
 										</p>
 									</div>
 									<p class="font-medium text-red-600">
-										{formatCurrency(Number(expense.amount), expense.currency)}
+										{fmt.format(Number(expense.amount), expense.currency)}
 									</p>
 								</a>
 							{/each}

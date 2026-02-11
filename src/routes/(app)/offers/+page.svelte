@@ -25,8 +25,11 @@
 	} from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
 	import { formatDate } from '$lib/utils/date';
+	import { createCurrencyFormatter } from '$lib/utils/currency';
 
 	let { data } = $props();
+
+	const fmt = createCurrencyFormatter(data.enums.currency);
 
 	// Persist/restore list view state
 	const LIST_ROUTE = '/offers';
@@ -139,12 +142,7 @@
 		deleteDialogOpen = true;
 	}
 
-	function formatCurrency(amount: number, currency: string = 'USD'): string {
-		return new Intl.NumberFormat('en-US', {
-			style: 'currency',
-			currency
-		}).format(amount);
-	}
+
 </script>
 
 <div class="space-y-6">
@@ -176,7 +174,7 @@
 				<DollarSign class="text-muted-foreground h-4 w-4" />
 			</Card.Header>
 			<Card.Content>
-				<div class="text-2xl font-bold">{formatCurrency(data.summary.totalAmount)}</div>
+				<div class="text-2xl font-bold">{fmt.format(data.summary.totalAmount)}</div>
 				<p class="text-muted-foreground text-xs">All matching offers</p>
 			</Card.Content>
 		</Card.Root>
@@ -199,7 +197,7 @@
 			</Card.Header>
 			<Card.Content>
 				<div class="text-2xl font-bold">
-					{formatCurrency(data.summary.count > 0 ? data.summary.totalAmount / data.summary.count : 0)}
+					{fmt.format(data.summary.count > 0 ? data.summary.totalAmount / data.summary.count : 0)}
 				</div>
 				<p class="text-muted-foreground text-xs">Per offer</p>
 			</Card.Content>
@@ -338,7 +336,7 @@
 						<Table.Cell class="text-center">{offer._count.options}</Table.Cell>
 						<Table.Cell>{formatDate(offer.validUntil)}</Table.Cell>
 						<Table.Cell class="text-right font-medium">
-							{formatCurrency(offer.grandTotal, offer.currency)}
+							{fmt.format(offer.grandTotal, offer.currency)}
 						</Table.Cell>
 						<Table.Cell>
 							<div class="flex items-center gap-1" onclick={(e) => e.stopPropagation()}>

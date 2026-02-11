@@ -3,7 +3,7 @@ import { prisma } from '$lib/server/prisma';
 import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { fail } from '@sveltejs/kit';
 import { logUpdate } from '$lib/server/audit';
-import { parseListParams, buildPagination, createDeleteAction, parseFormId } from '$lib/server/crud-helpers';
+import { parseListParams, buildPagination, serializeDecimals, createDeleteAction, parseFormId } from '$lib/server/crud-helpers';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	await requirePermission(locals, 'pricelists', 'read');
@@ -73,11 +73,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	});
 
 	// Convert Decimal fields to numbers for serialization
-	const items = itemsRaw.map((item) => ({
-		...item,
-		unitPrice: Number(item.unitPrice),
-		taxRate: item.taxRate ? Number(item.taxRate) : null
-	}));
+	const items = itemsRaw.map((item) => serializeDecimals(item, ['unitPrice', 'taxRate']));
 
 	// Get distinct categories for filter
 	const categoriesRaw = await prisma.priceListItem.findMany({
