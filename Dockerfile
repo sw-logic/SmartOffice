@@ -2,20 +2,17 @@
 FROM node:22-alpine AS build
 
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY package.json yarn.lock ./
 COPY prisma ./prisma/
-RUN npm ci
-# Workaround for npm optional dependency bug (https://github.com/npm/cli/issues/4828)
-# package-lock.json from Windows doesn't include linux-musl platform binaries
-RUN npm rebuild rollup
+RUN yarn install --frozen-lockfile
 
 COPY . .
 
 RUN npx prisma generate
-RUN npm run build
+RUN yarn build
 
 # Remove dev dependencies after build
-RUN npm prune --omit=dev
+RUN yarn install --frozen-lockfile --production
 
 # ── Stage 2: Production image ─────────────────────────────────────────────────
 FROM node:22-alpine AS production
