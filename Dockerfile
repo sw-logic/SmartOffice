@@ -1,16 +1,11 @@
-# ── Stage 1: Install dependencies ──────────────────────────────────────────────
-FROM node:22-alpine AS deps
+# ── Stage 1: Build the SvelteKit app ──────────────────────────────────────────
+FROM node:22-alpine AS build
 
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY prisma ./prisma/
 RUN npm ci
 
-# ── Stage 2: Build the SvelteKit app ──────────────────────────────────────────
-FROM node:22-alpine AS build
-
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 RUN npx prisma generate
@@ -19,7 +14,7 @@ RUN npm run build
 # Remove dev dependencies after build
 RUN npm prune --omit=dev
 
-# ── Stage 3: Production image ─────────────────────────────────────────────────
+# ── Stage 2: Production image ─────────────────────────────────────────────────
 FROM node:22-alpine AS production
 
 WORKDIR /app
