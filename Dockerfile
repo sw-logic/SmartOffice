@@ -11,9 +11,6 @@ COPY . .
 RUN npx prisma generate
 RUN yarn build
 
-# Remove dev dependencies after build
-RUN yarn install --frozen-lockfile --production
-
 # ── Stage 2: Production image ─────────────────────────────────────────────────
 FROM node:22-alpine AS production
 
