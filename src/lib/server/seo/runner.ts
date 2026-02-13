@@ -48,22 +48,30 @@ async function auditSingleUrl(
 			totalUrls
 		});
 
-		result.crawl = await Promise.race([
-			crawlUrl(url, auditId, urlIndex),
-			new Promise<never>((_, reject) =>
-				setTimeout(() => reject(new Error('Crawl timeout')), PER_URL_TIMEOUT)
-			)
-		]);
+		try {
+			result.crawl = await Promise.race([
+				crawlUrl(url, auditId, urlIndex),
+				new Promise<never>((_, reject) =>
+					setTimeout(() => reject(new Error(`Crawl timeout after ${PER_URL_TIMEOUT / 1000}s`)), PER_URL_TIMEOUT)
+				)
+			]);
+		} catch (crawlError) {
+			const msg = crawlError instanceof Error ? crawlError.message : String(crawlError);
+			console.error(`Crawler failed for ${url}:`, msg);
+			result.crawlerError = msg;
+		}
 
-		// Step 2: Analyze HTML
-		await updateProgress(auditId, {
-			currentUrl: url,
-			currentStep: 'Analyzing SEO...',
-			completedUrls: urlIndex,
-			totalUrls
-		});
+		// Step 2: Analyze HTML (only if crawl succeeded)
+		if (result.crawl) {
+			await updateProgress(auditId, {
+				currentUrl: url,
+				currentStep: 'Analyzing SEO...',
+				completedUrls: urlIndex,
+				totalUrls
+			});
 
-		result.issues = analyzeCrawlResult(result.crawl);
+			result.issues = analyzeCrawlResult(result.crawl);
+		}
 
 		// Check sitemap + robots.txt (only for first URL of each domain)
 		const [hasSitemap, hasRobotsTxt] = await Promise.all([
@@ -101,7 +109,9 @@ async function auditSingleUrl(
 		});
 
 		const lhResult = await runLighthouse(url);
-		if (lhResult) {
+		if ('error' in lhResult) {
+			result.lighthouseError = lhResult.error;
+		} else {
 			result.lighthouseScores = lhResult.scores;
 			result.coreWebVitals = lhResult.coreWebVitals;
 		}
@@ -114,7 +124,13 @@ async function auditSingleUrl(
 			totalUrls
 		});
 
-		result.aiAnalysis = await analyzePageContent(result.crawl, language);
+		try {
+			result.aiAnalysis = result.crawl ? await analyzePageContent(result.crawl, language) : null;
+		} catch (aiError) {
+			const msg = aiError instanceof Error ? aiError.message : String(aiError);
+			console.error(`AI analysis failed for ${url}:`, msg);
+			result.aiError = msg;
+		}
 
 	} catch (error) {
 		result.status = 'error';

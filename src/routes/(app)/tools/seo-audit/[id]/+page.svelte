@@ -483,6 +483,39 @@
 
                                 <hr>
 
+                                <!-- Error alerts for failed steps -->
+                                {#if result.crawlerError || result.lighthouseError || result.aiError}
+                                    <div class="space-y-2">
+                                        {#if result.crawlerError}
+                                            <div class="flex items-start gap-2 rounded-lg border border-destructive/50 bg-destructive/5 p-3">
+                                                <XCircle class="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                                                <div class="min-w-0">
+                                                    <p class="text-sm font-medium text-destructive">Crawler Error</p>
+                                                    <p class="text-xs text-muted-foreground break-all">{result.crawlerError}</p>
+                                                </div>
+                                            </div>
+                                        {/if}
+                                        {#if result.lighthouseError}
+                                            <div class="flex items-start gap-2 rounded-lg border border-yellow-500/50 bg-yellow-500/5 p-3">
+                                                <AlertTriangle class="h-4 w-4 text-yellow-600 shrink-0 mt-0.5" />
+                                                <div class="min-w-0">
+                                                    <p class="text-sm font-medium text-yellow-700 dark:text-yellow-500">Lighthouse Error</p>
+                                                    <p class="text-xs text-muted-foreground break-all">{result.lighthouseError}</p>
+                                                </div>
+                                            </div>
+                                        {/if}
+                                        {#if result.aiError}
+                                            <div class="flex items-start gap-2 rounded-lg border border-yellow-500/50 bg-yellow-500/5 p-3">
+                                                <AlertTriangle class="h-4 w-4 text-yellow-600 shrink-0 mt-0.5" />
+                                                <div class="min-w-0">
+                                                    <p class="text-sm font-medium text-yellow-700 dark:text-yellow-500">AI Analysis Error</p>
+                                                    <p class="text-xs text-muted-foreground break-all">{result.aiError}</p>
+                                                </div>
+                                            </div>
+                                        {/if}
+                                    </div>
+                                {/if}
+
                                 <div class="grid sm:grid-cols-2 gap-12">
                                     <!-- Lighthouse Scores -->
                                     {#if result.lighthouseScores}

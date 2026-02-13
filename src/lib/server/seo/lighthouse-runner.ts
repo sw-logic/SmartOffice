@@ -5,13 +5,14 @@ const LH_TIMEOUT = 90000;
 export interface LighthouseResult {
 	scores: LighthouseScores;
 	coreWebVitals: CoreWebVitals;
+	error?: string;
 }
 
 /**
  * Run Lighthouse audit on a URL programmatically.
- * Returns null if Lighthouse fails (non-blocking).
+ * Returns { error } if Lighthouse fails (non-blocking).
  */
-export async function runLighthouse(url: string): Promise<LighthouseResult | null> {
+export async function runLighthouse(url: string): Promise<LighthouseResult | { error: string }> {
 	try {
 		const lighthouse = await import('lighthouse');
 
@@ -20,27 +21,36 @@ export async function runLighthouse(url: string): Promise<LighthouseResult | nul
 		const chromePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined;
 
 		// Let Lighthouse launch and manage Chrome itself via chrome-launcher
+		// chromeFlags/chromePath are accepted at runtime but missing from LH.Flags types
+		const flags = {
+			output: 'json' as const,
+			onlyCategories: ['performance', 'accessibility', 'best-practices', 'seo'],
+			...(chromePath ? { chromePath } : {}),
+			chromeFlags: [
+				'--headless=new',
+				'--no-sandbox',
+				'--disable-setuid-sandbox',
+				'--disable-dev-shm-usage',
+				'--disable-gpu'
+			]
+		};
 		const runnerResult = await Promise.race([
-			lighthouse.default(url, {
-				output: 'json',
-				onlyCategories: ['performance', 'accessibility', 'best-practices', 'seo'],
-				...(chromePath ? { chromePath } : {}),
-				chromeFlags: [
-					'--headless=new',
-					'--no-sandbox',
-					'--disable-setuid-sandbox',
-					'--disable-dev-shm-usage',
-					'--disable-gpu'
-				]
-			}),
+			lighthouse.default(url, flags as Parameters<typeof lighthouse.default>[1]),
 			new Promise<null>((_, reject) =>
-				setTimeout(() => reject(new Error('Lighthouse timeout')), LH_TIMEOUT)
+				setTimeout(() => reject(new Error(`Lighthouse timeout after ${LH_TIMEOUT / 1000}s`)), LH_TIMEOUT)
 			)
 		]);
 
-		if (!runnerResult || !runnerResult.lhr) return null;
+		if (!runnerResult || !runnerResult.lhr) {
+			return { error: 'Lighthouse returned no results (runnerResult or lhr is null)' };
+		}
 
 		const { lhr } = runnerResult;
+
+		// Check for Lighthouse runtime errors
+		if (lhr.runtimeError) {
+			return { error: `Lighthouse runtime error: ${lhr.runtimeError.message || lhr.runtimeError.code || 'unknown'}` };
+		}
 
 		const scores: LighthouseScores = {
 			performance: lhr.categories?.performance?.score != null
@@ -68,7 +78,8 @@ export async function runLighthouse(url: string): Promise<LighthouseResult | nul
 
 		return { scores, coreWebVitals };
 	} catch (error) {
-		console.error('Lighthouse failed:', error instanceof Error ? error.message : error);
-		return null;
+		const msg = error instanceof Error ? error.message : String(error);
+		console.error('Lighthouse failed:', msg);
+		return { error: `Lighthouse failed: ${msg}` };
 	}
 }

@@ -54,6 +54,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 					desktopScreenshotPath: string | null;
 					mobileScreenshotPath: string | null;
 				} | null;
+				crawlerError?: string;
 				issues: Array<{
 					severity: 'critical' | 'warning' | 'info';
 					category: string;
@@ -74,6 +75,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 					fcp: number | null;
 					ttfb: number | null;
 				} | null;
+				lighthouseError?: string;
 				aiAnalysis: {
 					contentQuality: number;
 					readability: number;
@@ -81,6 +83,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 					recommendations: string[];
 					summary: string;
 				} | null;
+				aiError?: string;
 				hasSitemap: boolean | null;
 				hasRobotsTxt: boolean | null;
 			}>,

@@ -88,10 +88,10 @@ ${headingsText}
 Body Text (truncated):
 ${bodyText.substring(0, 8000)}`;
 
-	try {
-		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), AI_TIMEOUT);
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), AI_TIMEOUT);
 
+	try {
 		const response = await client.messages.create({
 			model: 'claude-sonnet-4-5-20250929',
 			max_tokens: 1024,
@@ -107,7 +107,7 @@ ${bodyText.substring(0, 8000)}`;
 
 		// Extract JSON from response (handle markdown code blocks)
 		const jsonMatch = text.match(/\{[\s\S]*\}/);
-		if (!jsonMatch) return null;
+		if (!jsonMatch) throw new Error('AI returned no valid JSON');
 
 		const parsed = JSON.parse(jsonMatch[0]) as AiContentAnalysis;
 		return {
@@ -118,8 +118,10 @@ ${bodyText.substring(0, 8000)}`;
 			summary: typeof parsed.summary === 'string' ? parsed.summary : ''
 		};
 	} catch (error) {
-		console.error('AI page analysis failed:', error instanceof Error ? error.message : error);
-		return null;
+		clearTimeout(timeout);
+		const msg = error instanceof Error ? error.message : String(error);
+		console.error('AI page analysis failed:', msg);
+		throw new Error(`AI analysis failed: ${msg}`);
 	}
 }
 

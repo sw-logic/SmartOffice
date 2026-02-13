@@ -64,10 +64,13 @@ export interface SeoUrlResult {
 	status: 'success' | 'error';
 	error?: string;
 	crawl: CrawlResult | null;
+	crawlerError?: string;
 	issues: SeoIssue[];
 	lighthouseScores: LighthouseScores | null;
 	coreWebVitals: CoreWebVitals | null;
+	lighthouseError?: string;
 	aiAnalysis: AiContentAnalysis | null;
+	aiError?: string;
 	hasSitemap: boolean | null;
 	hasRobotsTxt: boolean | null;
 }
