@@ -14,17 +14,17 @@ export interface LighthouseResult {
 export async function runLighthouse(url: string): Promise<LighthouseResult | null> {
 	try {
 		const lighthouse = await import('lighthouse');
-		const { chromium } = await import('playwright');
 
-		// Use system Chromium if available, otherwise Playwright's bundled one
-		const chromePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || chromium.executablePath();
+		// In Docker: use system Chromium via env var
+		// Locally: omit chromePath so chrome-launcher finds installed Chrome automatically
+		const chromePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined;
 
-		// Let Lighthouse launch and manage Chrome itself — much more reliable than manual spawn
+		// Let Lighthouse launch and manage Chrome itself via chrome-launcher
 		const runnerResult = await Promise.race([
 			lighthouse.default(url, {
 				output: 'json',
 				onlyCategories: ['performance', 'accessibility', 'best-practices', 'seo'],
-				chromePath,
+				...(chromePath ? { chromePath } : {}),
 				chromeFlags: [
 					'--headless=new',
 					'--no-sandbox',
