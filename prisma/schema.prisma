@@ -74,6 +74,10 @@ model User {
   performedTimeRecords   TimeRecord[]        @relation("TimeRecordWorker")
   createdSeoAudits       SeoAudit[]          @relation("SeoAuditCreatedBy")
 
+  // CRM leads
+  createdLeads  Lead[] @relation("LeadCreatedBy")
+  assignedLeads Lead[] @relation("LeadAssignedTo")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -255,6 +259,8 @@ model Contact {
   vendorId Int?
   vendor   Vendor? @relation(fields: [vendorId], references: [id], onDelete: Cascade)
 
+  leads Lead[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -303,6 +309,7 @@ model Client {
   income   Income[]
   payments Payment[]
   offers   Offer[]
+  leads    Lead[]
 
   createdById Int
   createdBy   User @relation("CreatedBy", fields: [createdById], references: [id])
@@ -1018,6 +1025,53 @@ model EnumValue {
 
   @@unique([enumTypeId, value])
   @@index([enumTypeId, isActive])
+}
+
+// ============================================================================
+// CRM LEADS
+// ============================================================================
+
+model Lead {
+  id Int @id @default(autoincrement())
+
+  title       String
+  description String? @db.Text // Markdown format
+  source      String? // Managed via enums (lead_source)
+
+  stage String @default("lead") // "lead", "offer", "approval", "won", "lost", "postponed", "archived"
+  order Int    @default(0)      // Ordering within stage column
+
+  // Relations
+  clientId    Int?
+  clientName  String? // Denormalized: preserved when client is deleted
+  client      Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  contactId   Int?
+  contactName String? // Denormalized: preserved when contact is deleted
+  contact     Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  assignedToId Int?
+  assignedTo   User? @relation("LeadAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  createdById Int
+  createdBy   User @relation("LeadCreatedBy", fields: [createdById], references: [id])
+
+  // Financial
+  budget   Decimal? @db.Decimal(10, 2)
+  currency String?  @default("HUF")
+
+  // Time
+  estimatedHours Int?      // Estimated duration in minutes
+  offerDueDate   DateTime?
+  deadline       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([stage])
+  @@index([clientId])
+  @@index([assignedToId])
+  @@index([createdById])
 }
 
 // ============================================================================

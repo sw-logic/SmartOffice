@@ -115,6 +115,12 @@ async function main() {
 		{ module: 'settings', action: 'system', description: 'System settings' },
 		{ module: 'settings', action: 'enums', description: 'Manage enum values' },
 
+		// CRM
+		{ module: 'crm', action: 'read', description: 'View CRM leads' },
+		{ module: 'crm', action: 'create', description: 'Create CRM leads' },
+		{ module: 'crm', action: 'update', description: 'Update CRM leads' },
+		{ module: 'crm', action: 'delete', description: 'Delete CRM leads' },
+
 		// Tools
 		{ module: 'tools', action: 'read', description: 'Access tools' },
 		{ module: 'tools', action: 'create', description: 'Run SEO audits' },
@@ -240,6 +246,7 @@ async function main() {
 		'tasks.read', 'tasks.create', 'tasks.update', 'tasks.delete',
 		'time_records.read', 'time_records.create',
 		'notes.read', 'notes.create',
+		'crm.read', 'crm.create', 'crm.update',
 		'tools.read', 'tools.create'
 	]);
 
@@ -263,7 +270,8 @@ async function main() {
 		'offers.read',
 		'tasks.read', 'tasks.create', 'tasks.update',
 		'time_records.read', 'time_records.create', 'time_records.update',
-		'notes.read', 'notes.create'
+		'notes.read', 'notes.create',
+		'crm.read'
 	]);
 
 	// Create a default company
@@ -921,6 +929,22 @@ async function main() {
 				{ value: 'normal', label: 'Normal', sortOrder: 2, isDefault: true, color: '#11BB22' },
 				{ value: 'high', label: 'High', sortOrder: 3, color: '#FF8800' },
 				{ value: 'urgent', label: 'Urgent', sortOrder: 4, color: '#FF2244' }
+			]
+		},
+		{
+			code: 'lead_source',
+			name: 'Lead Sources',
+			description: 'Sources for CRM leads',
+			group: 'CRM',
+			isSystem: false,
+			values: [
+				{ value: 'referral', label: 'Referral', sortOrder: 1, isDefault: true },
+				{ value: 'website', label: 'Website', sortOrder: 2 },
+				{ value: 'cold_call', label: 'Cold Call', sortOrder: 3 },
+				{ value: 'event', label: 'Event', sortOrder: 4 },
+				{ value: 'social_media', label: 'Social Media', sortOrder: 5 },
+				{ value: 'partner', label: 'Partner', sortOrder: 6 },
+				{ value: 'other', label: 'Other', sortOrder: 99 }
 			]
 		},
 		{

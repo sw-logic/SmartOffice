@@ -20,7 +20,8 @@ import {
 	CalendarDays,
 	FolderOpen,
 	Wrench,
-	Search
+	Search,
+	Target
 } from 'lucide-svelte';
 import type { ComponentType } from 'svelte';
 
@@ -58,6 +59,14 @@ export const modules: Module[] = [
 		route: '/vendors',
 		permissions: ['vendors.read'],
 		description: 'Manage vendors and suppliers'
+	},
+	{
+		id: 'crm',
+		name: 'CRM',
+		icon: Target,
+		route: '/crm',
+		permissions: ['crm.read'],
+		description: 'CRM pipeline and lead management'
 	},
 	{
 		id: 'projects',
@@ -301,6 +310,9 @@ export const defaultGroupPermissions: Record<string, Array<{ module: string; act
 		{ module: 'vendors', action: 'read' },
 		{ module: 'vendors', action: 'create' },
 		{ module: 'vendors', action: 'update' },
+		{ module: 'crm', action: 'read' },
+		{ module: 'crm', action: 'create' },
+		{ module: 'crm', action: 'update' },
 		{ module: 'employees', action: 'read' },
 		{ module: 'projects', action: 'read' },
 		{ module: 'projects', action: 'create' },
@@ -332,6 +344,7 @@ export const defaultGroupPermissions: Record<string, Array<{ module: string; act
 	Employee: [
 		{ module: 'dashboard', action: 'read' },
 		{ module: 'clients', action: 'read' },
+		{ module: 'crm', action: 'read' },
 		{ module: 'projects', action: 'read' },
 		{ module: 'offers', action: 'read' }
 	]

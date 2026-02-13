@@ -25,7 +25,8 @@ export const ALL_ENUM_CODES = [
 	'department', 'employment_type', 'employee_status',
 	'project_status', 'task_status', 'task_type', 'task_category',
 	'time_record_type', 'time_record_category',
-	'offer_status', 'unit_of_measure', 'pricelist_category'
+	'offer_status', 'unit_of_measure', 'pricelist_category',
+	'lead_source'
 ] as const;
 
 // Cache for enum values with TTL
