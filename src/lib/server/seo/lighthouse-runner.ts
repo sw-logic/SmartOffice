@@ -9,23 +9,36 @@ export interface LighthouseResult {
 }
 
 /**
+ * Resolve the Chromium executable path.
+ * Docker: PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH env var
+ * Local: Playwright's bundled Chromium
+ */
+async function resolveChromePath(): Promise<string> {
+	if (process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH) {
+		return process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+	}
+	// Use Playwright's bundled Chromium (works on Windows, macOS, Linux)
+	const { chromium } = await import('playwright');
+	return chromium.executablePath();
+}
+
+/**
  * Run Lighthouse audit on a URL programmatically.
+ * Launches Chrome via chrome-launcher, runs Lighthouse, then kills Chrome.
  * Returns { error } if Lighthouse fails (non-blocking).
  */
 export async function runLighthouse(url: string): Promise<LighthouseResult | { error: string }> {
+	let chrome: { port: number; kill: () => void } | null = null;
+
 	try {
+		const chromeLauncher = await import('chrome-launcher');
 		const lighthouse = await import('lighthouse');
 
-		// In Docker: use system Chromium via env var
-		// Locally: omit chromePath so chrome-launcher finds installed Chrome automatically
-		const chromePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined;
+		const chromePath = await resolveChromePath();
 
-		// Let Lighthouse launch and manage Chrome itself via chrome-launcher
-		// chromeFlags/chromePath are accepted at runtime but missing from LH.Flags types
-		const flags = {
-			output: 'json' as const,
-			onlyCategories: ['performance', 'accessibility', 'best-practices', 'seo'],
-			...(chromePath ? { chromePath } : {}),
+		// Launch Chrome ourselves so we control the path and flags
+		chrome = await chromeLauncher.launch({
+			chromePath,
 			chromeFlags: [
 				'--headless=new',
 				'--no-sandbox',
@@ -33,7 +46,15 @@ export async function runLighthouse(url: string): Promise<LighthouseResult | { e
 				'--disable-dev-shm-usage',
 				'--disable-gpu'
 			]
+		});
+
+		// Pass the port to Lighthouse so it connects to our Chrome instance
+		const flags = {
+			output: 'json' as const,
+			onlyCategories: ['performance', 'accessibility', 'best-practices', 'seo'],
+			port: chrome!.port
 		};
+
 		const runnerResult = await Promise.race([
 			lighthouse.default(url, flags as Parameters<typeof lighthouse.default>[1]),
 			new Promise<null>((_, reject) =>
@@ -81,5 +102,8 @@ export async function runLighthouse(url: string): Promise<LighthouseResult | { e
 		const msg = error instanceof Error ? error.message : String(error);
 		console.error('Lighthouse failed:', msg);
 		return { error: `Lighthouse failed: ${msg}` };
+	} finally {
+		// Always kill Chrome to prevent zombie processes
+		try { chrome?.kill(); } catch { /* ignore */ }
 	}
 }
