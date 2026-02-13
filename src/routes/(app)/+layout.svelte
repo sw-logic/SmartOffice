@@ -4,6 +4,6 @@
 	let { data, children } = $props();
 </script>
 
-<AppShell user={data.user} permissions={data.permissions}>
+<AppShell user={data.user} permissions={data.permissions} enums={data.enums} employees={data.employees ?? []}>
 	{@render children()}
 </AppShell>

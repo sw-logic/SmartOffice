@@ -3,16 +3,20 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import UserAvatar from '$lib/components/shared/UserAvatar.svelte';
+	import TimerWidget from '$lib/components/shared/TimerWidget.svelte';
 	import { theme } from '$stores/theme';
 	import { Moon, Sun, LogOut, User, Settings, PanelLeftClose, PanelLeft } from 'lucide-svelte';
 
 	interface Props {
-		user: { name: string; email: string; image?: string | null } | null;
+		user: { id?: number; name: string; email: string; image?: string | null } | null;
 		sidebarCollapsed?: boolean;
 		onToggleSidebar?: () => void;
+		enums?: Record<string, any[]>;
+		employees?: Array<{ id: number; firstName: string | null; lastName: string | null }>;
+		currentUserId?: number | null;
 	}
 
-	let { user, sidebarCollapsed = false, onToggleSidebar }: Props = $props();
+	let { user, sidebarCollapsed = false, onToggleSidebar, enums = {}, employees = [], currentUserId = null }: Props = $props();
 
 	const resolvedTheme = $derived($theme === 'system' ? 'light' : $theme);
 
@@ -53,6 +57,8 @@
 	</a>
 
 	<div class="flex items-center gap-2">
+		<TimerWidget {enums} {employees} {currentUserId} />
+
 		<Button variant="ghost" size="icon" onclick={toggleTheme}>
 			{#if resolvedTheme === 'dark'}
 				<Sun class="h-5 w-5" />

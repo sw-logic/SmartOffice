@@ -13,6 +13,7 @@
 	import UserAvatar from '$lib/components/shared/UserAvatar.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import TaskDetailModal from '$lib/components/shared/TaskDetailModal.svelte';
+	import { timer } from '$stores/timer';
 	import {
 		Plus,
 		Search,
@@ -22,7 +23,8 @@
 		Trash2,
 		Filter,
 		X,
-		Group
+		Group,
+		Timer
 	} from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
 	import { formatDate } from '$lib/utils/date';
@@ -643,7 +645,17 @@
 									{/if}
 								</Table.Cell>
 								<Table.Cell>
-									<div class="flex items-center gap-1">
+									<div class="flex items-center gap-1" onclick={(e) => e.stopPropagation()}>
+										<Button
+											variant="ghost"
+											size="icon"
+											class="h-8 w-8"
+											onclick={() => timer.start(task.id, task.name)}
+											disabled={$timer.isRunning && $timer.taskId === task.id}
+											title="Start timer"
+										>
+											<Timer class="h-4 w-4" />
+										</Button>
 										<Button
 											variant="ghost"
 											size="icon"

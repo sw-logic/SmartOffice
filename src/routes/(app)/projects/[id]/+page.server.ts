@@ -62,8 +62,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 				}
 			},
 			tasks: {
+				where: { status: { not: 'done' } },
 				orderBy: { createdAt: 'desc' },
-				take: 5,
+				take: 10,
 				select: {
 					id: true,
 					name: true,
@@ -151,6 +152,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	});
 	const spentMinutes = minutesAgg._sum.spentTime ?? 0;
 
+	// Count open tasks (exclude done) for tab display
+	const openTaskCount = await prisma.task.count({
+		where: { projectId, status: { not: 'done' } }
+	});
+
 	// Aggregate financials if user can view budget
 	let totalIncome = 0;
 	let totalExpenses = 0;
@@ -181,7 +187,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		},
 		canViewBudget,
 		canManageProject,
-		allEmployees
+		allEmployees,
+		openTaskCount
 	};
 };
 
@@ -281,6 +288,58 @@ export const actions: Actions = {
 			String(milestone.id),
 			'Milestone',
 			{ name, description, date: dateStr, projectId }
+		);
+
+		return { success: true };
+	},
+
+	updateMilestone: async ({ locals, params, request }) => {
+		await requirePermission(locals, 'projects', 'update');
+
+		const projectId = parseInt(params.id);
+		if (isNaN(projectId)) return fail(400, { error: 'Invalid project ID' });
+
+		// Verify canManageProject
+		const isAdmin = checkPermission(locals, '*', '*');
+		let canManage = isAdmin;
+		if (!canManage && locals.user) {
+			const project = await prisma.project.findUnique({ where: { id: projectId }, select: { projectManagerId: true } });
+			if (project?.projectManagerId === locals.user.id) canManage = true;
+		}
+		if (!canManage) return fail(403, { error: 'Not authorized to manage milestones' });
+
+		const formData = await request.formData();
+		const milestoneId = parseInt(formData.get('milestoneId') as string);
+		if (isNaN(milestoneId)) return fail(400, { error: 'Invalid milestone ID' });
+
+		const name = (formData.get('name') as string)?.trim();
+		const description = (formData.get('description') as string)?.trim() || null;
+		const dateStr = formData.get('date') as string;
+
+		if (!name) return fail(400, { error: 'Name is required' });
+		if (!dateStr) return fail(400, { error: 'Date is required' });
+
+		const date = new Date(dateStr);
+		if (isNaN(date.getTime())) return fail(400, { error: 'Invalid date' });
+
+		// Verify milestone belongs to this project
+		const oldMilestone = await prisma.milestone.findFirst({
+			where: { id: milestoneId, projectId }
+		});
+		if (!oldMilestone) return fail(404, { error: 'Milestone not found' });
+
+		await prisma.milestone.update({
+			where: { id: milestoneId },
+			data: { name, description, date }
+		});
+
+		await logUpdate(
+			locals.user!.id,
+			'projects',
+			String(milestoneId),
+			'Milestone',
+			{ name: oldMilestone.name, description: oldMilestone.description, date: oldMilestone.date },
+			{ name, description, date: dateStr }
 		);
 
 		return { success: true };

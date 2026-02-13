@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
 	import UserAvatar from '$lib/components/shared/UserAvatar.svelte';
-	import { Calendar, Clock } from 'lucide-svelte';
+	import { timer } from '$stores/timer';
+	import { Calendar, Clock, Timer } from 'lucide-svelte';
 	import { formatDate } from '$lib/utils/date';
 
 	interface EnumOption {
@@ -82,6 +83,15 @@
 					{formatDuration(task.spentTime)}{#if task.estimatedTime != null}/{formatDuration(task.estimatedTime)}{/if}
 				</span>
 			{/if}
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<span
+				class="text-[11px] flex items-center gap-0.5 cursor-pointer hover:text-primary transition-colors {$timer.isRunning && $timer.taskId === task.id ? 'text-primary' : 'text-muted-foreground'}"
+				onclick={(e) => { e.stopPropagation(); timer.start(task.id, task.name); }}
+				title={$timer.isRunning && $timer.taskId === task.id ? 'Timer running' : 'Start timer'}
+			>
+				<Timer class="h-3 w-3" />
+			</span>
 		</div>
 		{#if task.assignedTo}
 			<UserAvatar user={task.assignedTo} size="xs" title="{task.assignedTo.firstName} {task.assignedTo.lastName}" class="shrink-0" />

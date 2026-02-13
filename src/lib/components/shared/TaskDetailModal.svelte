@@ -17,12 +17,15 @@
 	import DurationInput from './DurationInput.svelte';
 	import { toast } from 'svelte-sonner';
 	import { formatDateTime } from '$lib/utils/date';
+	import { timer } from '$stores/timer';
 	import {
 		Loader2,
 		Check,
 		ChevronsUpDown,
 		Pencil,
-		X
+		X,
+		Timer,
+		Square
 	} from 'lucide-svelte';
 
 	interface EnumOption {
@@ -1097,7 +1100,7 @@
 						{#if !isCreating && task}
 							<div class="flex items-center gap-2">
 								<Label class="text-sm text-muted-foreground w-20 shrink-0 text-right">Spent</Label>
-								<p class="text-sm font-medium">
+								<p class="text-sm font-medium flex-1">
 									{fmtMin(task.spentTime || 0)}
 									{#if task.estimatedTime}
 										<span class="text-muted-foreground">
@@ -1105,6 +1108,27 @@
 										</span>
 									{/if}
 								</p>
+								{#if $timer.isRunning && $timer.taskId === task!.id}
+									<Button
+										variant="outline"
+										size="sm"
+										class="h-7 text-xs text-destructive border-destructive/30"
+										onclick={() => timer.stop()}
+									>
+										<Square class="h-3 w-3 mr-1 fill-current" />
+										Stop
+									</Button>
+								{:else}
+									<Button
+										variant="outline"
+										size="sm"
+										class="h-7 text-xs"
+										onclick={() => timer.start(task!.id, task!.name)}
+									>
+										<Timer class="h-3 w-3 mr-1" />
+										Start
+									</Button>
+								{/if}
 							</div>
 						{/if}
 					</div>

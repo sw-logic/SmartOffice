@@ -6,12 +6,14 @@
 	import type { Snippet } from 'svelte';
 
 	interface Props {
-		user: { name: string; email: string; image?: string | null } | null;
+		user: { id?: number; name: string; email: string; image?: string | null } | null;
 		permissions: Array<{ module: string; action: string }>;
+		enums?: Record<string, any[]>;
+		employees?: Array<{ id: number; firstName: string | null; lastName: string | null }>;
 		children: Snippet;
 	}
 
-	let { user, permissions, children }: Props = $props();
+	let { user, permissions, enums = {}, employees = [], children }: Props = $props();
 
 	let sidebarCollapsed = $state(false);
 
@@ -22,7 +24,7 @@
 
 <Tooltip.Provider>
 	<div class="flex h-screen flex-col">
-		<Header {user} {sidebarCollapsed} onToggleSidebar={toggleSidebar} />
+		<Header {user} {sidebarCollapsed} onToggleSidebar={toggleSidebar} {enums} {employees} currentUserId={user?.id ?? null} />
 
 		<div class="flex flex-1 overflow-hidden">
 			<!-- Sidebar -->

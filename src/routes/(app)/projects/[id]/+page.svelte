@@ -2,6 +2,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
+	import * as Table from '$lib/components/ui/table';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Command from '$lib/components/ui/command';
@@ -13,7 +14,7 @@
 	import Metric from '$lib/components/shared/Metric.svelte';
 	import EnumBadge from '$lib/components/shared/EnumBadge.svelte';
 	import { toast } from 'svelte-sonner';
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import {
 		ArrowLeft,
 		Pencil,
@@ -91,29 +92,55 @@
 
 	// Milestone management state
 	let milestoneModalOpen = $state(false);
+	let milestoneToEdit = $state<{ id: number; name: string; description: string; date: string } | null>(null);
 	let deleteDialogOpen = $state(false);
 	let milestoneToDelete = $state<{ id: number; name: string } | null>(null);
 	let isDeletingMilestone = $state(false);
 
-	async function handleCreateMilestone(milestone: { name: string; description: string; date: string }): Promise<{ success: boolean; error?: string }> {
+	function openCreateMilestone() {
+		milestoneToEdit = null;
+		milestoneModalOpen = true;
+	}
+
+	function openEditMilestone(milestone: { id: number; name: string; description: string | null; date: string | Date }) {
+		const dateStr = milestone.date instanceof Date
+			? milestone.date.toISOString().split('T')[0]
+			: typeof milestone.date === 'string' && milestone.date.includes('T')
+				? milestone.date.split('T')[0]
+				: String(milestone.date);
+		milestoneToEdit = {
+			id: milestone.id,
+			name: milestone.name,
+			description: milestone.description || '',
+			date: dateStr
+		};
+		milestoneModalOpen = true;
+	}
+
+	async function handleSubmitMilestone(milestone: { id?: number; name: string; description: string; date: string }): Promise<{ success: boolean; error?: string }> {
 		const formData = new FormData();
 		formData.set('name', milestone.name);
 		formData.set('description', milestone.description);
 		formData.set('date', milestone.date);
 
+		const isEdit = !!milestone.id;
+		if (isEdit) {
+			formData.set('milestoneId', String(milestone.id));
+		}
+
 		try {
-			const response = await fetch(`?/createMilestone`, {
+			const response = await fetch(`?/${isEdit ? 'updateMilestone' : 'createMilestone'}`, {
 				method: 'POST',
 				body: formData
 			});
 			const result = await response.json();
 
 			if (result.type === 'success') {
-				toast.success('Milestone created');
+				toast.success(isEdit ? 'Milestone updated' : 'Milestone created');
 				await invalidateAll();
 				return { success: true };
 			}
-			return { success: false, error: result.data?.error || 'Failed to create milestone' };
+			return { success: false, error: result.data?.error || `Failed to ${isEdit ? 'update' : 'create'} milestone` };
 		} catch {
 			return { success: false, error: 'An unexpected error occurred' };
 		}
@@ -407,7 +434,7 @@
 				Boards ({data.project._count.kanbanBoards})
 			</Tabs.Trigger>
 			<Tabs.Trigger value="tasks">
-				Tasks ({data.project._count.tasks})
+				Tasks ({data.openTaskCount})
 			</Tabs.Trigger>
 		</Tabs.List>
 
@@ -416,7 +443,7 @@
 				<Card.Header class="flex flex-row items-center justify-between">
 					<Card.Title>Milestones</Card.Title>
 					{#if data.canManageProject}
-						<Button size="sm" onclick={() => milestoneModalOpen = true}>
+						<Button size="sm" onclick={openCreateMilestone}>
 							<Plus class="mr-1 h-4 w-4" />
 							New Milestone
 						</Button>
@@ -428,8 +455,8 @@
 					{:else}
 						<div class="space-y-3">
 							{#each data.project.milestones as milestone}
-								<div class="flex items-center justify-between p-3 rounded-lg border">
-									<div class="flex-1">
+								<div class="flex items-start justify-between p-3 rounded-lg border">
+									<div class="flex-1 min-w-0">
 										<div class="flex items-center gap-2">
 											<p class="font-medium">{milestone.name}</p>
 											{#if milestone.completed}
@@ -439,14 +466,24 @@
 											{/if}
 										</div>
 										{#if milestone.description}
-											<p class="text-sm text-muted-foreground mt-1">{milestone.description}</p>
+											<div class="text-sm text-muted-foreground mt-1">
+												<MarkdownViewer value={milestone.description} />
+											</div>
 										{/if}
 									</div>
-									<div class="flex items-center gap-2">
+									<div class="flex items-center gap-1 shrink-0 ml-2">
 										<span class="text-sm text-muted-foreground">
 											{formatDate(milestone.date)}
 										</span>
 										{#if data.canManageProject}
+											<Button
+												variant="ghost"
+												size="icon"
+												class="h-8 w-8 text-muted-foreground hover:text-foreground"
+												onclick={() => openEditMilestone(milestone)}
+											>
+												<Pencil class="h-4 w-4" />
+											</Button>
 											<Button
 												variant="ghost"
 												size="icon"
@@ -466,50 +503,69 @@
 		</Tabs.Content>
 
 		<Tabs.Content value="tasks" class="mt-4">
-			<Card.Root>
-				<Card.Header>
-					<Card.Title>Recent Tasks</Card.Title>
-				</Card.Header>
-				<Card.Content>
-					{#if data.project.tasks.length === 0}
-						<p class="text-muted-foreground text-center py-8">No tasks created yet.</p>
-					{:else}
-						<div class="space-y-3">
-							{#each data.project.tasks as task}
-								<div class="flex items-center justify-between p-3 rounded-lg border">
-									<div class="flex-1">
-										<p class="font-medium">{task.name}</p>
-										<div class="flex items-center gap-2 mt-1">
-											{#if task.assignedTo}
-												<UserAvatar user={task.assignedTo} size="xs" />
-												<span class="text-sm text-muted-foreground">
-													{task.assignedTo.firstName} {task.assignedTo.lastName}
-												</span>
-											{/if}
-											{#if task.dueDate}
-												<span class="text-sm text-muted-foreground">
-													Due: {formatDate(task.dueDate)}
-												</span>
-											{/if}
+			<div class="rounded-md border">
+				<Table.Root>
+					<Table.Header>
+						<Table.Row>
+							<Table.Head>Priority</Table.Head>
+							<Table.Head>Task</Table.Head>
+							<Table.Head>Assignee</Table.Head>
+							<Table.Head>Status</Table.Head>
+							<Table.Head>Due Date</Table.Head>
+						</Table.Row>
+					</Table.Header>
+					<Table.Body>
+						{#each data.project.tasks as task}
+							<Table.Row>
+								<Table.Cell>
+									{@const pEnum = data.enums.priority?.find((e) => e.value === task.priority)}
+									<div class="flex items-center gap-1.5">
+										{#if pEnum?.color}
+											<span class="shrink-0 rounded-full" style="width:10px;height:10px;background-color:{pEnum.color}"></span>
+										{/if}
+										<span class="text-sm text-muted-foreground">{pEnum?.label ?? task.priority}</span>
+									</div>
+								</Table.Cell>
+								<Table.Cell class="font-medium">{task.name}</Table.Cell>
+								<Table.Cell>
+									{#if task.assignedTo}
+										<div class="flex items-center gap-2">
+											<UserAvatar user={task.assignedTo} size="xs" />
+											<span class="text-sm">{task.assignedTo.firstName} {task.assignedTo.lastName}</span>
 										</div>
-									</div>
-									<div class="flex items-center gap-2">
-										<EnumBadge enums={data.enums.priority} value={task.priority} />
-										<EnumBadge enums={data.enums.task_status} value={task.status} />
-									</div>
-								</div>
-							{/each}
-						</div>
-						{#if data.project._count.tasks > 5}
-							<div class="mt-4 text-center">
-								<p class="text-sm text-muted-foreground">
-									Showing 5 of {data.project._count.tasks} tasks
-								</p>
-							</div>
-						{/if}
-					{/if}
-				</Card.Content>
-			</Card.Root>
+									{:else}
+										<span class="text-muted-foreground">-</span>
+									{/if}
+								</Table.Cell>
+								<Table.Cell>
+									{@const sEnum = data.enums.task_status?.find((e) => e.value === task.status)}
+									<Badge variant="outline" style={sEnum?.color ? `color:${sEnum.color};border-color:${sEnum.color}` : ''}>
+										{sEnum?.label ?? task.status}
+									</Badge>
+								</Table.Cell>
+								<Table.Cell>
+									{#if task.dueDate}
+										{formatDate(task.dueDate)}
+									{:else}
+										<span class="text-muted-foreground">-</span>
+									{/if}
+								</Table.Cell>
+							</Table.Row>
+						{:else}
+							<Table.Row>
+								<Table.Cell colspan={5} class="h-24 text-center text-muted-foreground">
+									No open tasks.
+								</Table.Cell>
+							</Table.Row>
+						{/each}
+					</Table.Body>
+				</Table.Root>
+			</div>
+			{#if data.openTaskCount > 10}
+				<div class="mt-2 text-center">
+					<p class="text-sm text-muted-foreground">Showing 10 of {data.openTaskCount} open tasks</p>
+				</div>
+			{/if}
 		</Tabs.Content>
 
 		<Tabs.Content value="boards" class="mt-4">
@@ -523,7 +579,13 @@
 					{:else}
 						<div class="space-y-3">
 							{#each data.project.kanbanBoards as board}
-								<div class="flex items-center justify-between p-3 rounded-lg border">
+								<div
+									class="flex items-center justify-between p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
+									onclick={() => goto(`/projects/boards/${board.id}`)}
+									role="link"
+									tabindex="0"
+									onkeydown={(e) => { if (e.key === 'Enter') goto(`/projects/boards/${board.id}`); }}
+								>
 									<div class="flex-1">
 										<p class="font-medium">{board.name}</p>
 										{#if board.description}
@@ -561,7 +623,8 @@
 <MilestoneFormModal
 	bind:open={milestoneModalOpen}
 	onOpenChange={(v) => milestoneModalOpen = v}
-	onSubmit={handleCreateMilestone}
+	onSubmit={handleSubmitMilestone}
+	milestone={milestoneToEdit}
 />
 
 <!-- Delete Milestone Confirmation -->
