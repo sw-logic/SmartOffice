@@ -1,6 +1,6 @@
 import type { LighthouseScores, CoreWebVitals } from './types';
 
-const LH_TIMEOUT = 60000;
+const LH_TIMEOUT = 90000;
 
 export interface LighthouseResult {
 	scores: LighthouseScores;
@@ -13,88 +13,60 @@ export interface LighthouseResult {
  */
 export async function runLighthouse(url: string): Promise<LighthouseResult | null> {
 	try {
-		// Dynamic import to avoid bundling issues
 		const lighthouse = await import('lighthouse');
 		const { chromium } = await import('playwright');
 
 		// Use system Chromium if available, otherwise Playwright's bundled one
-		const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || chromium.executablePath();
+		const chromePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || chromium.executablePath();
 
-		// Launch Chrome for Lighthouse (it needs its own instance)
-		const chrome = await import('child_process').then(cp => {
-			return new Promise<{ port: number; process: ReturnType<typeof cp.spawn> }>((resolve, reject) => {
-				const proc = cp.spawn(executablePath, [
-					'--headless',
-					'--disable-gpu',
+		// Let Lighthouse launch and manage Chrome itself — much more reliable than manual spawn
+		const runnerResult = await Promise.race([
+			lighthouse.default(url, {
+				output: 'json',
+				onlyCategories: ['performance', 'accessibility', 'best-practices', 'seo'],
+				chromePath,
+				chromeFlags: [
+					'--headless=new',
 					'--no-sandbox',
-					'--remote-debugging-port=0',
-					'--disable-setuid-sandbox'
-				], { stdio: ['pipe', 'pipe', 'pipe'] });
+					'--disable-setuid-sandbox',
+					'--disable-dev-shm-usage',
+					'--disable-gpu'
+				]
+			}),
+			new Promise<null>((_, reject) =>
+				setTimeout(() => reject(new Error('Lighthouse timeout')), LH_TIMEOUT)
+			)
+		]);
 
-				let stderr = '';
-				proc.stderr?.on('data', (data: Buffer) => {
-					stderr += data.toString();
-					// Look for the DevTools listening message
-					const match = stderr.match(/DevTools listening on ws:\/\/127\.0\.0\.1:(\d+)/);
-					if (match) {
-						resolve({ port: parseInt(match[1]), process: proc });
-					}
-				});
+		if (!runnerResult || !runnerResult.lhr) return null;
 
-				proc.on('error', reject);
+		const { lhr } = runnerResult;
 
-				// Timeout
-				setTimeout(() => {
-					proc.kill();
-					reject(new Error('Chrome launch timeout'));
-				}, 15000);
-			});
-		});
+		const scores: LighthouseScores = {
+			performance: lhr.categories?.performance?.score != null
+				? Math.round(lhr.categories.performance.score * 100)
+				: null,
+			accessibility: lhr.categories?.accessibility?.score != null
+				? Math.round(lhr.categories.accessibility.score * 100)
+				: null,
+			bestPractices: lhr.categories?.['best-practices']?.score != null
+				? Math.round(lhr.categories['best-practices'].score * 100)
+				: null,
+			seo: lhr.categories?.seo?.score != null
+				? Math.round(lhr.categories.seo.score * 100)
+				: null
+		};
 
-		try {
-			const runnerResult = await Promise.race([
-				lighthouse.default(url, {
-					port: chrome.port,
-					output: 'json',
-					onlyCategories: ['performance', 'accessibility', 'best-practices', 'seo']
-				}),
-				new Promise<null>((_, reject) =>
-					setTimeout(() => reject(new Error('Lighthouse timeout')), LH_TIMEOUT)
-				)
-			]);
+		const audits = lhr.audits || {};
+		const coreWebVitals: CoreWebVitals = {
+			lcp: audits['largest-contentful-paint']?.numericValue ?? null,
+			fid: audits['max-potential-fid']?.numericValue ?? null,
+			cls: audits['cumulative-layout-shift']?.numericValue ?? null,
+			fcp: audits['first-contentful-paint']?.numericValue ?? null,
+			ttfb: audits['server-response-time']?.numericValue ?? null
+		};
 
-			if (!runnerResult || !runnerResult.lhr) return null;
-
-			const { lhr } = runnerResult;
-
-			const scores: LighthouseScores = {
-				performance: lhr.categories?.performance?.score != null
-					? Math.round(lhr.categories.performance.score * 100)
-					: null,
-				accessibility: lhr.categories?.accessibility?.score != null
-					? Math.round(lhr.categories.accessibility.score * 100)
-					: null,
-				bestPractices: lhr.categories?.['best-practices']?.score != null
-					? Math.round(lhr.categories['best-practices'].score * 100)
-					: null,
-				seo: lhr.categories?.seo?.score != null
-					? Math.round(lhr.categories.seo.score * 100)
-					: null
-			};
-
-			const audits = lhr.audits || {};
-			const coreWebVitals: CoreWebVitals = {
-				lcp: audits['largest-contentful-paint']?.numericValue ?? null,
-				fid: audits['max-potential-fid']?.numericValue ?? null,
-				cls: audits['cumulative-layout-shift']?.numericValue ?? null,
-				fcp: audits['first-contentful-paint']?.numericValue ?? null,
-				ttfb: audits['server-response-time']?.numericValue ?? null
-			};
-
-			return { scores, coreWebVitals };
-		} finally {
-			chrome.process.kill();
-		}
+		return { scores, coreWebVitals };
 	} catch (error) {
 		console.error('Lighthouse failed:', error instanceof Error ? error.message : error);
 		return null;

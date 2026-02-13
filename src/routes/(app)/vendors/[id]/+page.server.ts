@@ -1,6 +1,6 @@
 import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
-import { requirePermission } from '$lib/server/access-control';
+import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { error, fail } from '@sveltejs/kit';
 import { logCreate, logUpdate, logDelete } from '$lib/server/audit';
 import { parseId } from '$lib/server/crud-helpers';
@@ -9,71 +9,72 @@ import { saveAvatar, deleteFile } from '$lib/server/file-upload';
 export const load: PageServerLoad = async ({ locals, params }) => {
 	await requirePermission(locals, 'vendors', 'read');
 
-	// Parse vendor ID
 	const vendorId = parseId(params.id, 'vendor');
 
-	const vendor = await prisma.vendor.findUnique({
-		where: { id: vendorId },
-		include: {
-			contacts: {
-				orderBy: [{ lastName: 'asc' }],
-				select: {
-					id: true,
-					firstName: true,
-					lastName: true,
-					email: true,
-					phone: true,
-					mobile: true,
-					position: true,
-					avatarPath: true
-				}
-			},
-			expenses: {
-				orderBy: { date: 'desc' },
-				take: 5,
-				select: {
-					id: true,
-					amount: true,
-					currency: true,
-					date: true,
-					description: true,
-					category: true
-				}
-			},
-			_count: {
-				select: {
-					expenses: true,
-					contacts: true
+	const canViewExpenses = checkPermission(locals, 'finances.expenses', 'read');
+
+	const [vendor, totalExpenses] = await Promise.all([
+		prisma.vendor.findUnique({
+			where: { id: vendorId },
+			include: {
+				contacts: {
+					orderBy: [{ lastName: 'asc' }],
+					select: {
+						id: true,
+						firstName: true,
+						lastName: true,
+						email: true,
+						phone: true,
+						mobile: true,
+						position: true,
+						avatarPath: true
+					}
+				},
+				expenses: canViewExpenses ? {
+					orderBy: { date: 'desc' },
+					take: 10,
+					select: {
+						id: true,
+						amount: true,
+						currency: true,
+						date: true,
+						description: true,
+						category: true,
+						status: true
+					}
+				} : false,
+				_count: {
+					select: {
+						expenses: true,
+						contacts: true
+					}
 				}
 			}
-		}
-	});
+		}),
+		prisma.expense.aggregate({
+			where: { vendorId },
+			_sum: { amount: true }
+		})
+	]);
 
 	if (!vendor) {
 		error(404, 'Vendor not found');
 	}
 
-	// Calculate total expenses
-	const totalExpenses = await prisma.expense.aggregate({
-		where: {
-			vendorId: vendorId
-		},
-		_sum: {
-			amount: true
-		}
-	});
-
 	return {
 		vendor: {
 			...vendor,
 			contacts: vendor.contacts,
-			expenses: vendor.expenses.map(exp => ({
-				...exp,
-				amount: Number(exp.amount)
-			})),
+			expenses: canViewExpenses
+				? (vendor.expenses as Array<{ id: number; amount: unknown; currency: string; date: Date; description: string; category: string; status: string }>).map(exp => ({
+						...exp,
+						amount: Number(exp.amount)
+					}))
+				: [],
 			_count: vendor._count,
 			totalExpenses: Number(totalExpenses._sum.amount || 0)
-		}
+		},
+		canViewExpenses
 	};
 };
 
@@ -81,7 +82,6 @@ export const actions: Actions = {
 	createContact: async ({ locals, request, params }) => {
 		await requirePermission(locals, 'vendors', 'contacts');
 
-		// Parse vendor ID
 		const vendorId = parseId(params.id, 'vendor');
 
 		const formData = await request.formData();
@@ -149,7 +149,6 @@ export const actions: Actions = {
 	updateContact: async ({ locals, request, params }) => {
 		await requirePermission(locals, 'vendors', 'contacts');
 
-		// Parse vendor ID
 		const vendorId = parseId(params.id, 'vendor');
 
 		const formData = await request.formData();
@@ -240,7 +239,6 @@ export const actions: Actions = {
 	deleteContact: async ({ locals, request, params }) => {
 		await requirePermission(locals, 'vendors', 'contacts');
 
-		// Parse vendor ID
 		const vendorId = parseId(params.id, 'vendor');
 
 		const formData = await request.formData();
