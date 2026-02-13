@@ -1,21 +1,17 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { browser } from '$app/environment';
 	import { saveListState, restoreListState } from '$lib/utils/list-state';
 	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import EnumBadge from '$lib/components/shared/EnumBadge.svelte';
 	import * as Table from '$lib/components/ui/table';
 	import * as Select from '$lib/components/ui/select';
-	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as Card from '$lib/components/ui/card';
+	import { ListSearch, SortableHeader, ListPagination, DeleteConfirmDialog, BulkDeleteButton } from '$lib/components/shared/list';
 	import {
 		Plus,
-		Search,
-		ArrowUpDown,
 		Trash2,
 		Pencil,
 		Eye,
@@ -49,13 +45,12 @@
 		saveListState(LIST_ROUTE, $page.url.search);
 	});
 
-	let searchInput = $state(data.filters.search);
 	let deleteDialogOpen = $state(false);
-	let selectedOffer = $state<{ id: number; offerNumber: string } | null>(null);
+	let offerToDelete = $state<{ id: number; name: string } | null>(null);
+	let isDeleting = $state(false);
 
 	// Bulk selection
 	let selectedIds = $state<Set<number>>(new Set());
-	let bulkDeleteDialogOpen = $state(false);
 	let isBulkDeleting = $state(false);
 
 	let allSelected = $derived(data.offers.length > 0 && selectedIds.size === data.offers.length);
@@ -102,7 +97,6 @@
 		}
 
 		isBulkDeleting = false;
-		bulkDeleteDialogOpen = false;
 	}
 
 	function updateFilter(key: string, value: string) {
@@ -118,31 +112,37 @@
 		goto(`?${params.toString()}`);
 	}
 
-	function handleSearch() {
-		updateFilter('search', searchInput);
-	}
-
-	function toggleSort(column: string) {
-		const params = new URLSearchParams($page.url.searchParams);
-		const currentSort = params.get('sortBy');
-		const currentOrder = params.get('sortOrder') || 'desc';
-
-		if (currentSort === column) {
-			params.set('sortOrder', currentOrder === 'asc' ? 'desc' : 'asc');
-		} else {
-			params.set('sortBy', column);
-			params.set('sortOrder', 'desc');
-		}
-		params.delete('page');
-		goto(`?${params.toString()}`);
-	}
-
-	function openDeleteDialog(offer: { id: number; offerNumber: string }) {
-		selectedOffer = offer;
+	function confirmDelete(offer: { id: number; offerNumber: string }) {
+		offerToDelete = { id: offer.id, name: offer.offerNumber };
 		deleteDialogOpen = true;
 	}
 
+	async function handleDelete() {
+		if (!offerToDelete) return;
 
+		isDeleting = true;
+		const formData = new FormData();
+		formData.append('id', String(offerToDelete.id));
+
+		const response = await fetch('?/delete', {
+			method: 'POST',
+			body: formData
+		});
+
+		const result = await response.json();
+
+		if (result.type === 'success') {
+			toast.success('Offer deleted successfully');
+			selectedIds = new Set();
+			invalidateAll();
+		} else {
+			toast.error(result.data?.error || 'Failed to delete offer');
+		}
+
+		isDeleting = false;
+		deleteDialogOpen = false;
+		offerToDelete = null;
+	}
 </script>
 
 <div class="space-y-6">
@@ -153,12 +153,12 @@
 			<p class="text-muted-foreground">Create and manage offers for clients</p>
 		</div>
 		<div class="flex items-center gap-4">
-			{#if selectedIds.size > 0}
-				<Button variant="destructive" onclick={() => (bulkDeleteDialogOpen = true)}>
-					<Trash2 class="mr-2 h-4 w-4" />
-					Delete ({selectedIds.size})
-				</Button>
-			{/if}
+			<BulkDeleteButton
+				count={selectedIds.size}
+				noun="offer"
+				isDeleting={isBulkDeleting}
+				onconfirm={handleBulkDelete}
+			/>
 			<Button onclick={() => goto('/offers/new')}>
 				<Plus class="mr-2 h-4 w-4" />
 				New Offer
@@ -206,18 +206,7 @@
 
 	<!-- Filters -->
 	<div class="flex flex-wrap items-center gap-4">
-		<div class="flex items-center gap-2">
-			<Input
-				type="search"
-				placeholder="Search offers..."
-				class="w-48"
-				bind:value={searchInput}
-				onkeydown={(e) => e.key === 'Enter' && handleSearch()}
-			/>
-			<Button variant="outline" size="icon" onclick={handleSearch}>
-				<Search class="h-4 w-4" />
-			</Button>
-		</div>
+		<ListSearch placeholder="Search offers..." />
 
 		<Select.Root
 			type="single"
@@ -264,39 +253,14 @@
 							onCheckedChange={toggleSelectAll}
 						/>
 					</Table.Head>
-					<Table.Head>
-						<Button variant="ghost" class="-ml-4" onclick={() => toggleSort('offerNumber')}>
-							Offer #
-							<ArrowUpDown class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
-					<Table.Head>
-						<Button variant="ghost" class="-ml-4" onclick={() => toggleSort('title')}>
-							Title
-							<ArrowUpDown class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
-					<Table.Head>
-						<Button variant="ghost" class="-ml-4" onclick={() => toggleSort('date')}>
-							Date
-							<ArrowUpDown class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
+					<SortableHeader column="offerNumber" label="Offer #" defaultOrder="desc" />
+					<SortableHeader column="title" label="Title" defaultOrder="desc" />
+					<SortableHeader column="date" label="Date" defaultOrder="desc" />
 					<Table.Head>Client</Table.Head>
 					<Table.Head>Status</Table.Head>
 					<Table.Head class="text-center">Options</Table.Head>
-					<Table.Head>
-						<Button variant="ghost" class="-ml-4" onclick={() => toggleSort('validUntil')}>
-							Valid Until
-							<ArrowUpDown class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
-					<Table.Head class="text-right">
-						<Button variant="ghost" class="-mr-4" onclick={() => toggleSort('grandTotal')}>
-							Grand Total
-							<ArrowUpDown class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
+					<SortableHeader column="validUntil" label="Valid Until" defaultOrder="desc" />
+					<SortableHeader column="grandTotal" label="Grand Total" defaultOrder="desc" class="text-right" />
 					<Table.Head class="w-[100px]">Actions</Table.Head>
 				</Table.Row>
 			</Table.Header>
@@ -359,7 +323,7 @@
 								<Button
 									variant="ghost"
 									size="icon"
-									onclick={() => openDeleteDialog({ id: offer.id, offerNumber: offer.offerNumber })}
+									onclick={() => confirmDelete({ id: offer.id, offerNumber: offer.offerNumber })}
 									title="Delete offer"
 								>
 									<Trash2 class="h-4 w-4" />
@@ -378,85 +342,13 @@
 		</Table.Root>
 	</div>
 
-	<!-- Pagination -->
-	{#if data.totalPages > 1}
-		<div class="flex items-center justify-between">
-			<p class="text-muted-foreground text-sm">
-				Showing {(data.page - 1) * data.pageSize + 1} to {Math.min(
-					data.page * data.pageSize,
-					data.totalCount
-				)} of {data.totalCount} offers
-			</p>
-			<div class="flex gap-2">
-				<Button
-					variant="outline"
-					size="sm"
-					disabled={data.page <= 1}
-					onclick={() => updateFilter('page', String(data.page - 1))}
-				>
-					Previous
-				</Button>
-				<Button
-					variant="outline"
-					size="sm"
-					disabled={data.page >= data.totalPages}
-					onclick={() => updateFilter('page', String(data.page + 1))}
-				>
-					Next
-				</Button>
-			</div>
-		</div>
-	{/if}
+	<ListPagination pagination={{ page: data.page, limit: data.pageSize, total: data.totalCount, totalPages: data.totalPages }} noun="offers" />
 </div>
 
-<!-- Bulk Delete Confirmation Dialog -->
-<AlertDialog.Root bind:open={bulkDeleteDialogOpen}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Delete {selectedIds.size} Offer{selectedIds.size !== 1 ? 's' : ''}</AlertDialog.Title>
-			<AlertDialog.Description>
-				Are you sure you want to delete {selectedIds.size} selected offer{selectedIds.size !== 1 ? 's' : ''}?
-				This action cannot be undone.
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-			<AlertDialog.Action
-				class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-				onclick={handleBulkDelete}
-				disabled={isBulkDeleting}
-			>
-				{isBulkDeleting ? 'Deleting...' : 'Delete'}
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
-
-<!-- Delete Confirmation Dialog -->
-<AlertDialog.Root bind:open={deleteDialogOpen}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Delete Offer</AlertDialog.Title>
-			<AlertDialog.Description>
-				Are you sure you want to delete offer "{selectedOffer?.offerNumber}"? This action cannot be undone.
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-			<form
-				method="POST"
-				action="?/delete"
-				use:enhance={() => {
-					return async ({ update }) => {
-						await update();
-						deleteDialogOpen = false;
-						selectedOffer = null;
-					};
-				}}
-			>
-				<input type="hidden" name="id" value={selectedOffer?.id} />
-				<Button type="submit" variant="destructive">Delete</Button>
-			</form>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
+<DeleteConfirmDialog
+	bind:open={deleteDialogOpen}
+	title="Delete Offer"
+	name={offerToDelete?.name}
+	{isDeleting}
+	onconfirm={handleDelete}
+/>

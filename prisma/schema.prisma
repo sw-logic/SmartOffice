@@ -72,6 +72,7 @@ model User {
   assignedTasks          Task[]              @relation("TaskAssignee")
   kanbanBoardMemberships KanbanBoardMember[]
   performedTimeRecords   TimeRecord[]        @relation("TimeRecordWorker")
+  createdSeoAudits       SeoAudit[]          @relation("SeoAuditCreatedBy")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1017,4 +1018,32 @@ model EnumValue {
 
   @@unique([enumTypeId, value])
   @@index([enumTypeId, isActive])
+}
+
+// ============================================================================
+// TOOLS
+// ============================================================================
+
+model SeoAudit {
+  id        Int    @id @default(autoincrement())
+  status    String @default("pending") // pending | running | completed | failed
+  language  String @default("en")      // Language code for AI output (en, hu, de, etc.)
+  urls      Json                       // String[] input URLs
+  progress  Json?                      // { currentUrl, currentStep, completedUrls, totalUrls }
+  results   Json?                      // Per-URL findings array
+  summary   Json?                      // Overall scores + AI recommendations
+  pdfPath   String?                    // Relative path to generated PDF
+  error     String? @db.Text           // Failure message
+
+  createdById Int
+  createdBy   User @relation("SeoAuditCreatedBy", fields: [createdById], references: [id])
+
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([createdById])
+  @@index([status])
+  @@index([createdAt])
 }

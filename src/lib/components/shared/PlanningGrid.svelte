@@ -1,6 +1,7 @@
 <script lang="ts">
 	import PlanningTaskCard from './PlanningTaskCard.svelte';
 	import * as Avatar from '$lib/components/ui/avatar';
+	import UserAvatar from '$lib/components/shared/UserAvatar.svelte';
 	import { dndzone } from 'svelte-dnd-action';
 	import { flip } from 'svelte/animate';
 	import { format, isSameDay } from 'date-fns';
@@ -79,9 +80,6 @@
 		cellTasks = grid;
 	});
 
-	function getInitials(firstName: string | null, lastName: string | null): string {
-		return `${(firstName ?? '').charAt(0)}${(lastName ?? '').charAt(0)}`.toUpperCase();
-	}
 
 	function formatMinutes(minutes: number): string {
 		const h = Math.floor(minutes / 60);
@@ -165,14 +163,7 @@
 			<!-- Person label -->
             <div class="col-span-full">
                 <div class="z-10 bg-primary/5 border-b border-r p-2 flex items-center gap-2">
-                    <Avatar.Root class="h-10 w-10 shrink-0">
-                        {#if employee.image}
-                            <Avatar.Image src="/api/uploads/{employee.image}" alt="{employee.firstName} {employee.lastName}" />
-                        {/if}
-                        <Avatar.Fallback class="text-[10px]">
-                            {getInitials(employee.firstName, employee.lastName)}
-                        </Avatar.Fallback>
-                    </Avatar.Root>
+                    <UserAvatar user={employee} size="xl" class="shrink-0" />
                     <div class="min-w-0">
                         <div class="text-sm font-medium truncate">{employee.firstName} {employee.lastName}</div>
                     </div>

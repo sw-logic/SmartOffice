@@ -2,7 +2,7 @@
 	import { signOut } from '@auth/sveltekit/client';
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import * as Avatar from '$lib/components/ui/avatar';
+	import UserAvatar from '$lib/components/shared/UserAvatar.svelte';
 	import { theme } from '$stores/theme';
 	import { Moon, Sun, LogOut, User, Settings, PanelLeftClose, PanelLeft } from 'lucide-svelte';
 
@@ -39,9 +39,18 @@
 		<span class="sr-only">Toggle sidebar</span>
 	</Button>
 
-	<div class="flex-1">
-		<h1 class="text-lg font-semibold">Company Management</h1>
-	</div>
+	<a href="/" class="flex-1">
+		<img
+			src="/assets/images/smart_office_light.svg"
+			alt="SmartOffice"
+			class="h-7 dark:hidden"
+		/>
+		<img
+			src="/assets/images/smart_office_dark.svg"
+			alt="SmartOffice"
+			class="h-7 hidden dark:block"
+		/>
+	</a>
 
 	<div class="flex items-center gap-2">
 		<Button variant="ghost" size="icon" onclick={toggleTheme}>
@@ -58,14 +67,7 @@
 				<DropdownMenu.Trigger>
 					{#snippet child({ props })}
 						<button {...props} class="relative h-8 w-8 rounded-full">
-							<Avatar.Root class="h-8 w-8">
-								{#if user.image}
-									<Avatar.Image src="/api/uploads/{user.image}" alt={user.name} />
-								{/if}
-								<Avatar.Fallback>
-									{user.name?.charAt(0)?.toUpperCase() ?? 'U'}
-								</Avatar.Fallback>
-							</Avatar.Root>
+							<UserAvatar user={user} size="lg" />
 						</button>
 					{/snippet}
 				</DropdownMenu.Trigger>
@@ -77,7 +79,7 @@
 						</div>
 					</DropdownMenu.Label>
 					<DropdownMenu.Separator />
-					<DropdownMenu.Item>
+					<DropdownMenu.Item onSelect={() => { window.location.href = '/profile'; }}>
 						<User class="mr-2 h-4 w-4" />
 						Profile
 					</DropdownMenu.Item>

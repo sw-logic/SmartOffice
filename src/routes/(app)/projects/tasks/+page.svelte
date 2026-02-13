@@ -10,7 +10,7 @@
 	import * as Table from '$lib/components/ui/table';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as Select from '$lib/components/ui/select';
-	import * as Avatar from '$lib/components/ui/avatar';
+	import UserAvatar from '$lib/components/shared/UserAvatar.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import TaskDetailModal from '$lib/components/shared/TaskDetailModal.svelte';
 	import {
@@ -275,9 +275,6 @@
 		return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 	}
 
-	function getInitials(firstName: string | null, lastName: string | null): string {
-		return `${(firstName ?? '').charAt(0)}${(lastName ?? '').charAt(0)}`.toUpperCase();
-	}
 </script>
 
 <div class="space-y-4">
@@ -614,14 +611,7 @@
 								<Table.Cell>
 									{#if task.assignedTo}
 										<div class="flex items-center gap-1.5">
-											<Avatar.Root class="h-6 w-6">
-												{#if task.assignedTo.image}
-													<Avatar.Image src="/api/uploads/{task.assignedTo.image}" alt="{task.assignedTo.firstName} {task.assignedTo.lastName}" />
-												{/if}
-												<Avatar.Fallback class="text-[9px]">
-													{getInitials(task.assignedTo.firstName ?? '', task.assignedTo.lastName ?? '')}
-												</Avatar.Fallback>
-											</Avatar.Root>
+											<UserAvatar user={task.assignedTo} size="sm" />
 											<span class="text-sm truncate max-w-[100px]">
 												{task.assignedTo.firstName ?? ''} {task.assignedTo.lastName ?? ''}
 											</span>

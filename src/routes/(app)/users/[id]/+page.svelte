@@ -2,7 +2,7 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
-	import * as Avatar from '$lib/components/ui/avatar';
+	import UserAvatar from '$lib/components/shared/UserAvatar.svelte';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import EnumBadge from '$lib/components/shared/EnumBadge.svelte';
 	import {
@@ -31,18 +31,6 @@
 
 	let deleteDialogOpen = $state(false);
 	let isDeleting = $state(false);
-
-	function getInitials(user: { name: string; firstName?: string | null; lastName?: string | null }): string {
-		if (user.firstName && user.lastName) {
-			return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
-		}
-		return user.name
-			.split(' ')
-			.map((w: string) => w[0])
-			.slice(0, 2)
-			.join('')
-			.toUpperCase();
-	}
 
 	function getDisplayName(user: { name: string; firstName?: string | null; lastName?: string | null }): string {
 		if (user.firstName && user.lastName) {
@@ -80,12 +68,7 @@
 			<Button variant="ghost" size="icon" href="/users">
 				<ArrowLeft class="h-4 w-4" />
 			</Button>
-			<Avatar.Root class="h-12 w-12">
-				{#if data.user.image}
-					<Avatar.Image src="/api/uploads/{data.user.image}" alt={getDisplayName(data.user)} />
-				{/if}
-				<Avatar.Fallback class="text-lg">{getInitials(data.user)}</Avatar.Fallback>
-			</Avatar.Root>
+			<UserAvatar user={data.user} size="2xl" />
 			<div>
 				<h1 class="text-2xl font-bold tracking-tight">{getDisplayName(data.user)}</h1>
 				<p class="text-muted-foreground">{data.user.jobTitle || data.user.email}</p>

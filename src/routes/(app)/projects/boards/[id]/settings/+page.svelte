@@ -5,7 +5,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Card from '$lib/components/ui/card';
-	import * as Avatar from '$lib/components/ui/avatar';
+	import UserAvatar from '$lib/components/shared/UserAvatar.svelte';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Command from '$lib/components/ui/command';
 	import * as Select from '$lib/components/ui/select';
@@ -331,9 +331,6 @@
 		isProcessing = false;
 	}
 
-	function getInitials(firstName: string | null, lastName: string | null): string {
-		return `${(firstName ?? '').charAt(0)}${(lastName ?? '').charAt(0)}`.toUpperCase();
-	}
 </script>
 
 <div class="space-y-6">
@@ -668,14 +665,7 @@
 														checked={selectedMemberIds.has(employee.id)}
 														disabled={isUpdatingMembers}
 													/>
-													<Avatar.Root class="h-6 w-6 shrink-0">
-														{#if employee.image}
-															<Avatar.Image src="/api/uploads/{employee.image}" alt="{employee.firstName} {employee.lastName}" />
-														{/if}
-														<Avatar.Fallback class="text-[10px]">
-															{getInitials(employee.firstName, employee.lastName)}
-														</Avatar.Fallback>
-													</Avatar.Root>
+													<UserAvatar user={employee} size="sm" class="shrink-0" />
 													<div class="flex-1 min-w-0">
 														<p class="text-sm truncate">
 															{employee.firstName} {employee.lastName}
@@ -705,14 +695,7 @@
 						<div
 							class="flex items-center gap-2 p-2 rounded-md border bg-background hover:bg-muted/30"
 						>
-							<Avatar.Root class="h-8 w-8 shrink-0">
-								{#if member.image}
-									<Avatar.Image src="/api/uploads/{member.image}" alt="{member.firstName} {member.lastName}" />
-								{/if}
-								<Avatar.Fallback class="text-xs">
-									{getInitials(member.firstName, member.lastName)}
-								</Avatar.Fallback>
-							</Avatar.Root>
+							<UserAvatar user={member} size="lg" class="shrink-0" />
 							<div class="flex-1 min-w-0">
 								<p class="text-sm font-medium truncate">
 									{member.firstName} {member.lastName}

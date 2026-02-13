@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
-	import * as Avatar from '$lib/components/ui/avatar';
+	import UserAvatar from '$lib/components/shared/UserAvatar.svelte';
 	import { Calendar, Clock } from 'lucide-svelte';
 	import { formatDate } from '$lib/utils/date';
 
@@ -35,9 +35,6 @@
 
 	let priorityColor = $derived(priorityEnums?.find(e => e.value === task.priority)?.color || '#D1D5DB');
 
-	function getInitials(firstName: string | null, lastName: string | null): string {
-		return `${(firstName ?? '').charAt(0)}${(lastName ?? '').charAt(0)}`.toUpperCase();
-	}
 
 	function formatDuration(minutes: number): string {
 		const h = Math.floor(minutes / 60);
@@ -87,14 +84,7 @@
 			{/if}
 		</div>
 		{#if task.assignedTo}
-			<Avatar.Root class="h-5 w-5 shrink-0" title="{task.assignedTo.firstName} {task.assignedTo.lastName}">
-				{#if task.assignedTo.image}
-					<Avatar.Image src="/api/uploads/{task.assignedTo.image}" alt="{task.assignedTo.firstName} {task.assignedTo.lastName}" />
-				{/if}
-				<Avatar.Fallback class="text-[9px]">
-					{getInitials(task.assignedTo.firstName, task.assignedTo.lastName)}
-				</Avatar.Fallback>
-			</Avatar.Root>
+			<UserAvatar user={task.assignedTo} size="xs" title="{task.assignedTo.firstName} {task.assignedTo.lastName}" class="shrink-0" />
 		{/if}
 	</div>
 </div>

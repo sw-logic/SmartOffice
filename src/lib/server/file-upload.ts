@@ -1,4 +1,4 @@
-import { writeFile, mkdir, unlink, readFile, access } from 'fs/promises';
+import { writeFile, mkdir, unlink, readFile, access, rm } from 'fs/promises';
 import { join, extname, resolve } from 'path';
 import { randomUUID } from 'crypto';
 
@@ -25,7 +25,7 @@ const ALLOWED_MIME_TYPES: Record<string, string[]> = {
 
 const ALL_ALLOWED_TYPES = Object.values(ALLOWED_MIME_TYPES).flat();
 
-export type FileCategory = 'receipts' | 'documents' | 'offers' | 'avatars' | 'logos';
+export type FileCategory = 'receipts' | 'documents' | 'offers' | 'avatars' | 'logos' | 'seo-audits';
 
 export interface UploadResult {
 	success: boolean;
@@ -214,4 +214,20 @@ export async function saveAvatar(file: File): Promise<UploadResult> {
 		return { success: false, error: 'Avatar file too large. Maximum size is 2MB' };
 	}
 	return saveFile(file, 'avatars', AVATAR_ALLOWED_TYPES);
+}
+
+/**
+ * Delete a directory and all its contents within UPLOAD_DIR
+ * @param relativePath - The relative directory path to delete
+ * @returns True if deleted successfully
+ */
+export async function deleteDirectory(relativePath: string): Promise<boolean> {
+	try {
+		const fullPath = resolveSecurePath(relativePath);
+		await rm(fullPath, { recursive: true, force: true });
+		return true;
+	} catch (error) {
+		console.error('Directory deletion error:', error);
+		return false;
+	}
 }

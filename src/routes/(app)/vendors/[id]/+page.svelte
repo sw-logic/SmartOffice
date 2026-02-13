@@ -9,7 +9,7 @@
 	import ContactFormModal from '$lib/components/shared/ContactFormModal.svelte';
 	import Metric from '$lib/components/shared/Metric.svelte';
 	import { toast } from 'svelte-sonner';
-	import * as Avatar from '$lib/components/ui/avatar';
+	import UserAvatar from '$lib/components/shared/UserAvatar.svelte';
 	import {
 		ArrowLeft,
 		Pencil,
@@ -362,12 +362,7 @@
 						<div class="space-y-3">
 							{#each data.vendor.contacts as contact}
 								<div class="flex items-center gap-3 p-3 rounded-lg border">
-									<Avatar.Root>
-										{#if contact.avatarPath}
-											<Avatar.Image src="/api/uploads/{contact.avatarPath}" alt="{contact.firstName} {contact.lastName}" />
-										{/if}
-										<Avatar.Fallback class="text-xs">{contact.firstName[0]}{contact.lastName[0]}</Avatar.Fallback>
-									</Avatar.Root>
+									<UserAvatar user={contact} />
 									<div class="min-w-0">
 										<p class="font-medium">
 											{contact.firstName} {contact.lastName}

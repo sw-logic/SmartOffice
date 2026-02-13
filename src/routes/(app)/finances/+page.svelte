@@ -3,7 +3,7 @@
 	import { page } from '$app/stores';
 	import { Button } from '$lib/components/ui/button';
 	import EnumBadge from '$lib/components/shared/EnumBadge.svelte';
-	import * as Avatar from '$lib/components/ui/avatar';
+	import UserAvatar from '$lib/components/shared/UserAvatar.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import * as Table from '$lib/components/ui/table';
 	import * as Tabs from '$lib/components/ui/tabs';
@@ -542,12 +542,7 @@
 							<Table.Row>
 								<Table.Cell>
 									<div class="flex items-center gap-2">
-										<Avatar.Root class="h-7 w-7">
-											{#if emp.image}
-												<Avatar.Image src="/api/uploads/{emp.image}" alt="{emp.firstName ?? ''} {emp.lastName ?? ''}" />
-											{/if}
-											<Avatar.Fallback class="text-xs">{(emp.firstName ?? '')[0]}{(emp.lastName ?? '')[0]}</Avatar.Fallback>
-										</Avatar.Root>
+										<UserAvatar user={emp} class="h-7 w-7" />
 										<div class="min-w-0">
 											<div class="font-medium text-sm truncate" title="{emp.firstName ?? ''} {emp.lastName ?? ''}">
 												{emp.firstName ?? ''} {emp.lastName ?? ''}

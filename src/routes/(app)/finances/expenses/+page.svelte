@@ -5,7 +5,6 @@
 	import { browser } from '$app/environment';
 	import { saveListState, restoreListState } from '$lib/utils/list-state';
 	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
 	import EnumBadge from '$lib/components/shared/EnumBadge.svelte';
 	import * as Card from '$lib/components/ui/card';
@@ -16,10 +15,9 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import ExpenseFormModal from '$lib/components/shared/ExpenseFormModal.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox';
+	import { ListSearch, SortableHeader, ListPagination, DeleteConfirmDialog, BulkDeleteButton } from '$lib/components/shared/list';
 	import {
 		Plus,
-		Search,
-		ArrowUpDown,
 		Trash2,
 		Pencil,
 		RefreshCw,
@@ -56,16 +54,15 @@
 		saveListState(LIST_ROUTE, $page.url.search);
 	});
 
-	let searchInput = $state(data.filters.search);
 	let deleteDialogOpen = $state(false);
 	let selectedExpense = $state<{ id: number; description: string } | null>(null);
+	let isDeleting = $state(false);
 	let modalOpen = $state(false);
 	let editExpenseId = $state<number | null>(null);
 	let editIsProjectedOccurrence = $state(false);
 
 	// Bulk selection
 	let selectedIds = $state<Set<number>>(new Set());
-	let bulkDeleteDialogOpen = $state(false);
 	let isBulkDeleting = $state(false);
 
 	let allSelected = $derived(data.expenses.length > 0 && selectedIds.size === data.expenses.length);
@@ -112,7 +109,32 @@
 		}
 
 		isBulkDeleting = false;
-		bulkDeleteDialogOpen = false;
+	}
+
+	async function handleDelete() {
+		if (!selectedExpense) return;
+
+		isDeleting = true;
+		const formData = new FormData();
+		formData.append('id', String(selectedExpense.id));
+
+		const response = await fetch('?/delete', {
+			method: 'POST',
+			body: formData
+		});
+
+		const result = await response.json();
+
+		if (result.type === 'success') {
+			toast.success('Expense deleted successfully');
+			invalidateAll();
+		} else {
+			toast.error(result.data?.error || 'Failed to delete expense');
+		}
+
+		isDeleting = false;
+		deleteDialogOpen = false;
+		selectedExpense = null;
 	}
 
 	// Edit choice dialog for projected occurrences
@@ -128,7 +150,6 @@
 	function openEditModal(id: number) {
 		const expense = data.expenses.find((e) => e.id === id);
 		if (expense?.parentId && expense.status === 'projected') {
-			// Projected occurrence — ask user what to edit
 			editChoiceItem = { id: expense.id, parentId: expense.parentId };
 			editChoiceDialogOpen = true;
 		} else {
@@ -231,25 +252,6 @@
 		goto(`?${params.toString()}`);
 	}
 
-	function handleSearch() {
-		updateFilter('search', searchInput);
-	}
-
-	function toggleSort(column: string) {
-		const params = new URLSearchParams($page.url.searchParams);
-		const currentSort = params.get('sortBy');
-		const currentOrder = params.get('sortOrder') || 'desc';
-
-		if (currentSort === column) {
-			params.set('sortOrder', currentOrder === 'asc' ? 'desc' : 'asc');
-		} else {
-			params.set('sortBy', column);
-			params.set('sortOrder', 'desc');
-		}
-		params.delete('page');
-		goto(`?${params.toString()}`);
-	}
-
 	function openDeleteDialog(expense: { id: number; description: string }) {
 		selectedExpense = expense;
 		deleteDialogOpen = true;
@@ -288,12 +290,12 @@
 			<p class="text-muted-foreground">Track and manage your expenses</p>
 		</div>
 		<div class="flex items-center gap-4">
-			{#if selectedIds.size > 0}
-				<Button variant="destructive" onclick={() => (bulkDeleteDialogOpen = true)}>
-					<Trash2 class="mr-2 h-4 w-4" />
-					Delete ({selectedIds.size})
-				</Button>
-			{/if}
+			<BulkDeleteButton
+				count={selectedIds.size}
+				noun="record"
+				isDeleting={isBulkDeleting}
+				onconfirm={handleBulkDelete}
+			/>
             <Button onclick={openCreateModal}>
                 <Plus class="mr-2 h-4 w-4" />
                 Add Expense
@@ -420,18 +422,7 @@
 
 	<!-- Filters -->
 	<div class="flex flex-wrap items-center gap-4">
-		<div class="flex items-center gap-2">
-			<Input
-				type="search"
-				placeholder="Search..."
-				class="w-48"
-				bind:value={searchInput}
-				onkeydown={(e) => e.key === 'Enter' && handleSearch()}
-			/>
-			<Button variant="outline" size="icon" onclick={handleSearch}>
-				<Search class="h-4 w-4" />
-			</Button>
-		</div>
+		<ListSearch placeholder="Search expenses..." />
 
 		<Select.Root
 			type="single"
@@ -528,23 +519,13 @@
 							onCheckedChange={toggleSelectAll}
 						/>
 					</Table.Head>
-					<Table.Head>
-						<Button variant="ghost" class="-ml-4" onclick={() => toggleSort('date')}>
-							Date
-							<ArrowUpDown class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
+					<SortableHeader column="date" label="Date" defaultOrder="desc" />
 					<Table.Head>Description</Table.Head>
 					<Table.Head>Vendor</Table.Head>
 					<Table.Head>Category</Table.Head>
 					<Table.Head>Status</Table.Head>
 					<Table.Head>Recurring</Table.Head>
-					<Table.Head class="text-right">
-						<Button variant="ghost" class="-mr-4" onclick={() => toggleSort('amount')}>
-							Amount
-							<ArrowUpDown class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
+					<SortableHeader column="amount" label="Amount" defaultOrder="desc" class="text-right" />
 					<Table.Head class="text-right">Tax %</Table.Head>
 					<Table.Head class="text-right">Tax Value</Table.Head>
 					<Table.Head class="w-[80px]">Actions</Table.Head>
@@ -810,35 +791,10 @@
 		</Table.Root>
 	</div>
 
-	<!-- Pagination -->
-	{#if data.totalPages > 1}
-		<div class="flex items-center justify-between">
-			<p class="text-sm text-muted-foreground">
-				Showing {(data.page - 1) * data.pageSize + 1} to {Math.min(
-					data.page * data.pageSize,
-					data.totalCount
-				)} of {data.totalCount} records
-			</p>
-			<div class="flex gap-2">
-				<Button
-					variant="outline"
-					size="sm"
-					disabled={data.page <= 1}
-					onclick={() => updateFilter('page', String(data.page - 1))}
-				>
-					Previous
-				</Button>
-				<Button
-					variant="outline"
-					size="sm"
-					disabled={data.page >= data.totalPages}
-					onclick={() => updateFilter('page', String(data.page + 1))}
-				>
-					Next
-				</Button>
-			</div>
-		</div>
-	{/if}
+	<ListPagination
+		pagination={{ page: data.page, limit: data.pageSize, total: data.totalCount, totalPages: data.totalPages }}
+		noun="records"
+	/>
 </div>
 
 <!-- Expense Form Modal -->
@@ -873,54 +829,10 @@
 	</AlertDialog.Content>
 </AlertDialog.Root>
 
-<!-- Bulk Delete Confirmation Dialog -->
-<AlertDialog.Root bind:open={bulkDeleteDialogOpen}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Delete {selectedIds.size} Expense Record{selectedIds.size !== 1 ? 's' : ''}</AlertDialog.Title>
-			<AlertDialog.Description>
-				Are you sure you want to delete {selectedIds.size} selected expense record{selectedIds.size !== 1 ? 's' : ''}? This action can be undone by an administrator.
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-			<AlertDialog.Action
-				class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-				onclick={handleBulkDelete}
-				disabled={isBulkDeleting}
-			>
-				{isBulkDeleting ? 'Deleting...' : 'Delete'}
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
-
-<!-- Delete Confirmation Dialog -->
-<AlertDialog.Root bind:open={deleteDialogOpen}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Delete Expense</AlertDialog.Title>
-			<AlertDialog.Description>
-				Are you sure you want to delete "{selectedExpense?.description}"? This action can be undone
-				by an administrator.
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-			<form
-				method="POST"
-				action="?/delete"
-				use:enhance={() => {
-					return async ({ update }) => {
-						await update();
-						deleteDialogOpen = false;
-						selectedExpense = null;
-					};
-				}}
-			>
-				<input type="hidden" name="id" value={selectedExpense?.id} />
-				<Button type="submit" variant="destructive">Delete</Button>
-			</form>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
+<DeleteConfirmDialog
+	bind:open={deleteDialogOpen}
+	title="Delete Expense"
+	name={selectedExpense?.description}
+	{isDeleting}
+	onconfirm={handleDelete}
+/>

@@ -7,7 +7,7 @@
 	import * as Command from '$lib/components/ui/command';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Checkbox } from '$lib/components/ui/checkbox';
-	import * as Avatar from '$lib/components/ui/avatar';
+	import UserAvatar from '$lib/components/shared/UserAvatar.svelte';
 	import MilestoneFormModal from '$lib/components/shared/MilestoneFormModal.svelte';
 	import MarkdownViewer from '$lib/components/shared/MarkdownViewer.svelte';
 	import Metric from '$lib/components/shared/Metric.svelte';
@@ -153,9 +153,6 @@
 		}
 	}
 
-	function getInitials(firstName: string | null, lastName: string | null): string {
-		return `${(firstName ?? '').charAt(0)}${(lastName ?? '').charAt(0)}`.toUpperCase();
-	}
 
 
 </script>
@@ -208,14 +205,7 @@
 
 					{#if data.project.projectManager}
 						<div class="flex items-center gap-3">
-							<Avatar.Root class="h-8 w-8">
-								{#if data.project.projectManager.image}
-									<Avatar.Image src="/api/uploads/{data.project.projectManager.image}" alt="{data.project.projectManager.firstName} {data.project.projectManager.lastName}" />
-								{/if}
-								<Avatar.Fallback class="text-xs">
-									{getInitials(data.project.projectManager.firstName ?? '', data.project.projectManager.lastName ?? '')}
-								</Avatar.Fallback>
-							</Avatar.Root>
+							<UserAvatar user={data.project.projectManager} size="lg" />
 							<div>
 								<p class="text-sm text-muted-foreground">Project Manager</p>
 								<p>{data.project.projectManager.firstName ?? ''} {data.project.projectManager.lastName ?? ''}</p>
@@ -299,14 +289,7 @@
 																checked={selectedPersonIds.has(employee.id)}
 																disabled={isUpdatingTeam}
 															/>
-															<Avatar.Root class="h-6 w-6 shrink-0">
-																{#if employee.image}
-																	<Avatar.Image src="/api/uploads/{employee.image}" alt="{employee.firstName} {employee.lastName}" />
-																{/if}
-																<Avatar.Fallback class="text-[10px]">
-																	{getInitials(employee.firstName, employee.lastName)}
-																</Avatar.Fallback>
-															</Avatar.Root>
+															<UserAvatar user={employee} size="sm" class="shrink-0" />
 															<div class="flex-1 min-w-0">
 																<p class="text-sm truncate">
 																	{employee.firstName} {employee.lastName}
@@ -334,14 +317,7 @@
 						<div class="space-y-2">
 							{#each data.project.assignedEmployees as assignment}
 								<div class="flex items-center gap-2">
-									<Avatar.Root class="h-6 w-6">
-										{#if assignment.user.image}
-											<Avatar.Image src="/api/uploads/{assignment.user.image}" alt="{assignment.user.firstName} {assignment.user.lastName}" />
-										{/if}
-										<Avatar.Fallback class="text-[10px]">
-											{getInitials(assignment.user.firstName ?? '', assignment.user.lastName ?? '')}
-										</Avatar.Fallback>
-									</Avatar.Root>
+									<UserAvatar user={assignment.user} size="sm" />
 									<span class="text-sm">
 										{assignment.user.firstName ?? ''} {assignment.user.lastName ?? ''}
 										{#if assignment.role}
@@ -505,14 +481,7 @@
 										<p class="font-medium">{task.name}</p>
 										<div class="flex items-center gap-2 mt-1">
 											{#if task.assignedTo}
-												<Avatar.Root class="h-5 w-5">
-													{#if task.assignedTo.image}
-														<Avatar.Image src="/api/uploads/{task.assignedTo.image}" alt="{task.assignedTo.firstName} {task.assignedTo.lastName}" />
-													{/if}
-													<Avatar.Fallback class="text-[9px]">
-														{getInitials(task.assignedTo.firstName ?? '', task.assignedTo.lastName ?? '')}
-													</Avatar.Fallback>
-												</Avatar.Root>
+												<UserAvatar user={task.assignedTo} size="xs" />
 												<span class="text-sm text-muted-foreground">
 													{task.assignedTo.firstName} {task.assignedTo.lastName}
 												</span>

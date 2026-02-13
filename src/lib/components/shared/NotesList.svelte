@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import EnumBadge from './EnumBadge.svelte';
-	import * as Avatar from '$lib/components/ui/avatar';
+	import UserAvatar from '$lib/components/shared/UserAvatar.svelte';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import NoteFormModal from './NoteFormModal.svelte';
 	import MarkdownViewer from './MarkdownViewer.svelte';
@@ -154,9 +154,6 @@
 		}
 	}
 
-	function getInitials(name: string): string {
-		return name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
-	}
 </script>
 
 <div class="flex h-full flex-col">
@@ -182,12 +179,7 @@
 				<div class="rounded-lg border p-3 space-y-2">
 					<div class="flex items-center justify-between">
 						<div class="flex items-center gap-2">
-							<Avatar.Root class="h-6 w-6">
-								{#if note.author.image}
-									<Avatar.Image src="/api/uploads/{note.author.image}" alt="{note.author.name}" />
-								{/if}
-								<Avatar.Fallback class="text-[10px]">{getInitials(note.author.name)}</Avatar.Fallback>
-							</Avatar.Root>
+							<UserAvatar user={note.author} size="sm" />
 							<span class="text-sm font-medium">{note.author.name}</span>
 							<span class="text-xs text-muted-foreground">{formatDateTime(note.createdAt)}</span>
 							{#if note.priority !== 'normal'}

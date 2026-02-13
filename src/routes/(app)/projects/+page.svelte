@@ -4,23 +4,16 @@
 	import { browser } from '$app/environment';
 	import { saveListState, restoreListState } from '$lib/utils/list-state';
 	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
 	import EnumBadge from '$lib/components/shared/EnumBadge.svelte';
 	import * as Table from '$lib/components/ui/table';
-	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as Select from '$lib/components/ui/select';
-	import * as Avatar from '$lib/components/ui/avatar';
+	import UserAvatar from '$lib/components/shared/UserAvatar.svelte';
+	import { ListSearch, SortableHeader, ListPagination, DeleteConfirmDialog } from '$lib/components/shared/list';
 	import {
 		Plus,
-		Search,
-		ArrowUpDown,
-		ArrowUp,
-		ArrowDown,
 		Pencil,
 		Trash2,
-		ChevronLeft,
-		ChevronRight,
 		Eye,
 		Users,
 		ListChecks
@@ -45,7 +38,6 @@
 		saveListState(LIST_ROUTE, $page.url.search);
 	});
 
-	let search = $state(data.filters.search);
 	let deleteDialogOpen = $state(false);
 	let projectToDelete = $state<{ id: number; name: string } | null>(null);
 	let isDeleting = $state(false);
@@ -60,48 +52,12 @@
 		{ value: 'all', label: 'All projects' }
 	];
 
-	function updateSearch() {
-		const url = new URL($page.url);
-		if (search) {
-			url.searchParams.set('search', search);
-		} else {
-			url.searchParams.delete('search');
-		}
-		url.searchParams.set('page', '1');
-		goto(url.toString(), { replaceState: true });
-	}
-
 	function updateStatus(value: string | undefined) {
 		if (!value) return;
 		const url = new URL($page.url);
 		url.searchParams.set('status', value);
 		url.searchParams.set('page', '1');
 		goto(url.toString(), { replaceState: true });
-	}
-
-	function updateSort(column: string) {
-		const url = new URL($page.url);
-		const currentSort = url.searchParams.get('sortBy');
-		const currentOrder = url.searchParams.get('sortOrder') || 'asc';
-
-		if (currentSort === column) {
-			url.searchParams.set('sortOrder', currentOrder === 'asc' ? 'desc' : 'asc');
-		} else {
-			url.searchParams.set('sortBy', column);
-			url.searchParams.set('sortOrder', 'asc');
-		}
-		goto(url.toString(), { replaceState: true });
-	}
-
-	function goToPage(newPage: number) {
-		const url = new URL($page.url);
-		url.searchParams.set('page', newPage.toString());
-		goto(url.toString(), { replaceState: true });
-	}
-
-	function getSortIcon(column: string) {
-		if (data.filters.sortBy !== column) return ArrowUpDown;
-		return data.filters.sortOrder === 'asc' ? ArrowUp : ArrowDown;
 	}
 
 	function confirmDelete(project: { id: number; name: string }) {
@@ -134,7 +90,6 @@
 		deleteDialogOpen = false;
 		projectToDelete = null;
 	}
-
 </script>
 
 <div class="space-y-6">
@@ -152,31 +107,7 @@
 	</div>
 
 	<div class="flex items-center gap-4">
-		<div class="relative flex-1 max-w-sm">
-			<Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-			<Input
-				type="search"
-				placeholder="Search projects..."
-				class="pl-10 pr-10"
-				bind:value={search}
-				onkeydown={(e) => e.key === 'Enter' && updateSearch()}
-				oninput={(e) => {
-					if (e.currentTarget.value === '' && data.filters.search) {
-						updateSearch();
-					}
-				}}
-			/>
-			{#if search}
-				<Button
-					variant="ghost"
-					size="icon"
-					class="absolute right-0 top-1/2 -translate-y-1/2 h-full px-3 hover:bg-transparent"
-					onclick={updateSearch}
-				>
-					<Search class="h-4 w-4" />
-				</Button>
-			{/if}
-		</div>
+		<ListSearch placeholder="Search projects..." />
 
 		<Select.Root
 			type="single"
@@ -198,49 +129,14 @@
 		<Table.Root>
 			<Table.Header>
 				<Table.Row>
-					<Table.Head class="w-[250px]">
-						<Button variant="ghost" class="-ml-4" onclick={() => updateSort('name')}>
-							Name
-							<svelte:component this={getSortIcon('name')} class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
-					<Table.Head>
-						<Button variant="ghost" class="-ml-4" onclick={() => updateSort('client')}>
-							Client
-							<svelte:component this={getSortIcon('client')} class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
-					<Table.Head class="w-[100px]">
-						<Button variant="ghost" class="-ml-4" onclick={() => updateSort('status')}>
-							Status
-							<svelte:component this={getSortIcon('status')} class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
-					<Table.Head class="w-[90px]">
-						<Button variant="ghost" class="-ml-4" onclick={() => updateSort('priority')}>
-							Priority
-							<svelte:component this={getSortIcon('priority')} class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
-					<Table.Head>
-						<Button variant="ghost" class="-ml-4" onclick={() => updateSort('startDate')}>
-							Start Date
-							<svelte:component this={getSortIcon('startDate')} class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
-					<Table.Head>
-						<Button variant="ghost" class="-ml-4" onclick={() => updateSort('endDate')}>
-							End Date
-							<svelte:component this={getSortIcon('endDate')} class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
+					<SortableHeader column="name" label="Name" class="w-[250px]" />
+					<SortableHeader column="client" label="Client" />
+					<SortableHeader column="status" label="Status" class="w-[100px]" />
+					<SortableHeader column="priority" label="Priority" class="w-[90px]" />
+					<SortableHeader column="startDate" label="Start Date" />
+					<SortableHeader column="endDate" label="End Date" />
 					<Table.Head class="text-center">Info</Table.Head>
-					<Table.Head>
-						<Button variant="ghost" class="-ml-4" onclick={() => updateSort('createdAt')}>
-							Created
-							<svelte:component this={getSortIcon('createdAt')} class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
+					<SortableHeader column="createdAt" label="Created" />
 					<Table.Head class="w-[140px]">Actions</Table.Head>
 				</Table.Row>
 			</Table.Header>
@@ -264,9 +160,7 @@
 									</span>
 									{#if project.projectManager}
 										<span class="text-sm text-muted-foreground flex items-center gap-1">
-											<Avatar.Root class="size-5">
-												<Avatar.Fallback class="text-[9px]">{(project.projectManager.firstName ?? '')[0]}{(project.projectManager.lastName ?? '')[0]}</Avatar.Fallback>
-											</Avatar.Root>
+											<UserAvatar user={project.projectManager} size="xs" />
 											PM: {project.projectManager.firstName ?? ''} {project.projectManager.lastName ?? ''}
 										</span>
 									{/if}
@@ -335,59 +229,13 @@
 		</Table.Root>
 	</div>
 
-	{#if data.pagination.totalPages > 1}
-		<div class="flex items-center justify-between">
-			<p class="text-sm text-muted-foreground">
-				Showing {(data.pagination.page - 1) * data.pagination.limit + 1} to {Math.min(
-					data.pagination.page * data.pagination.limit,
-					data.pagination.total
-				)} of {data.pagination.total} projects
-			</p>
-			<div class="flex items-center gap-2">
-				<Button
-					variant="outline"
-					size="sm"
-					disabled={data.pagination.page === 1}
-					onclick={() => goToPage(data.pagination.page - 1)}
-				>
-					<ChevronLeft class="h-4 w-4" />
-					Previous
-				</Button>
-				<span class="text-sm">
-					Page {data.pagination.page} of {data.pagination.totalPages}
-				</span>
-				<Button
-					variant="outline"
-					size="sm"
-					disabled={data.pagination.page === data.pagination.totalPages}
-					onclick={() => goToPage(data.pagination.page + 1)}
-				>
-					Next
-					<ChevronRight class="h-4 w-4" />
-				</Button>
-			</div>
-		</div>
-	{/if}
+	<ListPagination pagination={data.pagination} noun="projects" />
 </div>
 
-<!-- Delete Confirmation Dialog -->
-<AlertDialog.Root bind:open={deleteDialogOpen}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Delete Project</AlertDialog.Title>
-			<AlertDialog.Description>
-				Are you sure you want to delete <strong>{projectToDelete?.name}</strong>? This action cannot be undone.
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-			<AlertDialog.Action
-				class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-				onclick={handleDelete}
-				disabled={isDeleting}
-			>
-				{isDeleting ? 'Deleting...' : 'Delete'}
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
+<DeleteConfirmDialog
+	bind:open={deleteDialogOpen}
+	title="Delete Project"
+	name={projectToDelete?.name}
+	{isDeleting}
+	onconfirm={handleDelete}
+/>

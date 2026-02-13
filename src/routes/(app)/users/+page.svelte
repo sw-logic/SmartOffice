@@ -4,24 +4,17 @@
 	import { browser } from '$app/environment';
 	import { saveListState, restoreListState } from '$lib/utils/list-state';
 	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Table from '$lib/components/ui/table';
-	import * as AlertDialog from '$lib/components/ui/alert-dialog';
-	import * as Avatar from '$lib/components/ui/avatar';
+	import UserAvatar from '$lib/components/shared/UserAvatar.svelte';
 	import * as Select from '$lib/components/ui/select';
 	import EnumBadge from '$lib/components/shared/EnumBadge.svelte';
+	import { ListSearch, SortableHeader, ListPagination, DeleteConfirmDialog, BulkDeleteButton } from '$lib/components/shared/list';
 	import {
 		Plus,
-		Search,
-		ArrowUpDown,
-		ArrowUp,
-		ArrowDown,
 		Pencil,
 		Trash2,
-		ChevronLeft,
-		ChevronRight,
 		Eye
 	} from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
@@ -50,14 +43,12 @@
 		saveListState(LIST_ROUTE, $page.url.search);
 	});
 
-	let search = $state(data.filters.search);
 	let deleteDialogOpen = $state(false);
 	let userToDelete = $state<{ id: number; name: string } | null>(null);
 	let isDeleting = $state(false);
 
 	// Checkbox selection / bulk delete state
 	let selectedIds = $state<Set<number>>(new Set());
-	let bulkDeleteDialogOpen = $state(false);
 	let isBulkDeleting = $state(false);
 
 	let allSelected = $derived(data.users.length > 0 && selectedIds.size === data.users.length);
@@ -85,17 +76,6 @@
 		selectedIds = newSet;
 	}
 
-	function updateSearch() {
-		const url = new URL($page.url);
-		if (search) {
-			url.searchParams.set('search', search);
-		} else {
-			url.searchParams.delete('search');
-		}
-		url.searchParams.set('page', '1');
-		goto(url.toString(), { replaceState: true });
-	}
-
 	function updateFilter(key: string, value: string) {
 		const url = new URL($page.url);
 		if (value) {
@@ -105,31 +85,6 @@
 		}
 		url.searchParams.set('page', '1');
 		goto(url.toString(), { replaceState: true });
-	}
-
-	function updateSort(column: string) {
-		const url = new URL($page.url);
-		const currentSort = url.searchParams.get('sortBy');
-		const currentOrder = url.searchParams.get('sortOrder') || 'asc';
-
-		if (currentSort === column) {
-			url.searchParams.set('sortOrder', currentOrder === 'asc' ? 'desc' : 'asc');
-		} else {
-			url.searchParams.set('sortBy', column);
-			url.searchParams.set('sortOrder', 'asc');
-		}
-		goto(url.toString(), { replaceState: true });
-	}
-
-	function goToPage(newPage: number) {
-		const url = new URL($page.url);
-		url.searchParams.set('page', newPage.toString());
-		goto(url.toString(), { replaceState: true });
-	}
-
-	function getSortIcon(column: string) {
-		if (data.filters.sortBy !== column) return ArrowUpDown;
-		return data.filters.sortOrder === 'asc' ? ArrowUp : ArrowDown;
 	}
 
 	function confirmDelete(user: { id: number; name: string }) {
@@ -187,19 +142,6 @@
 		}
 
 		isBulkDeleting = false;
-		bulkDeleteDialogOpen = false;
-	}
-
-	function getInitials(user: { name: string; firstName?: string | null; lastName?: string | null }): string {
-		if (user.firstName && user.lastName) {
-			return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
-		}
-		return user.name
-			.split(' ')
-			.map((w: string) => w[0])
-			.slice(0, 2)
-			.join('')
-			.toUpperCase();
 	}
 
 	function getDisplayName(user: { name: string; firstName?: string | null; lastName?: string | null }): string {
@@ -217,15 +159,12 @@
 			<p class="text-muted-foreground">Manage system users and their access</p>
 		</div>
 		<div class="flex items-center gap-2">
-			{#if selectedIds.size > 0}
-				<Button
-					variant="destructive"
-					onclick={() => (bulkDeleteDialogOpen = true)}
-				>
-					<Trash2 class="mr-2 h-4 w-4" />
-					Delete ({selectedIds.size})
-				</Button>
-			{/if}
+			<BulkDeleteButton
+				count={selectedIds.size}
+				noun="user"
+				isDeleting={isBulkDeleting}
+				onconfirm={handleBulkDelete}
+			/>
 			<Button href="/users/new">
 				<Plus class="mr-2 h-4 w-4" />
 				Add User
@@ -234,31 +173,7 @@
 	</div>
 
 	<div class="flex items-center gap-4 flex-wrap">
-		<div class="relative flex-1 max-w-sm">
-			<Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-			<Input
-				type="search"
-				placeholder="Search users..."
-				class="pl-10 pr-10"
-				bind:value={search}
-				onkeydown={(e) => e.key === 'Enter' && updateSearch()}
-				oninput={(e) => {
-					if (e.currentTarget.value === '' && data.filters.search) {
-						updateSearch();
-					}
-				}}
-			/>
-			{#if search}
-				<Button
-					variant="ghost"
-					size="icon"
-					class="absolute right-0 top-1/2 -translate-y-1/2 h-full px-3 hover:bg-transparent"
-					onclick={updateSearch}
-				>
-					<Search class="h-4 w-4" />
-				</Button>
-			{/if}
-		</div>
+		<ListSearch placeholder="Search users..." />
 
 		<Select.Root
 			type="single"
@@ -310,38 +225,13 @@
 							onCheckedChange={toggleSelectAll}
 						/>
 					</Table.Head>
-					<Table.Head class="w-[250px]">
-						<Button variant="ghost" class="-ml-4" onclick={() => updateSort('name')}>
-							Name
-							<svelte:component this={getSortIcon('name')} class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
-					<Table.Head>
-						<Button variant="ghost" class="-ml-4" onclick={() => updateSort('email')}>
-							Email
-							<svelte:component this={getSortIcon('email')} class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
-					<Table.Head>
-						<Button variant="ghost" class="-ml-4" onclick={() => updateSort('jobTitle')}>
-							Job Title
-							<svelte:component this={getSortIcon('jobTitle')} class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
-					<Table.Head>
-						<Button variant="ghost" class="-ml-4" onclick={() => updateSort('department')}>
-							Department
-							<svelte:component this={getSortIcon('department')} class="ml-2 h-4 w-4" />
-						</Button>
-					</Table.Head>
+					<SortableHeader column="name" label="Name" class="w-[250px]" />
+					<SortableHeader column="email" label="Email" />
+					<SortableHeader column="jobTitle" label="Job Title" />
+					<SortableHeader column="department" label="Department" />
 					<Table.Head>Status</Table.Head>
 					{#if data.canViewSalary}
-						<Table.Head class="text-right">
-							<Button variant="ghost" class="-ml-4" onclick={() => updateSort('salary')}>
-								Salary
-								<svelte:component this={getSortIcon('salary')} class="ml-2 h-4 w-4" />
-							</Button>
-						</Table.Head>
+						<SortableHeader column="salary" label="Salary" class="text-right" />
 					{/if}
 					<Table.Head>Groups</Table.Head>
 					<Table.Head class="w-[120px]">Actions</Table.Head>
@@ -368,12 +258,7 @@
 							</Table.Cell>
 							<Table.Cell>
 								<div class="flex items-center gap-3">
-									<Avatar.Root>
-										{#if user.image}
-											<Avatar.Image src="/api/uploads/{user.image}" alt={getDisplayName(user)} />
-										{/if}
-										<Avatar.Fallback class="text-xs">{getInitials(user)}</Avatar.Fallback>
-									</Avatar.Root>
+									<UserAvatar user={user} />
 									<span class="font-medium">
 										{getDisplayName(user)}
 									</span>
@@ -437,81 +322,13 @@
 		</Table.Root>
 	</div>
 
-	{#if data.pagination.totalPages > 1}
-		<div class="flex items-center justify-between">
-			<p class="text-sm text-muted-foreground">
-				Showing {(data.pagination.page - 1) * data.pagination.limit + 1} to {Math.min(
-					data.pagination.page * data.pagination.limit,
-					data.pagination.total
-				)} of {data.pagination.total} users
-			</p>
-			<div class="flex items-center gap-2">
-				<Button
-					variant="outline"
-					size="sm"
-					disabled={data.pagination.page === 1}
-					onclick={() => goToPage(data.pagination.page - 1)}
-				>
-					<ChevronLeft class="h-4 w-4" />
-					Previous
-				</Button>
-				<span class="text-sm">
-					Page {data.pagination.page} of {data.pagination.totalPages}
-				</span>
-				<Button
-					variant="outline"
-					size="sm"
-					disabled={data.pagination.page === data.pagination.totalPages}
-					onclick={() => goToPage(data.pagination.page + 1)}
-				>
-					Next
-					<ChevronRight class="h-4 w-4" />
-				</Button>
-			</div>
-		</div>
-	{/if}
+	<ListPagination pagination={data.pagination} noun="users" />
 </div>
 
-<!-- Delete Confirmation Dialog -->
-<AlertDialog.Root bind:open={deleteDialogOpen}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Delete User</AlertDialog.Title>
-			<AlertDialog.Description>
-				Are you sure you want to delete <strong>{userToDelete?.name}</strong>? This action cannot be undone.
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-			<AlertDialog.Action
-				class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-				onclick={handleDelete}
-				disabled={isDeleting}
-			>
-				{isDeleting ? 'Deleting...' : 'Delete'}
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
-
-<!-- Bulk Delete Confirmation Dialog -->
-<AlertDialog.Root bind:open={bulkDeleteDialogOpen}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Delete {selectedIds.size} User(s)</AlertDialog.Title>
-			<AlertDialog.Description>
-				Are you sure you want to delete <strong>{selectedIds.size}</strong> selected user(s)? This action cannot be undone.
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-			<AlertDialog.Action
-				class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-				onclick={handleBulkDelete}
-				disabled={isBulkDeleting}
-			>
-				{isBulkDeleting ? 'Deleting...' : `Delete ${selectedIds.size} User(s)`}
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
+<DeleteConfirmDialog
+	bind:open={deleteDialogOpen}
+	title="Delete User"
+	name={userToDelete?.name}
+	{isDeleting}
+	onconfirm={handleDelete}
+/>

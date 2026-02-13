@@ -115,6 +115,11 @@ async function main() {
 		{ module: 'settings', action: 'system', description: 'System settings' },
 		{ module: 'settings', action: 'enums', description: 'Manage enum values' },
 
+		// Tools
+		{ module: 'tools', action: 'read', description: 'Access tools' },
+		{ module: 'tools', action: 'create', description: 'Run SEO audits' },
+		{ module: 'tools', action: 'delete', description: 'Delete audit results' },
+
 		// Admin - All permissions
 		{ module: '*', action: '*', description: 'Full access to all modules' }
 	];
@@ -234,7 +239,8 @@ async function main() {
 		'settings.read',
 		'tasks.read', 'tasks.create', 'tasks.update', 'tasks.delete',
 		'time_records.read', 'time_records.create',
-		'notes.read', 'notes.create'
+		'notes.read', 'notes.create',
+		'tools.read', 'tools.create'
 	]);
 
 	// Assign permissions to Accountant group

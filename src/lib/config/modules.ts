@@ -18,7 +18,9 @@ import {
 	Kanban,
 	ClipboardList,
 	CalendarDays,
-	FolderOpen
+	FolderOpen,
+	Wrench,
+	Search
 } from 'lucide-svelte';
 import type { ComponentType } from 'svelte';
 
@@ -184,6 +186,23 @@ export const modules: Module[] = [
 		]
 	},
 	{
+		id: 'tools',
+		name: 'Tools',
+		icon: Wrench,
+		route: '/tools',
+		permissions: ['tools.read'],
+		description: 'Utility tools',
+		subModules: [
+			{
+				id: 'tools.seo-audit',
+				name: 'SEO Audit',
+				icon: Search,
+				route: '/tools/seo-audit',
+				permissions: ['tools.read']
+			}
+		]
+	},
+	{
 		id: 'settings',
 		name: 'Settings',
 		icon: Settings,
@@ -294,7 +313,9 @@ export const defaultGroupPermissions: Record<string, Array<{ module: string; act
 		{ module: 'offers', action: 'update' },
 		{ module: 'offers', action: 'send' },
 		{ module: 'pricelists', action: 'read' },
-		{ module: 'settings', action: 'read' }
+		{ module: 'settings', action: 'read' },
+		{ module: 'tools', action: 'read' },
+		{ module: 'tools', action: 'create' }
 	],
 	Accountant: [
 		{ module: 'dashboard', action: 'read' },

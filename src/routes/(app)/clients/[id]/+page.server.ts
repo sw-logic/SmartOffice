@@ -1,6 +1,6 @@
 import type { PageServerLoad, Actions } from './$types';
 import { prisma } from '$lib/server/prisma';
-import { requirePermission } from '$lib/server/access-control';
+import { requirePermission, checkPermission } from '$lib/server/access-control';
 import { parseId } from '$lib/server/crud-helpers';
 import { error, fail } from '@sveltejs/kit';
 import { logCreate, logUpdate, logDelete } from '$lib/server/audit';
@@ -11,107 +11,189 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	const clientId = parseId(params.id, 'client');
 
-	const client = await prisma.client.findUnique({
-		where: { id: clientId },
-		include: {
-			contacts: {
-				orderBy: [{ isPrimaryContact: 'desc' }, { lastName: 'asc' }],
-				select: {
-					id: true,
-					firstName: true,
-					lastName: true,
-					email: true,
-					phone: true,
-					mobile: true,
-					position: true,
-					avatarPath: true,
-					isPrimaryContact: true
-				}
-			},
-			projects: {
-				orderBy: { createdAt: 'desc' },
-				take: 5,
-				select: {
-					id: true,
-					name: true,
-					status: true,
-					startDate: true,
-					endDate: true
-				}
-			},
-			offers: {
-				orderBy: { createdAt: 'desc' },
-				take: 5,
-				select: {
-					id: true,
-					offerNumber: true,
-					status: true,
-					grandTotal: true,
-					currency: true,
-					date: true
-				}
-			},
-			income: {
-				orderBy: { date: 'desc' },
-				take: 5,
-				select: {
-					id: true,
-					amount: true,
-					currency: true,
-					date: true,
-					description: true,
-					category: true
-				}
-			},
-			createdBy: {
-				select: {
-					id: true,
-					name: true
-				}
-			},
-			_count: {
-				select: {
-					projects: true,
-					contacts: true,
-					offers: true,
-					income: true,
-					payments: true
+	const canViewOffers = checkPermission(locals, 'offers', 'read');
+	const canViewIncome = checkPermission(locals, 'finances.income', 'read');
+	const canViewExpenses = checkPermission(locals, 'finances.expenses', 'read');
+
+	const [client, boards, tasks, expenses, totalIncome] = await Promise.all([
+		prisma.client.findUnique({
+			where: { id: clientId },
+			include: {
+				contacts: {
+					orderBy: [{ isPrimaryContact: 'desc' }, { lastName: 'asc' }],
+					select: {
+						id: true,
+						firstName: true,
+						lastName: true,
+						email: true,
+						phone: true,
+						mobile: true,
+						position: true,
+						avatarPath: true,
+						isPrimaryContact: true
+					}
+				},
+				projects: {
+					orderBy: { createdAt: 'desc' },
+					take: 10,
+					select: {
+						id: true,
+						name: true,
+						status: true,
+						startDate: true,
+						endDate: true
+					}
+				},
+				offers: canViewOffers ? {
+					orderBy: { createdAt: 'desc' },
+					take: 10,
+					select: {
+						id: true,
+						offerNumber: true,
+						status: true,
+						grandTotal: true,
+						currency: true,
+						date: true
+					}
+				} : false,
+				income: canViewIncome ? {
+					orderBy: { date: 'desc' },
+					take: 10,
+					select: {
+						id: true,
+						amount: true,
+						currency: true,
+						date: true,
+						description: true,
+						category: true,
+						status: true
+					}
+				} : false,
+				createdBy: {
+					select: {
+						id: true,
+						name: true
+					}
+				},
+				_count: {
+					select: {
+						projects: true,
+						contacts: true,
+						offers: true,
+						income: true,
+						payments: true
+					}
 				}
 			}
-		}
-	});
+		}),
+		// Boards through projects
+		prisma.kanbanBoard.findMany({
+			where: { project: { clientId } },
+			orderBy: { createdAt: 'desc' },
+			take: 10,
+			select: {
+				id: true,
+				name: true,
+				description: true,
+				project: { select: { id: true, name: true } },
+				_count: { select: { members: true, tasks: true } }
+			}
+		}),
+		// Tasks through projects (exclude completed)
+		prisma.task.findMany({
+			where: { project: { clientId }, status: { not: 'done' } },
+			orderBy: { createdAt: 'desc' },
+			take: 10,
+			select: {
+				id: true,
+				name: true,
+				status: true,
+				priority: true,
+				dueDate: true,
+				project: { select: { id: true, name: true } },
+				assignedTo: {
+					select: { id: true, firstName: true, lastName: true, image: true }
+				}
+			}
+		}),
+		// Expenses through projects
+		canViewExpenses
+			? prisma.expense.findMany({
+					where: { project: { clientId } },
+					orderBy: { date: 'desc' },
+					take: 10,
+					select: {
+						id: true,
+						amount: true,
+						currency: true,
+						date: true,
+						description: true,
+						category: true,
+						status: true,
+						vendorName: true,
+						vendor: { select: { id: true, name: true } }
+					}
+				})
+			: Promise.resolve([]),
+		// Total income
+		prisma.income.aggregate({
+			where: { clientId },
+			_sum: { amount: true }
+		})
+	]);
 
 	if (!client) {
 		error(404, 'Client not found');
 	}
 
-	// Calculate total income
-	const totalIncome = await prisma.income.aggregate({
-		where: {
-			clientId: clientId
-		},
-		_sum: {
-			amount: true
-		}
+	// Counts for boards, tasks, expenses (through projects)
+	const projectIds = await prisma.project.findMany({
+		where: { clientId },
+		select: { id: true }
 	});
+	const pIds = projectIds.map(p => p.id);
+
+	const [boardCount, taskCount, expenseCount] = await Promise.all([
+		prisma.kanbanBoard.count({ where: { projectId: { in: pIds } } }),
+		prisma.task.count({ where: { projectId: { in: pIds }, status: { not: 'done' } } }),
+		canViewExpenses
+			? prisma.expense.count({ where: { projectId: { in: pIds } } })
+			: Promise.resolve(0)
+	]);
 
 	return {
 		client: {
 			...client,
 			contacts: client.contacts,
 			projects: client.projects,
-			offers: client.offers.map(offer => ({
-				...offer,
-				grandTotal: Number(offer.grandTotal)
-			})),
-			income: client.income.map(inc => ({
-				...inc,
-				amount: Number(inc.amount)
-			})),
+			offers: canViewOffers
+				? (client.offers as Array<{ id: number; offerNumber: string; status: string; grandTotal: unknown; currency: string; date: Date }>).map(offer => ({
+						...offer,
+						grandTotal: Number(offer.grandTotal)
+					}))
+				: [],
+			income: canViewIncome
+				? (client.income as Array<{ id: number; amount: unknown; currency: string; date: Date; description: string; category: string; status: string }>).map(inc => ({
+						...inc,
+						amount: Number(inc.amount)
+					}))
+				: [],
 			_count: client._count,
 			createdBy: client.createdBy,
 			totalIncome: Number(totalIncome._sum.amount || 0)
-		}
+		},
+		boards,
+		boardCount,
+		tasks,
+		taskCount,
+		expenses: expenses.map(exp => ({
+			...exp,
+			amount: Number(exp.amount)
+		})),
+		expenseCount,
+		canViewOffers,
+		canViewIncome,
+		canViewExpenses
 	};
 };
 

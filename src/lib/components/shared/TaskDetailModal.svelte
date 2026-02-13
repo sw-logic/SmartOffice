@@ -9,7 +9,7 @@
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Command from '$lib/components/ui/command';
-	import * as Avatar from '$lib/components/ui/avatar';
+	import UserAvatar from '$lib/components/shared/UserAvatar.svelte';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import TaskTagsEditor from './TaskTagsEditor.svelte';
 	import NotesList from './NotesList.svelte';
@@ -434,9 +434,6 @@
 		await saveField('followerIds', arr);
 	}
 
-	function getInitials(firstName: string | null, lastName: string | null): string {
-		return `${(firstName ?? '').charAt(0)}${(lastName ?? '').charAt(0)}`.toUpperCase();
-	}
 
 
 
@@ -950,12 +947,7 @@
 														>
 															<div class="flex items-center gap-2 w-full">
 																<Checkbox checked={reviewerIds.has(emp.id)} />
-																<Avatar.Root class="h-5 w-5 shrink-0">
-																	{#if emp.image}
-																		<Avatar.Image src="/api/uploads/{emp.image}" alt="{emp.firstName} {emp.lastName}" />
-																	{/if}
-																	<Avatar.Fallback class="text-[9px]">{getInitials(emp.firstName, emp.lastName)}</Avatar.Fallback>
-																</Avatar.Root>
+																<UserAvatar user={emp} size="xs" class="shrink-0" />
 																<span class="text-sm truncate">{emp.firstName} {emp.lastName}</span>
 																{#if reviewerIds.has(emp.id)}
 																	<Check class="h-3 w-3 text-primary shrink-0 ml-auto" />
@@ -1015,12 +1007,7 @@
 														>
 															<div class="flex items-center gap-2 w-full">
 																<Checkbox checked={followerIds.has(emp.id)} />
-																<Avatar.Root class="h-5 w-5 shrink-0">
-																	{#if emp.image}
-																		<Avatar.Image src="/api/uploads/{emp.image}" alt="{emp.firstName} {emp.lastName}" />
-																	{/if}
-																	<Avatar.Fallback class="text-[9px]">{getInitials(emp.firstName, emp.lastName)}</Avatar.Fallback>
-																</Avatar.Root>
+																<UserAvatar user={emp} size="xs" class="shrink-0" />
 																<span class="text-sm truncate">{emp.firstName} {emp.lastName}</span>
 																{#if followerIds.has(emp.id)}
 																	<Check class="h-3 w-3 text-primary shrink-0 ml-auto" />
