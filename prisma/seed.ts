@@ -1110,7 +1110,8 @@ async function main() {
 			data: {
 				kanbanBoardId: kanbanBoard.id,
 				name: columnNames[i],
-				order: i
+				order: i,
+				isCompleteColumn: columnNames[i] === 'Done'
 			}
 		});
 		columns[columnNames[i]] = col;

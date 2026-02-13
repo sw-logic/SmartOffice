@@ -52,6 +52,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		income: {
 			...income,
 			amount: Number(income.amount),
+			tax: Number(income.tax),
+			tax_value: Number(income.tax_value),
 			taxRate: income.taxRate ? Number(income.taxRate) : null,
 			payment: income.payment ? {
 				...income.payment,

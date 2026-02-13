@@ -530,16 +530,11 @@
 									onCheckedChange={() => toggleSelectAll()}
 								/>
 							</Table.Head>
+							<Table.Head class="w-[90px]">Priority</Table.Head>
 							<Table.Head class="w-[250px]">
 								<Button variant="ghost" class="-ml-4" onclick={() => updateSort('name')}>
 									Name
 									<svelte:component this={getSortIcon('name')} class="ml-2 h-4 w-4" />
-								</Button>
-							</Table.Head>
-							<Table.Head>
-								<Button variant="ghost" class="-ml-4" onclick={() => updateSort('project')}>
-									Project
-									<svelte:component this={getSortIcon('project')} class="ml-2 h-4 w-4" />
 								</Button>
 							</Table.Head>
 							<Table.Head>
@@ -548,8 +543,13 @@
 									<svelte:component this={getSortIcon('client')} class="ml-2 h-4 w-4" />
 								</Button>
 							</Table.Head>
+							<Table.Head>
+								<Button variant="ghost" class="-ml-4" onclick={() => updateSort('project')}>
+									Project
+									<svelte:component this={getSortIcon('project')} class="ml-2 h-4 w-4" />
+								</Button>
+							</Table.Head>
 							<Table.Head class="w-[100px]">Status</Table.Head>
-							<Table.Head class="w-[90px]">Priority</Table.Head>
 							<Table.Head>
 								<Button variant="ghost" class="-ml-4" onclick={() => updateSort('assignee')}>
 									Assignee
@@ -579,6 +579,15 @@
 									/>
 								</Table.Cell>
 								<Table.Cell>
+									{@const pEnum = data.enums.priority?.find((e) => e.value === task.priority)}
+									<div class="flex items-center gap-1.5">
+										{#if pEnum?.color}
+											<span class="shrink-0 rounded-full" style="width:10px;height:10px;background-color:{pEnum.color}"></span>
+										{/if}
+										<span class="text-sm text-muted-foreground">{pEnum?.label ?? task.priority}</span>
+									</div>
+								</Table.Cell>
+								<Table.Cell>
 									<div class="flex flex-col">
 										<span class="font-medium truncate max-w-[230px]">
 											{task.name}
@@ -600,13 +609,13 @@
 										{/if}
 									</div>
 								</Table.Cell>
-								<Table.Cell class="text-sm">{task.project.name}</Table.Cell>
 								<Table.Cell class="text-sm">{task.project.client.name}</Table.Cell>
+								<Table.Cell class="text-sm">{task.project.name}</Table.Cell>
 								<Table.Cell>
-									<EnumBadge enums={data.enums.task_status} value={task.status} />
-								</Table.Cell>
-								<Table.Cell>
-									<EnumBadge enums={data.enums.priority} value={task.priority} />
+									{@const sEnum = data.enums.task_status?.find((e) => e.value === task.status)}
+									<Badge variant="outline" style={sEnum?.color ? `color:${sEnum.color};border-color:${sEnum.color}` : ''}>
+										{sEnum?.label ?? task.status}
+									</Badge>
 								</Table.Cell>
 								<Table.Cell>
 									{#if task.assignedTo}

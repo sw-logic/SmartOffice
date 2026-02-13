@@ -593,10 +593,10 @@
 					<Table.Root>
 						<Table.Header>
 							<Table.Row>
+								<Table.Head>Priority</Table.Head>
 								<Table.Head>Task</Table.Head>
 								<Table.Head>Project</Table.Head>
 								<Table.Head>Assignee</Table.Head>
-								<Table.Head>Priority</Table.Head>
 								<Table.Head>Status</Table.Head>
 								<Table.Head>Due Date</Table.Head>
 							</Table.Row>
@@ -604,6 +604,15 @@
 						<Table.Body>
 							{#each data.tasks as task}
 								<Table.Row>
+									<Table.Cell>
+										{@const pEnum = data.enums.priority?.find((e) => e.value === task.priority)}
+										<div class="flex items-center gap-1.5">
+											{#if pEnum?.color}
+												<span class="shrink-0 rounded-full" style="width:10px;height:10px;background-color:{pEnum.color}"></span>
+											{/if}
+											<span class="text-sm text-muted-foreground">{pEnum?.label ?? task.priority}</span>
+										</div>
+									</Table.Cell>
 									<Table.Cell class="font-medium">{task.name}</Table.Cell>
 									<Table.Cell>{task.project.name}</Table.Cell>
 									<Table.Cell>
@@ -617,10 +626,10 @@
 										{/if}
 									</Table.Cell>
 									<Table.Cell>
-										<EnumBadge enums={data.enums.priority} value={task.priority} />
-									</Table.Cell>
-									<Table.Cell>
-										<EnumBadge enums={data.enums.task_status} value={task.status} />
+										{@const sEnum = data.enums.task_status?.find((e) => e.value === task.status)}
+										<Badge variant="outline" style={sEnum?.color ? `color:${sEnum.color};border-color:${sEnum.color}` : ''}>
+											{sEnum?.label ?? task.status}
+										</Badge>
 									</Table.Cell>
 									<Table.Cell>
 										{#if task.dueDate}

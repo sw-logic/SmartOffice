@@ -56,6 +56,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		expense: {
 			...expense,
 			amount: Number(expense.amount),
+			tax: Number(expense.tax),
+			tax_value: Number(expense.tax_value),
+			taxRate: expense.taxRate ? Number(expense.taxRate) : null,
 			paymentTermDays: expense.paymentTermDays,
 			date: expense.date.toISOString().split('T')[0],
 			dueDate: expense.dueDate ? expense.dueDate.toISOString().split('T')[0] : ''
