@@ -2,6 +2,10 @@
 FROM node:22-alpine AS build
 
 WORKDIR /app
+
+# Install build dependencies for native modules (canvas/node-gyp)
+RUN apk add --no-cache python3 make g++ pkgconfig pixman-dev cairo-dev pango-dev libjpeg-turbo-dev giflib-dev
+
 COPY package.json yarn.lock ./
 COPY prisma ./prisma/
 RUN yarn install --frozen-lockfile
@@ -15,6 +19,9 @@ RUN yarn build
 FROM node:22-alpine AS production
 
 WORKDIR /app
+
+# Install runtime dependencies for canvas
+RUN apk add --no-cache cairo pango libjpeg-turbo giflib pixman
 
 # Create non-root user
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
