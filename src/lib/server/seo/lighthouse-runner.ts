@@ -17,8 +17,8 @@ export async function runLighthouse(url: string): Promise<LighthouseResult | nul
 		const lighthouse = await import('lighthouse');
 		const { chromium } = await import('playwright');
 
-		// Get Playwright's Chromium executable path
-		const executablePath = chromium.executablePath();
+		// Use system Chromium if available, otherwise Playwright's bundled one
+		const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || chromium.executablePath();
 
 		// Launch Chrome for Lighthouse (it needs its own instance)
 		const chrome = await import('child_process').then(cp => {

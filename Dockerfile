@@ -20,8 +20,13 @@ FROM node:22-alpine AS production
 
 WORKDIR /app
 
-# Install runtime dependencies for canvas
-RUN apk add --no-cache cairo pango libjpeg-turbo giflib pixman
+# Install runtime dependencies for canvas + Playwright/Chromium
+RUN apk add --no-cache cairo pango libjpeg-turbo giflib pixman \
+    chromium nss freetype harfbuzz ca-certificates ttf-freefont
+
+# Set Playwright to use system Chromium instead of downloading its own
+ENV PLAYWRIGHT_BROWSERS_PATH=0
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # Create non-root user
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
