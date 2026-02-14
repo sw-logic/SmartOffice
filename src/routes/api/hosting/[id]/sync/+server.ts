@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { join } from 'path';
 import { prisma } from '$lib/server/prisma';
 import { requirePermission } from '$lib/server/access-control';
+import { logAction } from '$lib/server/audit';
 import { captureScreenshot } from '$lib/server/screenshot';
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/var/uploads';
@@ -11,9 +12,14 @@ const UPLOAD_DIR = process.env.UPLOAD_DIR || '/var/uploads';
  * POST /api/hosting/[id]/sync
  * Fetches the latest status from the WordPress site's SmartOffice Connector plugin.
  * Optionally accepts ?endpoint=plugins|themes|core|health for detailed data.
+ * Accepts ?action=update with endpoint=plugins|themes to trigger remote updates.
  */
-export const POST: RequestHandler = async ({ locals, params, url }) => {
-	await requirePermission(locals, 'services', 'read');
+export const POST: RequestHandler = async ({ locals, params, url, request }) => {
+	const action = url.searchParams.get('action');
+	const isUpdate = action === 'update';
+
+	// Updates require 'update' permission; reads require 'read'
+	await requirePermission(locals, 'services', isUpdate ? 'update' : 'read');
 
 	const id = parseInt(params.id);
 	if (isNaN(id)) error(400, 'Invalid ID');
@@ -22,6 +28,63 @@ export const POST: RequestHandler = async ({ locals, params, url }) => {
 	if (!site) error(404, 'Hosting site not found');
 
 	const endpoint = url.searchParams.get('endpoint') || 'overview';
+
+	if (isUpdate) {
+		// Only plugins and themes can be updated
+		if (endpoint !== 'plugins' && endpoint !== 'themes') {
+			error(400, 'Updates are only supported for plugins and themes');
+		}
+
+		try {
+			const body = await request.json();
+			const wpUrl = `${site.apiUrl}/${endpoint}/update`;
+
+			const response = await fetch(wpUrl, {
+				method: 'POST',
+				headers: {
+					'X-SmartOffice-Key': site.apiKey,
+					'Content-Type': 'application/json',
+					'Accept': 'application/json'
+				},
+				body: JSON.stringify(body),
+				signal: AbortSignal.timeout(120000) // 2 minutes for updates
+			});
+
+			if (!response.ok) {
+				const errorText = await response.text().catch(() => 'Unknown error');
+				error(502, `WordPress site returned HTTP ${response.status}: ${errorText.substring(0, 200)}`);
+			}
+
+			const data = await response.json();
+
+			// Audit log the update action
+			logAction({
+				userId: locals.user!.id,
+				action: 'updated',
+				module: 'services',
+				entityId: String(id),
+				entityType: 'HostingSite',
+				newValues: {
+					action: `${endpoint}_update`,
+					domain: site.domain,
+					updated: data.updated,
+					failed: data.failed,
+					results: data.results
+				}
+			});
+
+			return json({ success: true, data });
+		} catch (err: unknown) {
+			// Don't overwrite SvelteKit errors
+			if (err && typeof err === 'object' && 'status' in err) {
+				throw err;
+			}
+			const message = err instanceof Error ? err.message : 'Connection failed';
+			error(502, `Could not connect to WordPress site: ${message}`);
+		}
+	}
+
+	// Regular sync (read) flow
 	const validEndpoints = ['overview', 'plugins', 'themes', 'core', 'health'];
 	if (!validEndpoints.includes(endpoint)) {
 		error(400, `Invalid endpoint. Must be one of: ${validEndpoints.join(', ')}`);

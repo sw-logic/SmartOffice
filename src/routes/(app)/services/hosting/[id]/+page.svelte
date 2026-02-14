@@ -28,7 +28,9 @@
 		Puzzle,
 		Palette,
 		LogIn,
-		AlertTriangle
+		AlertTriangle,
+		Download,
+		LoaderCircle
 	} from 'lucide-svelte';
 
 	let { data } = $props();
@@ -53,6 +55,15 @@
 		health: null,
 		core: null
 	});
+
+	// Update state
+	let updatingPlugins = $state<Set<string>>(new Set());
+	let updatingThemes = $state<Set<string>>(new Set());
+	let updatingAllPlugins = $state(false);
+	let updatingAllThemes = $state(false);
+
+	let anyPluginUpdating = $derived(updatingPlugins.size > 0 || updatingAllPlugins);
+	let anyThemeUpdating = $derived(updatingThemes.size > 0 || updatingAllThemes);
 
 	function statusIcon(status: string) {
 		switch (status) {
@@ -128,6 +139,121 @@
 		}
 	}
 
+	async function updatePlugin(file: string) {
+		updatingPlugins = new Set([...updatingPlugins, file]);
+		try {
+			const res = await fetch(`/api/hosting/${data.site.id}/sync?endpoint=plugins&action=update`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ plugins: [file] })
+			});
+			if (res.ok) {
+				const { data: result } = await res.json();
+				if (result.updated > 0) {
+					const r = result.results[0];
+					toast.success(`${r.name} updated to ${r.new_version}`);
+				} else if (result.failed > 0) {
+					toast.error(`Failed to update: ${result.results[0]?.error || 'Unknown error'}`);
+				}
+			} else {
+				const err = await res.json().catch(() => ({}));
+				toast.error(err.message || 'Update failed');
+			}
+		} catch {
+			toast.error('Connection failed');
+		} finally {
+			updatingPlugins = new Set([...updatingPlugins].filter(f => f !== file));
+		}
+		// Refresh plugin data and overview
+		await Promise.all([fetchTabData('plugins'), syncOverview()]);
+	}
+
+	async function updateAllPlugins() {
+		updatingAllPlugins = true;
+		try {
+			const res = await fetch(`/api/hosting/${data.site.id}/sync?endpoint=plugins&action=update`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ all: true })
+			});
+			if (res.ok) {
+				const { data: result } = await res.json();
+				if (result.updated > 0 && result.failed === 0) {
+					toast.success(`All ${result.updated} plugins updated`);
+				} else if (result.updated > 0 && result.failed > 0) {
+					toast.warning(`${result.updated} updated, ${result.failed} failed`);
+				} else if (result.failed > 0) {
+					toast.error(`Failed to update ${result.failed} plugins`);
+				}
+			} else {
+				const err = await res.json().catch(() => ({}));
+				toast.error(err.message || 'Update failed');
+			}
+		} catch {
+			toast.error('Connection failed');
+		} finally {
+			updatingAllPlugins = false;
+		}
+		await Promise.all([fetchTabData('plugins'), syncOverview()]);
+	}
+
+	async function updateTheme(slug: string) {
+		updatingThemes = new Set([...updatingThemes, slug]);
+		try {
+			const res = await fetch(`/api/hosting/${data.site.id}/sync?endpoint=themes&action=update`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ themes: [slug] })
+			});
+			if (res.ok) {
+				const { data: result } = await res.json();
+				if (result.updated > 0) {
+					const r = result.results[0];
+					toast.success(`${r.name} updated to ${r.new_version}`);
+				} else if (result.failed > 0) {
+					toast.error(`Failed to update: ${result.results[0]?.error || 'Unknown error'}`);
+				}
+			} else {
+				const err = await res.json().catch(() => ({}));
+				toast.error(err.message || 'Update failed');
+			}
+		} catch {
+			toast.error('Connection failed');
+		} finally {
+			updatingThemes = new Set([...updatingThemes].filter(s => s !== slug));
+		}
+		await Promise.all([fetchTabData('themes'), syncOverview()]);
+	}
+
+	async function updateAllThemes() {
+		updatingAllThemes = true;
+		try {
+			const res = await fetch(`/api/hosting/${data.site.id}/sync?endpoint=themes&action=update`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ all: true })
+			});
+			if (res.ok) {
+				const { data: result } = await res.json();
+				if (result.updated > 0 && result.failed === 0) {
+					toast.success(`All ${result.updated} themes updated`);
+				} else if (result.updated > 0 && result.failed > 0) {
+					toast.warning(`${result.updated} updated, ${result.failed} failed`);
+				} else if (result.failed > 0) {
+					toast.error(`Failed to update ${result.failed} themes`);
+				}
+			} else {
+				const err = await res.json().catch(() => ({}));
+				toast.error(err.message || 'Update failed');
+			}
+		} catch {
+			toast.error('Connection failed');
+		} finally {
+			updatingAllThemes = false;
+		}
+		await Promise.all([fetchTabData('themes'), syncOverview()]);
+	}
+
 	async function handleWpLogin() {
 		isLoggingIn = true;
 		try {
@@ -152,6 +278,9 @@
 		else if (tab === 'health' && !healthData) fetchTabData('health');
 		else if (tab === 'system' && !coreData) fetchTabData('core');
 	}
+
+	// Auto-load plugins tab on mount (default tab, onValueChange won't fire for initial value)
+	$effect(() => { fetchTabData('plugins'); });
 
 	const StatusIcon = $derived(statusIcon(data.site.status));
 </script>
@@ -332,11 +461,57 @@
 			</Card.Root>
 		</div>
 
-		<!-- Main content with tabs -->
-		<div class="lg:col-span-2">
-			<Tabs.Root value="overview" onValueChange={onTabChange}>
+		<!-- Main content -->
+		<div class="lg:col-span-2 space-y-4">
+			<!-- KPI cards (always visible) -->
+			<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+				<Card.Root class="p-3">
+					<Card.Content class="text-center">
+						<p class="text-3xl font-bold {statusColor(data.site.status)}">
+							{data.site.totalUpdates}
+						</p>
+						<p class="text-xs text-muted-foreground mt-1">Pending Updates</p>
+					</Card.Content>
+				</Card.Root>
+				<Card.Root class="p-3">
+					<Card.Content class="text-center">
+						<p class="text-3xl font-bold">{data.site.activePlugins}</p>
+						<p class="text-xs text-muted-foreground mt-1">Active Plugins</p>
+					</Card.Content>
+				</Card.Root>
+				<Card.Root class="p-3">
+					<Card.Content class="text-center">
+						<p class="text-3xl font-bold">{data.site.wpVersion || '-'}</p>
+						<p class="text-xs text-muted-foreground mt-1">WordPress</p>
+					</Card.Content>
+				</Card.Root>
+				<Card.Root class="p-3">
+					<Card.Content class="text-center">
+						<p class="text-3xl font-bold">{data.site.phpVersion || '-'}</p>
+						<p class="text-xs text-muted-foreground mt-1">PHP</p>
+					</Card.Content>
+				</Card.Root>
+			</div>
+
+			{#if data.site.status === 'unknown' && !data.site.lastSyncAt}
+				<Card.Root>
+					<Card.Content class="flex flex-col items-center justify-center py-12 text-center">
+						<RefreshCw class="h-8 w-8 text-muted-foreground mb-3" />
+						<h3 class="font-semibold mb-2">Not synced yet</h3>
+						<p class="text-muted-foreground text-sm mb-4">
+							Click "Sync" to fetch the current status from {data.site.domain}
+						</p>
+						<Button onclick={syncOverview} disabled={isSyncing}>
+							<RefreshCw class="mr-2 h-4 w-4 {isSyncing ? 'animate-spin' : ''}" />
+							Sync Now
+						</Button>
+					</Card.Content>
+				</Card.Root>
+			{/if}
+
+			<!-- Tabs -->
+			<Tabs.Root value="plugins" onValueChange={onTabChange}>
 				<Tabs.List>
-					<Tabs.Trigger value="overview">Overview</Tabs.Trigger>
 					<Tabs.Trigger value="plugins">
 						Plugins
 						{#if data.site.pluginUpdates > 0}
@@ -352,54 +527,6 @@
 					<Tabs.Trigger value="health">Health</Tabs.Trigger>
 					<Tabs.Trigger value="system">System</Tabs.Trigger>
 				</Tabs.List>
-
-				<!-- Overview Tab -->
-				<Tabs.Content value="overview" class="mt-4 space-y-4">
-					<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-						<Card.Root>
-							<Card.Content class="pt-6 text-center">
-								<p class="text-3xl font-bold {statusColor(data.site.status)}">
-									{data.site.totalUpdates}
-								</p>
-								<p class="text-xs text-muted-foreground mt-1">Pending Updates</p>
-							</Card.Content>
-						</Card.Root>
-						<Card.Root>
-							<Card.Content class="pt-6 text-center">
-								<p class="text-3xl font-bold">{data.site.activePlugins}</p>
-								<p class="text-xs text-muted-foreground mt-1">Active Plugins</p>
-							</Card.Content>
-						</Card.Root>
-						<Card.Root>
-							<Card.Content class="pt-6 text-center">
-								<p class="text-3xl font-bold">{data.site.wpVersion || '-'}</p>
-								<p class="text-xs text-muted-foreground mt-1">WordPress</p>
-							</Card.Content>
-						</Card.Root>
-						<Card.Root>
-							<Card.Content class="pt-6 text-center">
-								<p class="text-3xl font-bold">{data.site.phpVersion || '-'}</p>
-								<p class="text-xs text-muted-foreground mt-1">PHP</p>
-							</Card.Content>
-						</Card.Root>
-					</div>
-
-					{#if data.site.status === 'unknown' && !data.site.lastSyncAt}
-						<Card.Root>
-							<Card.Content class="flex flex-col items-center justify-center py-12 text-center">
-								<RefreshCw class="h-8 w-8 text-muted-foreground mb-3" />
-								<h3 class="font-semibold mb-2">Not synced yet</h3>
-								<p class="text-muted-foreground text-sm mb-4">
-									Click "Sync" to fetch the current status from {data.site.domain}
-								</p>
-								<Button onclick={syncOverview} disabled={isSyncing}>
-									<RefreshCw class="mr-2 h-4 w-4 {isSyncing ? 'animate-spin' : ''}" />
-									Sync Now
-								</Button>
-							</Card.Content>
-						</Card.Root>
-					{/if}
-				</Tabs.Content>
 
 				<!-- Plugins Tab -->
 				<Tabs.Content value="plugins" class="mt-4">
@@ -424,10 +551,28 @@
 							<p class="text-sm text-muted-foreground">
 								{pluginData.total} plugins, {pluginData.active} active, {pluginData.updates} with updates
 							</p>
-							<Button variant="ghost" size="sm" onclick={() => fetchTabData('plugins')}>
-								<RefreshCw class="mr-1 h-3.5 w-3.5" />
-								Refresh
-							</Button>
+							<div class="flex items-center gap-2">
+								{#if data.canUpdate && pluginData.updates > 0}
+									<Button
+										variant="outline"
+										size="sm"
+										onclick={updateAllPlugins}
+										disabled={anyPluginUpdating}
+									>
+										{#if updatingAllPlugins}
+											<LoaderCircle class="mr-1 h-3.5 w-3.5 animate-spin" />
+											Updating...
+										{:else}
+											<Download class="mr-1 h-3.5 w-3.5" />
+											Update All ({pluginData.updates})
+										{/if}
+									</Button>
+								{/if}
+								<Button variant="ghost" size="sm" onclick={() => fetchTabData('plugins')}>
+									<RefreshCw class="mr-1 h-3.5 w-3.5" />
+									Refresh
+								</Button>
+							</div>
 						</div>
 						<div class="rounded-md border">
 							<Table.Root>
@@ -457,7 +602,23 @@
 												</Badge>
 											</Table.Cell>
 											<Table.Cell>
-												{#if plugin.update}
+												{#if plugin.update && data.canUpdate}
+													<Button
+														variant="secondary"
+														size="sm"
+														class="h-7 gap-1 text-xs"
+														onclick={() => updatePlugin(plugin.file)}
+														disabled={anyPluginUpdating}
+													>
+														{#if updatingPlugins.has(plugin.file)}
+															<LoaderCircle class="h-3 w-3 animate-spin" />
+															Updating...
+														{:else}
+															<ArrowUpCircle class="h-3 w-3" />
+															{plugin.new_version}
+														{/if}
+													</Button>
+												{:else if plugin.update}
 													<Badge variant="secondary" class="gap-1">
 														<ArrowUpCircle class="h-3 w-3" />
 														{plugin.new_version}
@@ -504,10 +665,28 @@
 							<p class="text-sm text-muted-foreground">
 								{themeData.total} themes, {themeData.updates} with updates
 							</p>
-							<Button variant="ghost" size="sm" onclick={() => fetchTabData('themes')}>
-								<RefreshCw class="mr-1 h-3.5 w-3.5" />
-								Refresh
-							</Button>
+							<div class="flex items-center gap-2">
+								{#if data.canUpdate && themeData.updates > 0}
+									<Button
+										variant="outline"
+										size="sm"
+										onclick={updateAllThemes}
+										disabled={anyThemeUpdating}
+									>
+										{#if updatingAllThemes}
+											<LoaderCircle class="mr-1 h-3.5 w-3.5 animate-spin" />
+											Updating...
+										{:else}
+											<Download class="mr-1 h-3.5 w-3.5" />
+											Update All ({themeData.updates})
+										{/if}
+									</Button>
+								{/if}
+								<Button variant="ghost" size="sm" onclick={() => fetchTabData('themes')}>
+									<RefreshCw class="mr-1 h-3.5 w-3.5" />
+									Refresh
+								</Button>
+							</div>
 						</div>
 						<div class="rounded-md border">
 							<Table.Root>
@@ -530,7 +709,23 @@
 												</Badge>
 											</Table.Cell>
 											<Table.Cell>
-												{#if theme.update}
+												{#if theme.update && data.canUpdate}
+													<Button
+														variant="secondary"
+														size="sm"
+														class="h-7 gap-1 text-xs"
+														onclick={() => updateTheme(theme.slug)}
+														disabled={anyThemeUpdating}
+													>
+														{#if updatingThemes.has(theme.slug)}
+															<LoaderCircle class="h-3 w-3 animate-spin" />
+															Updating...
+														{:else}
+															<ArrowUpCircle class="h-3 w-3" />
+															{theme.new_version}
+														{/if}
+													</Button>
+												{:else if theme.update}
 													<Badge variant="secondary" class="gap-1">
 														<ArrowUpCircle class="h-3 w-3" />
 														{theme.new_version}

@@ -9,6 +9,8 @@
  *   GET  /wp-json/smartoffice/v1/core
  *   GET  /wp-json/smartoffice/v1/overview     (all-in-one summary)
  *   POST /wp-json/smartoffice/v1/auth/token   (generate auto-login token)
+ *   POST /wp-json/smartoffice/v1/plugins/update  (update one or all plugins)
+ *   POST /wp-json/smartoffice/v1/themes/update   (update one or all themes)
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -56,6 +58,18 @@ class SmartOffice_REST_API {
         register_rest_route( self::NAMESPACE, '/auth/token', [
             'methods'             => 'POST',
             'callback'            => [ $this, 'create_login_token' ],
+            'permission_callback' => [ $this, 'verify_api_key' ],
+        ] );
+
+        register_rest_route( self::NAMESPACE, '/plugins/update', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'update_plugins' ],
+            'permission_callback' => [ $this, 'verify_api_key' ],
+        ] );
+
+        register_rest_route( self::NAMESPACE, '/themes/update', [
+            'methods'             => 'POST',
+            'callback'            => [ $this, 'update_themes' ],
             'permission_callback' => [ $this, 'verify_api_key' ],
         ] );
     }
@@ -461,6 +475,165 @@ class SmartOffice_REST_API {
             'token'      => $token,
             'login_url'  => add_query_arg( 'smartoffice_login', $token, home_url( '/' ) ),
             'expires_in' => $expiry,
+        ], 200 );
+    }
+
+    // ──────────────────────────────────────────────
+    //  Remote Updates
+    // ──────────────────────────────────────────────
+
+    /**
+     * POST /plugins/update — Update one or all plugins.
+     *
+     * Body: { "plugins": ["akismet/akismet.php", ...] } or { "all": true }
+     */
+    public function update_plugins( WP_REST_Request $request ): WP_REST_Response {
+        require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+        require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        require_once ABSPATH . 'wp-admin/includes/update.php';
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+
+        wp_update_plugins();
+        $updates = get_plugin_updates();
+
+        $update_all = $request->get_param( 'all' );
+        $requested  = $request->get_param( 'plugins' );
+
+        if ( $update_all ) {
+            $to_update = array_keys( $updates );
+        } elseif ( is_array( $requested ) && ! empty( $requested ) ) {
+            // Only update plugins that actually have updates available
+            $to_update = array_intersect( $requested, array_keys( $updates ) );
+        } else {
+            return new WP_REST_Response( [
+                'error' => 'Provide "plugins" array or "all": true.',
+            ], 400 );
+        }
+
+        if ( empty( $to_update ) ) {
+            return new WP_REST_Response( [
+                'updated' => 0,
+                'failed'  => 0,
+                'results' => [],
+                'message' => 'No plugins need updating.',
+            ], 200 );
+        }
+
+        $skin     = new Automatic_Upgrader_Skin();
+        $upgrader = new Plugin_Upgrader( $skin );
+        $results  = [];
+        $updated  = 0;
+        $failed   = 0;
+
+        foreach ( $to_update as $plugin_file ) {
+            $plugin_data = get_plugin_data( WP_PLUGIN_DIR . '/' . $plugin_file );
+            $result      = $upgrader->upgrade( $plugin_file );
+
+            if ( $result === true || ! is_wp_error( $result ) ) {
+                // Re-read plugin data to get new version
+                $new_data = get_plugin_data( WP_PLUGIN_DIR . '/' . $plugin_file );
+                $results[] = [
+                    'file'        => $plugin_file,
+                    'name'        => $plugin_data['Name'],
+                    'success'     => true,
+                    'new_version' => $new_data['Version'],
+                ];
+                $updated++;
+            } else {
+                $error_msg = is_wp_error( $result ) ? $result->get_error_message() : 'Unknown error';
+                $results[] = [
+                    'file'    => $plugin_file,
+                    'name'    => $plugin_data['Name'],
+                    'success' => false,
+                    'error'   => $error_msg,
+                ];
+                $failed++;
+            }
+        }
+
+        // Clear update transient so next check is fresh
+        delete_site_transient( 'update_plugins' );
+
+        return new WP_REST_Response( [
+            'updated' => $updated,
+            'failed'  => $failed,
+            'results' => $results,
+        ], 200 );
+    }
+
+    /**
+     * POST /themes/update — Update one or all themes.
+     *
+     * Body: { "themes": ["theme-slug", ...] } or { "all": true }
+     */
+    public function update_themes( WP_REST_Request $request ): WP_REST_Response {
+        require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+        require_once ABSPATH . 'wp-admin/includes/update.php';
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+
+        wp_update_themes();
+        $updates = get_theme_updates();
+
+        $update_all = $request->get_param( 'all' );
+        $requested  = $request->get_param( 'themes' );
+
+        if ( $update_all ) {
+            $to_update = array_keys( $updates );
+        } elseif ( is_array( $requested ) && ! empty( $requested ) ) {
+            $to_update = array_intersect( $requested, array_keys( $updates ) );
+        } else {
+            return new WP_REST_Response( [
+                'error' => 'Provide "themes" array or "all": true.',
+            ], 400 );
+        }
+
+        if ( empty( $to_update ) ) {
+            return new WP_REST_Response( [
+                'updated' => 0,
+                'failed'  => 0,
+                'results' => [],
+                'message' => 'No themes need updating.',
+            ], 200 );
+        }
+
+        $skin     = new Automatic_Upgrader_Skin();
+        $upgrader = new Theme_Upgrader( $skin );
+        $results  = [];
+        $updated  = 0;
+        $failed   = 0;
+
+        foreach ( $to_update as $theme_slug ) {
+            $theme  = wp_get_theme( $theme_slug );
+            $name   = $theme->exists() ? $theme->get( 'Name' ) : $theme_slug;
+            $result = $upgrader->upgrade( $theme_slug );
+
+            if ( $result === true || ! is_wp_error( $result ) ) {
+                $new_theme = wp_get_theme( $theme_slug );
+                $results[] = [
+                    'slug'        => $theme_slug,
+                    'name'        => $name,
+                    'success'     => true,
+                    'new_version' => $new_theme->get( 'Version' ),
+                ];
+                $updated++;
+            } else {
+                $error_msg = is_wp_error( $result ) ? $result->get_error_message() : 'Unknown error';
+                $results[] = [
+                    'slug'    => $theme_slug,
+                    'name'    => $name,
+                    'success' => false,
+                    'error'   => $error_msg,
+                ];
+                $failed++;
+            }
+        }
+
+        delete_site_transient( 'update_themes' );
+
+        return new WP_REST_Response( [
+            'updated' => $updated,
+            'failed'  => $failed,
+            'results' => $results,
         ], 200 );
     }
 
