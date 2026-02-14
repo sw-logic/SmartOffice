@@ -120,13 +120,34 @@ class SmartOffice_REST_API {
         // Run both direct and async tests to get full results with issue details
         $all_tests = array_merge( $tests['direct'] ?? [], $tests['async'] ?? [] );
 
-        foreach ( $all_tests as $test ) {
-            $callback = $test['test'];
-            // WP stores test names as strings — resolve to WP_Site_Health method
-            if ( is_string( $callback ) && method_exists( $health, 'get_test_' . $callback ) ) {
-                $callback = [ $health, 'get_test_' . $callback ];
+        foreach ( $all_tests as $key => $test ) {
+            $callback = null;
+
+            // 1. WP 6.1+ async tests provide a direct callable via 'async_direct_test'
+            if ( ! empty( $test['async_direct_test'] ) && is_callable( $test['async_direct_test'] ) ) {
+                $callback = $test['async_direct_test'];
             }
-            if ( is_callable( $callback ) ) {
+
+            // 2. String test name — resolve to WP_Site_Health::get_test_{name}()
+            if ( ! $callback && isset( $test['test'] ) && is_string( $test['test'] ) ) {
+                $test_name = $test['test'];
+                // If it's a REST URL, extract the test name from the end
+                if ( strpos( $test_name, '/' ) !== false ) {
+                    $test_name = basename( $test_name );
+                    // Convert dashes to underscores (e.g. dotorg-communication → dotorg_communication)
+                    $test_name = str_replace( '-', '_', $test_name );
+                }
+                if ( method_exists( $health, 'get_test_' . $test_name ) ) {
+                    $callback = [ $health, 'get_test_' . $test_name ];
+                }
+            }
+
+            // 3. Already a callable (closure or [class, method])
+            if ( ! $callback && isset( $test['test'] ) && is_callable( $test['test'] ) ) {
+                $callback = $test['test'];
+            }
+
+            if ( $callback ) {
                 try {
                     $result = call_user_func( $callback );
                     if ( isset( $result['status'] ) ) {
