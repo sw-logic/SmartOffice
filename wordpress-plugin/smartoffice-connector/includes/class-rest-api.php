@@ -117,8 +117,10 @@ class SmartOffice_REST_API {
         ];
         $issues = [];
 
-        // 1. Run direct (synchronous) tests
-        foreach ( $tests['direct'] as $test ) {
+        // Run both direct and async tests to get full results with issue details
+        $all_tests = array_merge( $tests['direct'] ?? [], $tests['async'] ?? [] );
+
+        foreach ( $all_tests as $test ) {
             $callback = $test['test'];
             // WP stores test names as strings — resolve to WP_Site_Health method
             if ( is_string( $callback ) && method_exists( $health, 'get_test_' . $callback ) ) {
@@ -142,37 +144,6 @@ class SmartOffice_REST_API {
                     }
                 } catch ( \Throwable $e ) {
                     // Skip failing tests
-                }
-            }
-        }
-
-        // 2. Include cached async test results (stored by WP Site Health in wp-admin)
-        $async_results = get_transient( 'health-check-site-status-result' );
-        if ( $async_results ) {
-            $async_data = is_string( $async_results ) ? json_decode( $async_results, true ) : $async_results;
-            if ( is_array( $async_data ) ) {
-                // WP stores counts: {"good": N, "recommended": N, "critical": N}
-                if ( isset( $async_data['good'] ) && ! is_array( $async_data['good'] ) ) {
-                    $results['good']        += (int) ( $async_data['good'] ?? 0 );
-                    $results['recommended'] += (int) ( $async_data['recommended'] ?? 0 );
-                    $results['critical']    += (int) ( $async_data['critical'] ?? 0 );
-                } else {
-                    // Fallback: array of individual test results
-                    foreach ( $async_data as $result ) {
-                        if ( isset( $result['status'] ) ) {
-                            $status = $result['status'];
-                            if ( isset( $results[ $status ] ) ) {
-                                $results[ $status ]++;
-                            }
-                            if ( $status !== 'good' ) {
-                                $issues[] = [
-                                    'label'  => $result['label'] ?? '',
-                                    'status' => $status,
-                                    'badge'  => $result['badge']['label'] ?? '',
-                                ];
-                            }
-                        }
-                    }
                 }
             }
         }
