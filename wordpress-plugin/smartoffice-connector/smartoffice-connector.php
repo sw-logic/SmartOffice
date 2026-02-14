@@ -3,7 +3,7 @@
  * Plugin Name: SmartOffice Connector
  * Plugin URI:  https://github.com/sw-logic/smartoffice-connector
  * Description: Connects WordPress sites to SmartOffice for remote monitoring, health checks, and secure auto-login.
- * Version:     1.0.9
+ * Version:     1.1.0
  * Author:      SmartOffice
  * License:     GPL-2.0-or-later
  * Text Domain: smartoffice-connector
@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'SMARTOFFICE_CONNECTOR_VERSION', '1.0.9' );
+define( 'SMARTOFFICE_CONNECTOR_VERSION', '1.1.0' );
 define( 'SMARTOFFICE_CONNECTOR_FILE', __FILE__ );
 define( 'SMARTOFFICE_CONNECTOR_DIR', plugin_dir_path( __FILE__ ) );
 

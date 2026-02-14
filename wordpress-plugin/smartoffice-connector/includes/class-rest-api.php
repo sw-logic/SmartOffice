@@ -103,8 +103,21 @@ class SmartOffice_REST_API {
      * GET /health — Site Health summary.
      */
     public function get_health(): WP_REST_Response {
+        // Load admin includes needed by health tests
         if ( ! class_exists( 'WP_Site_Health' ) ) {
             require_once ABSPATH . 'wp-admin/includes/class-wp-site-health.php';
+        }
+        if ( ! function_exists( 'get_plugins' ) ) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+        if ( ! function_exists( 'get_plugin_updates' ) ) {
+            require_once ABSPATH . 'wp-admin/includes/update.php';
+        }
+        if ( ! function_exists( 'got_url_rewrite' ) ) {
+            require_once ABSPATH . 'wp-admin/includes/misc.php';
+        }
+        if ( ! function_exists( 'submit_button' ) ) {
+            require_once ABSPATH . 'wp-admin/includes/template.php';
         }
 
         $health = WP_Site_Health::get_instance();
@@ -114,12 +127,13 @@ class SmartOffice_REST_API {
             'recommended' => 0,
             'critical'    => 0,
         ];
-        $issues = [];
+        $issues  = [];
+        $skipped = [];
 
         // Helper: record a test result
         $record = function ( array $result, string $fallback_label = '' ) use ( &$results, &$issues ) {
             if ( ! isset( $result['status'] ) ) {
-                return;
+                return false;
             }
             $status = $result['status'];
             if ( isset( $results[ $status ] ) ) {
@@ -130,33 +144,59 @@ class SmartOffice_REST_API {
                 'status' => $status,
                 'badge'  => $result['badge']['label'] ?? '',
             ];
+            return true;
         };
 
-        // Phase 1: Run direct tests via callable resolution
-        foreach ( $tests['direct'] ?? [] as $test ) {
-            $callback = $test['test'] ?? null;
-            if ( is_string( $callback ) && method_exists( $health, 'get_test_' . $callback ) ) {
-                $callback = [ $health, 'get_test_' . $callback ];
-            }
-            if ( is_callable( $callback ) ) {
+        // Helper: try to resolve and run a test callback
+        $run_test = function ( array $test ) use ( $health, $record, &$skipped ): bool {
+            // 1. async_direct_test callable (WP 6.1+)
+            if ( ! empty( $test['async_direct_test'] ) && is_callable( $test['async_direct_test'] ) ) {
                 try {
-                    $record( call_user_func( $callback ), $test['label'] ?? '' );
+                    $r = call_user_func( $test['async_direct_test'] );
+                    if ( is_array( $r ) && $record( $r, $test['label'] ?? '' ) ) {
+                        return true;
+                    }
                 } catch ( \Throwable $e ) {
-                    // Skip failing tests
+                    // Fall through
                 }
             }
-        }
 
-        // Phase 2: Run async tests via internal REST dispatch (official WP REST endpoints)
-        foreach ( $tests['async'] ?? [] as $test ) {
-            $ran = false;
+            // 2. String test name → resolve to WP_Site_Health::get_test_{name}()
+            $callback = $test['test'] ?? null;
+            if ( is_string( $callback ) ) {
+                $test_name = $callback;
+                if ( strpos( $test_name, '/' ) !== false ) {
+                    $test_name = str_replace( '-', '_', basename( $test_name ) );
+                }
+                if ( method_exists( $health, 'get_test_' . $test_name ) ) {
+                    try {
+                        $r = call_user_func( [ $health, 'get_test_' . $test_name ] );
+                        if ( is_array( $r ) && $record( $r, $test['label'] ?? '' ) ) {
+                            return true;
+                        }
+                    } catch ( \Throwable $e ) {
+                        // Fall through
+                    }
+                }
+            }
 
-            // 2a. If test has a REST route (has_rest flag), use internal REST dispatch
+            // 3. Already a callable
+            if ( isset( $test['test'] ) && is_callable( $test['test'] ) ) {
+                try {
+                    $r = call_user_func( $test['test'] );
+                    if ( is_array( $r ) && $record( $r, $test['label'] ?? '' ) ) {
+                        return true;
+                    }
+                } catch ( \Throwable $e ) {
+                    // Fall through
+                }
+            }
+
+            // 4. Internal REST dispatch for async tests with REST routes
             if ( ! empty( $test['has_rest'] ) && ! empty( $test['test'] ) && is_string( $test['test'] ) ) {
-                $rest_url = $test['test'];
-                // Extract the REST path from full URL (e.g. https://site/wp-json/wp-site-health/v1/tests/xxx)
-                $rest_path = $rest_url;
+                $rest_url  = $test['test'];
                 $rest_base = rest_url();
+                $rest_path = $rest_url;
                 if ( strpos( $rest_url, $rest_base ) === 0 ) {
                     $rest_path = '/' . substr( $rest_url, strlen( $rest_base ) );
                 }
@@ -164,42 +204,27 @@ class SmartOffice_REST_API {
                     $request  = new WP_REST_Request( 'GET', $rest_path );
                     $response = rest_do_request( $request );
                     if ( ! $response->is_error() ) {
-                        $record( $response->get_data(), $test['label'] ?? '' );
-                        $ran = true;
+                        $data = $response->get_data();
+                        if ( is_array( $data ) && $record( $data, $test['label'] ?? '' ) ) {
+                            return true;
+                        }
                     }
                 } catch ( \Throwable $e ) {
-                    // Fall through to next method
+                    // Fall through
                 }
             }
 
-            // 2b. Fallback: async_direct_test callable (WP 6.1+)
-            if ( ! $ran && ! empty( $test['async_direct_test'] ) && is_callable( $test['async_direct_test'] ) ) {
-                try {
-                    $record( call_user_func( $test['async_direct_test'] ), $test['label'] ?? '' );
-                    $ran = true;
-                } catch ( \Throwable $e ) {
-                    // Skip
-                }
-            }
+            $skipped[] = $test['label'] ?? 'unknown';
+            return false;
+        };
 
-            // 2c. Fallback: resolve string test name to WP_Site_Health method
-            if ( ! $ran && isset( $test['test'] ) && is_string( $test['test'] ) ) {
-                $test_name = $test['test'];
-                if ( strpos( $test_name, '/' ) !== false ) {
-                    $test_name = str_replace( '-', '_', basename( $test_name ) );
-                }
-                if ( method_exists( $health, 'get_test_' . $test_name ) ) {
-                    try {
-                        $record( call_user_func( [ $health, 'get_test_' . $test_name ] ), $test['label'] ?? '' );
-                        $ran = true;
-                    } catch ( \Throwable $e ) {
-                        // Skip
-                    }
-                }
-            }
+        // Run all tests (direct + async)
+        $all_tests = array_merge( $tests['direct'] ?? [], $tests['async'] ?? [] );
+        foreach ( $all_tests as $test ) {
+            $run_test( $test );
         }
 
-        // Phase 3: Fallback — if cached transient has higher counts, use those
+        // Fallback — if cached transient has higher counts, use those
         // This catches tests we couldn't run (custom plugin tests, missing context, etc.)
         $cached = get_transient( 'health-check-site-status-result' );
         if ( $cached ) {
@@ -226,6 +251,7 @@ class SmartOffice_REST_API {
             'score'       => $total > 0 ? round( ( $results['good'] / $total ) * 100 ) : 0,
             'counts'      => $results,
             'issues'      => $issues,
+            'skipped'     => $skipped,
             'php_version' => phpversion(),
             'wp_version'  => get_bloginfo( 'version' ),
             'server'      => $_SERVER['SERVER_SOFTWARE'] ?? 'unknown',
