@@ -194,13 +194,16 @@ class SmartOffice_Updater {
      * @return array
      */
     public static function inject_auth_header( $args, $url ) {
-        // Only intercept GitHub API calls for our repo.
-        if ( strpos( $url, 'api.github.com' ) === false ) {
+        // Only intercept GitHub requests (API and browser download URLs).
+        $is_api      = strpos( $url, 'api.github.com' ) !== false;
+        $is_download = strpos( $url, 'github.com/' ) !== false && strpos( $url, '/releases/download/' ) !== false;
+
+        if ( ! $is_api && ! $is_download ) {
             return $args;
         }
 
         $repo = self::get_repo();
-        if ( ! $repo || strpos( $url, str_replace( '/', '/', $repo ) ) === false ) {
+        if ( ! $repo || strpos( $url, $repo ) === false ) {
             return $args;
         }
 
@@ -210,8 +213,8 @@ class SmartOffice_Updater {
         }
 
         $args['headers']['Authorization'] = 'Bearer ' . $pat;
-        // Only set octet-stream for asset downloads, not for API JSON calls
-        if ( strpos( $url, '/assets/' ) !== false ) {
+        // Only set octet-stream for API asset downloads, not for JSON calls or browser downloads
+        if ( $is_api && strpos( $url, '/assets/' ) !== false ) {
             $args['headers']['Accept'] = 'application/octet-stream';
         }
 
@@ -299,8 +302,9 @@ class SmartOffice_Updater {
             foreach ( $body['assets'] as $asset ) {
                 if ( ! empty( $asset['name'] ) && substr( $asset['name'], -4 ) === '.zip' ) {
                     $data['assets'][] = [
-                        'name' => $asset['name'],
-                        'url'  => $asset['url'] ?? '',  // API URL (needs Accept: application/octet-stream)
+                        'name'                 => $asset['name'],
+                        'url'                  => $asset['url'] ?? '',
+                        'browser_download_url' => $asset['browser_download_url'] ?? '',
                     ];
                 }
             }
@@ -335,8 +339,12 @@ class SmartOffice_Updater {
             return false;
         }
 
-        // Prefer .zip release asset (API URL — auth injected via http_request_args filter).
+        // Prefer browser download URL for .zip asset (simpler, no redirect dance).
         if ( ! empty( $release['assets'] ) ) {
+            if ( ! empty( $release['assets'][0]['browser_download_url'] ) ) {
+                return $release['assets'][0]['browser_download_url'];
+            }
+            // Fallback to API URL
             return $release['assets'][0]['url'];
         }
 
