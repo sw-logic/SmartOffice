@@ -607,30 +607,78 @@
 							</Card.Root>
 						</div>
 
-						{#if healthData.issues?.length > 0}
-							<div class="rounded-md border">
+						{@const criticalIssues = healthData.issues?.filter((i: any) => i.status === 'critical') ?? []}
+						{@const recommendedIssues = healthData.issues?.filter((i: any) => i.status === 'recommended') ?? []}
+						{@const passedIssues = healthData.issues?.filter((i: any) => i.status === 'good') ?? []}
+
+						{#if criticalIssues.length > 0}
+							<h3 class="text-sm font-semibold mt-2 mb-2 flex items-center gap-2">
+								<ShieldX class="h-4 w-4 text-red-600" />
+								Critical ({criticalIssues.length})
+							</h3>
+							<div class="rounded-md border mb-4">
 								<Table.Root>
 									<Table.Header>
 										<Table.Row>
 											<Table.Head>Check</Table.Head>
 											<Table.Head>Category</Table.Head>
-											<Table.Head>Status</Table.Head>
 										</Table.Row>
 									</Table.Header>
 									<Table.Body>
-										{#each healthData.issues as issue}
+										{#each criticalIssues as issue}
 											<Table.Row>
 												<Table.Cell class="font-medium">{issue.label}</Table.Cell>
 												<Table.Cell class="text-sm text-muted-foreground">{issue.badge || '-'}</Table.Cell>
-												<Table.Cell>
-													{#if issue.status === 'critical'}
-														<Badge variant="destructive">Critical</Badge>
-													{:else if issue.status === 'recommended'}
-														<Badge variant="secondary">Recommended</Badge>
-													{:else}
-														<Badge variant="default">Passed</Badge>
-													{/if}
-												</Table.Cell>
+											</Table.Row>
+										{/each}
+									</Table.Body>
+								</Table.Root>
+							</div>
+						{/if}
+
+						{#if recommendedIssues.length > 0}
+							<h3 class="text-sm font-semibold mt-2 mb-2 flex items-center gap-2">
+								<ShieldAlert class="h-4 w-4 text-yellow-600" />
+								Recommended ({recommendedIssues.length})
+							</h3>
+							<div class="rounded-md border mb-4">
+								<Table.Root>
+									<Table.Header>
+										<Table.Row>
+											<Table.Head>Check</Table.Head>
+											<Table.Head>Category</Table.Head>
+										</Table.Row>
+									</Table.Header>
+									<Table.Body>
+										{#each recommendedIssues as issue}
+											<Table.Row>
+												<Table.Cell class="font-medium">{issue.label}</Table.Cell>
+												<Table.Cell class="text-sm text-muted-foreground">{issue.badge || '-'}</Table.Cell>
+											</Table.Row>
+										{/each}
+									</Table.Body>
+								</Table.Root>
+							</div>
+						{/if}
+
+						{#if passedIssues.length > 0}
+							<h3 class="text-sm font-semibold mt-2 mb-2 flex items-center gap-2">
+								<Shield class="h-4 w-4 text-green-600" />
+								Passed ({passedIssues.length})
+							</h3>
+							<div class="rounded-md border mb-4">
+								<Table.Root>
+									<Table.Header>
+										<Table.Row>
+											<Table.Head>Check</Table.Head>
+											<Table.Head>Category</Table.Head>
+										</Table.Row>
+									</Table.Header>
+									<Table.Body>
+										{#each passedIssues as issue}
+											<Table.Row>
+												<Table.Cell class="font-medium">{issue.label}</Table.Cell>
+												<Table.Cell class="text-sm text-muted-foreground">{issue.badge || '-'}</Table.Cell>
 											</Table.Row>
 										{/each}
 									</Table.Body>
