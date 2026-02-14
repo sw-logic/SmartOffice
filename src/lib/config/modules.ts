@@ -22,7 +22,9 @@ import {
 	Wrench,
 	Search,
 	Target,
-	RefreshCw
+	RefreshCw,
+	Globe,
+	ServerCog
 } from 'lucide-svelte';
 import type { ComponentType } from 'svelte';
 
@@ -75,7 +77,25 @@ export const modules: Module[] = [
 		icon: RefreshCw,
 		route: '/services',
 		permissions: ['services.read'],
-		description: 'Monthly recurring services'
+		description: 'Monthly recurring services',
+		subModules: [
+			{
+				id: 'services.list',
+				name: 'Services',
+				icon: RefreshCw,
+				route: '/services',
+				permissions: ['services.read'],
+				description: 'Manage monthly recurring services'
+			},
+			{
+				id: 'services.hosting',
+				name: 'Hosting',
+				icon: ServerCog,
+				route: '/services/hosting',
+				permissions: ['services.read'],
+				description: 'WordPress site monitoring'
+			}
+		]
 	},
 	{
 		id: 'projects',

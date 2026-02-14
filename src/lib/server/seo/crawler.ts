@@ -1,30 +1,13 @@
-import { chromium, type Browser, type Page } from 'playwright';
-import { mkdir, writeFile } from 'fs/promises';
+import { type Page } from 'playwright';
+import { mkdir } from 'fs/promises';
 import { join } from 'path';
 import type { CrawlResult } from './types';
+import { getBrowser, closeBrowser } from '$lib/server/screenshot';
+
+export { closeBrowser };
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/var/uploads';
 const NAV_TIMEOUT = 30000;
-
-let browser: Browser | null = null;
-
-async function getBrowser(): Promise<Browser> {
-	if (!browser || !browser.isConnected()) {
-		browser = await chromium.launch({
-			headless: true,
-			executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
-			args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-		});
-	}
-	return browser;
-}
-
-export async function closeBrowser(): Promise<void> {
-	if (browser && browser.isConnected()) {
-		await browser.close();
-		browser = null;
-	}
-}
 
 async function extractDomData(page: Page): Promise<Omit<CrawlResult, 'url' | 'statusCode' | 'loadTimeMs' | 'desktopScreenshotPath' | 'mobileScreenshotPath'>> {
 	return page.evaluate(() => {

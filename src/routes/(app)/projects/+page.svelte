@@ -129,10 +129,10 @@
 		<Table.Root>
 			<Table.Header>
 				<Table.Row>
+					<SortableHeader column="priority" label="Priority" class="w-[90px]" />
 					<SortableHeader column="name" label="Name" class="w-[250px]" />
 					<SortableHeader column="client" label="Client" />
 					<SortableHeader column="status" label="Status" class="w-[100px]" />
-					<SortableHeader column="priority" label="Priority" class="w-[90px]" />
 					<SortableHeader column="startDate" label="Start Date" />
 					<SortableHeader column="endDate" label="End Date" />
 					<Table.Head class="text-center">Info</Table.Head>
@@ -154,6 +154,15 @@
 							onclick={() => goto(`/projects/${project.id}`)}
 						>
 							<Table.Cell>
+								{@const pEnum = data.enums.priority?.find((e) => e.value === project.priority)}
+								<div class="flex items-center gap-1.5">
+									{#if pEnum?.color}
+										<span class="shrink-0 rounded-full" style="width:10px;height:10px;background-color:{pEnum.color}"></span>
+									{/if}
+									<span class="text-sm text-muted-foreground">{pEnum?.label ?? project.priority}</span>
+								</div>
+							</Table.Cell>
+							<Table.Cell>
 								<div class="flex flex-col">
 									<span class="font-medium">
 										{project.name}
@@ -171,9 +180,6 @@
 							</Table.Cell>
 							<Table.Cell>
 								<EnumBadge enums={data.enums.project_status} value={project.status} />
-							</Table.Cell>
-							<Table.Cell>
-								<EnumBadge enums={data.enums.priority} value={project.priority} />
 							</Table.Cell>
 							<Table.Cell>
 								{#if project.startDate}

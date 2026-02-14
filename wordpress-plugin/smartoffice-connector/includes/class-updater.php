@@ -210,7 +210,10 @@ class SmartOffice_Updater {
         }
 
         $args['headers']['Authorization'] = 'Bearer ' . $pat;
-        $args['headers']['Accept']        = 'application/octet-stream';
+        // Only set octet-stream for asset downloads, not for API JSON calls
+        if ( strpos( $url, '/assets/' ) !== false ) {
+            $args['headers']['Accept'] = 'application/octet-stream';
+        }
 
         return $args;
     }
