@@ -184,6 +184,57 @@ export async function generateExpenseOccurrences(
 }
 
 /**
+ * Generate a recurring Income parent linked to a service.
+ * Creates the Income with monthly recurring settings, then generates projected children.
+ * Returns the parent Income ID (to be stored in service.incomeId).
+ */
+export async function generateServiceIncome(
+	service: {
+		id: number;
+		name: string;
+		monthlyFee: unknown;
+		currency: string;
+		recurringPeriod: string;
+		taxRate: number | null;
+		clientId: number | null;
+		clientName: string | null;
+		startDate: Date;
+		endDate: Date | null;
+	},
+	userId: number
+): Promise<number> {
+	const amount = Number(service.monthlyFee);
+	const taxRate = service.taxRate ?? 0;
+	const tax_value = taxRate > 0 ? Math.round(amount * taxRate) / 100 : 0;
+
+	const income = await prisma.income.create({
+		data: {
+			amount,
+			tax: tax_value,
+			tax_value,
+			taxRate: taxRate > 0 ? taxRate : null,
+			currency: service.currency,
+			date: service.startDate,
+			description: service.name,
+			category: 'subscription',
+			status: 'pending',
+			isRecurring: true,
+			recurringPeriod: service.recurringPeriod,
+			recurringEndDate: service.endDate,
+			clientId: service.clientId,
+			clientName: service.clientName,
+			createdById: userId
+		}
+	});
+
+	if (service.endDate) {
+		await generateIncomeOccurrences(income.id, userId);
+	}
+
+	return income.id;
+}
+
+/**
  * Promote projected records whose date has arrived to 'pending' status.
  * Call this on page load or via a cron job.
  */

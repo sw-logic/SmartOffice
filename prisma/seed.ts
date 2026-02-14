@@ -121,6 +121,12 @@ async function main() {
 		{ module: 'crm', action: 'update', description: 'Update CRM leads' },
 		{ module: 'crm', action: 'delete', description: 'Delete CRM leads' },
 
+		// Services
+		{ module: 'services', action: 'read', description: 'View services' },
+		{ module: 'services', action: 'create', description: 'Create services' },
+		{ module: 'services', action: 'update', description: 'Update services' },
+		{ module: 'services', action: 'delete', description: 'Delete services' },
+
 		// Tools
 		{ module: 'tools', action: 'read', description: 'Access tools' },
 		{ module: 'tools', action: 'create', description: 'Run SEO audits' },
@@ -247,6 +253,7 @@ async function main() {
 		'time_records.read', 'time_records.create',
 		'notes.read', 'notes.create',
 		'crm.read', 'crm.create', 'crm.update',
+		'services.read', 'services.create', 'services.update',
 		'tools.read', 'tools.create'
 	]);
 
@@ -271,7 +278,8 @@ async function main() {
 		'tasks.read', 'tasks.create', 'tasks.update',
 		'time_records.read', 'time_records.create', 'time_records.update',
 		'notes.read', 'notes.create',
-		'crm.read'
+		'crm.read',
+		'services.read'
 	]);
 
 	// Create a default company
@@ -945,6 +953,35 @@ async function main() {
 				{ value: 'social_media', label: 'Social Media', sortOrder: 5 },
 				{ value: 'partner', label: 'Partner', sortOrder: 6 },
 				{ value: 'other', label: 'Other', sortOrder: 99 }
+			]
+		},
+		{
+			code: 'service_type',
+			name: 'Service Types',
+			description: 'Types of recurring services',
+			group: 'Services',
+			isSystem: false,
+			values: [
+				{ value: 'hosting', label: 'Hosting', sortOrder: 1, isDefault: true },
+				{ value: 'seo', label: 'SEO', sortOrder: 2 },
+				{ value: 'online_marketing', label: 'Online Marketing', sortOrder: 3 },
+				{ value: 'maintenance', label: 'Maintenance', sortOrder: 4 },
+				{ value: 'support', label: 'Support', sortOrder: 5 },
+				{ value: 'consulting', label: 'Consulting', sortOrder: 6 },
+				{ value: 'other', label: 'Other', sortOrder: 99 }
+			]
+		},
+		{
+			code: 'service_status',
+			name: 'Service Status',
+			description: 'Status values for services',
+			group: 'Services',
+			isSystem: true,
+			values: [
+				{ value: 'active', label: 'Active', sortOrder: 1, isDefault: true, color: '#11BB22' },
+				{ value: 'paused', label: 'Paused', sortOrder: 2, color: '#FF8800' },
+				{ value: 'cancelled', label: 'Cancelled', sortOrder: 3, color: '#FF2244' },
+				{ value: 'completed', label: 'Completed', sortOrder: 4, color: '#0077ff' }
 			]
 		},
 		{

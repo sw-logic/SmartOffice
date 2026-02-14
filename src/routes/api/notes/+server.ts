@@ -16,7 +16,8 @@ const ENTITY_PERMISSION_MAP: Record<string, string> = {
 	'Payment': 'finances.payments',
 	'Offer': 'offers',
 	'PriceListItem': 'pricelists',
-	'Lead': 'crm'
+	'Lead': 'crm',
+	'Service': 'services'
 };
 
 const VALID_ENTITY_TYPES = Object.keys(ENTITY_PERMISSION_MAP);

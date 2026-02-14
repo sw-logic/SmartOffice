@@ -352,6 +352,11 @@
 				<Tabs.Trigger value="projects">
 					Projects ({data.client._count.projects})
 				</Tabs.Trigger>
+				{#if data.canViewServices}
+					<Tabs.Trigger value="services">
+						Services ({data.client._count.services})
+					</Tabs.Trigger>
+				{/if}
 				<Tabs.Trigger value="boards">
 					Boards ({data.boardCount})
 				</Tabs.Trigger>
@@ -529,6 +534,73 @@
 					</div>
 				{/if}
 			</Tabs.Content>
+
+			<!-- Services Tab (permission-gated) -->
+			{#if data.canViewServices}
+				<Tabs.Content value="services" class="mt-4">
+					<div class="flex items-center justify-between mb-4">
+						<h3 class="text-lg font-semibold">Services</h3>
+						<Button variant="outline" size="sm" href="/services/new?clientId={data.client.id}">
+							<Plus class="mr-2 h-4 w-4" />
+							Add Service
+						</Button>
+					</div>
+					<div class="rounded-md border">
+						<Table.Root>
+							<Table.Header>
+								<Table.Row>
+									<Table.Head>Name</Table.Head>
+									<Table.Head>Type</Table.Head>
+									<Table.Head>Status</Table.Head>
+									<Table.Head class="text-right">Monthly Fee</Table.Head>
+									<Table.Head>Assigned To</Table.Head>
+								</Table.Row>
+							</Table.Header>
+							<Table.Body>
+								{#each data.services as service}
+									<Table.Row
+										class="cursor-pointer hover:bg-muted/50"
+										onclick={() => goto(`/services/${service.id}`)}
+									>
+										<Table.Cell class="font-medium">{service.name}</Table.Cell>
+										<Table.Cell>
+											{#if service.type}
+												{@const typeEnum = data.enums.service_type?.find((e) => e.value === service.type)}
+												<Badge variant="outline">{typeEnum?.label ?? service.type}</Badge>
+											{:else}
+												<span class="text-muted-foreground">-</span>
+											{/if}
+										</Table.Cell>
+										<Table.Cell>
+											<EnumBadge enums={data.enums.service_status} value={service.status} />
+										</Table.Cell>
+										<Table.Cell class="text-right font-medium">
+											{#if service.monthlyFee != null}
+												{fmt.format(service.monthlyFee, service.currency)}
+											{:else}
+												<span class="text-muted-foreground">-</span>
+											{/if}
+										</Table.Cell>
+										<Table.Cell>
+											{#if service.assignedTo}
+												{service.assignedTo.name}
+											{:else}
+												<span class="text-muted-foreground">-</span>
+											{/if}
+										</Table.Cell>
+									</Table.Row>
+								{:else}
+									<Table.Row>
+										<Table.Cell colspan={5} class="h-24 text-center text-muted-foreground">
+											No services yet.
+										</Table.Cell>
+									</Table.Row>
+								{/each}
+							</Table.Body>
+						</Table.Root>
+					</div>
+				</Tabs.Content>
+			{/if}
 
 			<!-- Boards Tab -->
 			<Tabs.Content value="boards" class="mt-4">

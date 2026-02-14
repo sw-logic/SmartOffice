@@ -1,9 +1,9 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { prisma } from '$lib/server/prisma';
-import { requirePermission, isAdmin, isProjectManager } from '$lib/server/access-control';
+import { requirePermission, isAdmin } from '$lib/server/access-control';
 import { logUpdate, logDelete } from '$lib/server/audit';
-import { recalcTaskSpentTime } from '$lib/server/time-records';
+import { recalcServiceSpentTime } from '$lib/server/time-records';
 
 const timeRecordSelect = {
 	id: true,
@@ -25,11 +25,11 @@ const timeRecordSelect = {
 };
 
 export const PATCH: RequestHandler = async ({ locals, params, request }) => {
-	await requirePermission(locals, 'projects', 'update');
+	await requirePermission(locals, 'services', 'update');
 
-	const taskId = parseInt(params.id);
+	const serviceId = parseInt(params.id);
 	const recordId = parseInt(params.recordId);
-	if (isNaN(taskId) || isNaN(recordId)) {
+	if (isNaN(serviceId) || isNaN(recordId)) {
 		return json({ error: 'Invalid IDs' }, { status: 400 });
 	}
 
@@ -37,7 +37,7 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 		where: { id: recordId },
 		select: {
 			id: true,
-			taskId: true,
+			serviceId: true,
 			date: true,
 			minutes: true,
 			description: true,
@@ -45,24 +45,20 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 			category: true,
 			billable: true,
 			userId: true,
-			createdById: true,
-			task: { select: { projectId: true } }
+			createdById: true
 		}
 	});
 
-	if (!existing || existing.taskId !== taskId) {
+	if (!existing || existing.serviceId !== serviceId) {
 		return json({ error: 'Time record not found' }, { status: 404 });
 	}
 
-	// Row-level access: only the creator, an admin, or the project manager can edit time records
+	// Row-level access: only the creator or an admin can edit
 	const userId = locals.user!.id;
 	const isCreator = existing.createdById === userId;
 	if (!isCreator) {
-		const [admin, projManager] = await Promise.all([
-			isAdmin(locals),
-			isProjectManager(locals, existing.task!.projectId)
-		]);
-		if (!admin && !projManager) {
+		const admin = await isAdmin(locals);
+		if (!admin) {
 			return json({ error: 'Forbidden' }, { status: 403 });
 		}
 	}
@@ -111,20 +107,20 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
 	});
 
 	if ('minutes' in data) {
-		await recalcTaskSpentTime(taskId);
+		await recalcServiceSpentTime(serviceId);
 	}
 
-	await logUpdate(locals.user!.id, 'projects', String(recordId), 'TimeRecord', oldValues, body);
+	await logUpdate(locals.user!.id, 'services', String(recordId), 'TimeRecord', oldValues, body);
 
 	return json({ timeRecord: updated });
 };
 
 export const DELETE: RequestHandler = async ({ locals, params }) => {
-	await requirePermission(locals, 'projects', 'update');
+	await requirePermission(locals, 'services', 'update');
 
-	const taskId = parseInt(params.id);
+	const serviceId = parseInt(params.id);
 	const recordId = parseInt(params.recordId);
-	if (isNaN(taskId) || isNaN(recordId)) {
+	if (isNaN(serviceId) || isNaN(recordId)) {
 		return json({ error: 'Invalid IDs' }, { status: 400 });
 	}
 
@@ -132,39 +128,35 @@ export const DELETE: RequestHandler = async ({ locals, params }) => {
 		where: { id: recordId },
 		select: {
 			id: true,
-			taskId: true,
+			serviceId: true,
 			minutes: true,
 			date: true,
-			createdById: true,
-			task: { select: { projectId: true } }
+			createdById: true
 		}
 	});
 
-	if (!existing || existing.taskId !== taskId) {
+	if (!existing || existing.serviceId !== serviceId) {
 		return json({ error: 'Time record not found' }, { status: 404 });
 	}
 
-	// Row-level access: only the creator, an admin, or the project manager can delete time records
+	// Row-level access: only the creator or an admin can delete
 	const userId = locals.user!.id;
 	const isCreator = existing.createdById === userId;
 	if (!isCreator) {
-		const [admin, projManager] = await Promise.all([
-			isAdmin(locals),
-			isProjectManager(locals, existing.task!.projectId)
-		]);
-		if (!admin && !projManager) {
+		const admin = await isAdmin(locals);
+		if (!admin) {
 			return json({ error: 'Forbidden' }, { status: 403 });
 		}
 	}
 
-	await logDelete(locals.user!.id, 'projects', String(recordId), 'TimeRecord', {
+	await logDelete(locals.user!.id, 'services', String(recordId), 'TimeRecord', {
 		minutes: existing.minutes,
 		date: existing.date
 	});
 
 	await prisma.timeRecord.delete({ where: { id: recordId } });
 
-	await recalcTaskSpentTime(taskId);
+	await recalcServiceSpentTime(serviceId);
 
 	return json({ success: true });
 };

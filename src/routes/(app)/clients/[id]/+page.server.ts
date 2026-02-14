@@ -14,8 +14,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const canViewOffers = checkPermission(locals, 'offers', 'read');
 	const canViewIncome = checkPermission(locals, 'finances.income', 'read');
 	const canViewExpenses = checkPermission(locals, 'finances.expenses', 'read');
+	const canViewServices = checkPermission(locals, 'services', 'read');
 
-	const [client, boards, tasks, expenses, totalIncome] = await Promise.all([
+	const [client, boards, tasks, expenses, totalIncome, services] = await Promise.all([
 		prisma.client.findUnique({
 			where: { id: clientId },
 			include: {
@@ -81,7 +82,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 						contacts: true,
 						offers: true,
 						income: true,
-						payments: true
+						payments: true,
+						services: true
 					}
 				}
 			}
@@ -139,7 +141,25 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		prisma.income.aggregate({
 			where: { clientId },
 			_sum: { amount: true }
-		})
+		}),
+		// Services
+		canViewServices
+			? prisma.service.findMany({
+					where: { clientId },
+					orderBy: { createdAt: 'desc' },
+					select: {
+						id: true,
+						name: true,
+						type: true,
+						status: true,
+						monthlyFee: true,
+						currency: true,
+						budgetedHours: true,
+						spentTime: true,
+						assignedTo: { select: { id: true, name: true } }
+					}
+				})
+			: Promise.resolve([])
 	]);
 
 	if (!client) {
@@ -191,9 +211,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			amount: Number(exp.amount)
 		})),
 		expenseCount,
+		services: services.map(s => ({
+			...s,
+			monthlyFee: s.monthlyFee ? Number(s.monthlyFee) : null
+		})),
 		canViewOffers,
 		canViewIncome,
-		canViewExpenses
+		canViewExpenses,
+		canViewServices
 	};
 };
 

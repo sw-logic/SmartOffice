@@ -78,6 +78,10 @@ model User {
   createdLeads  Lead[] @relation("LeadCreatedBy")
   assignedLeads Lead[] @relation("LeadAssignedTo")
 
+  // Services
+  assignedServices Service[] @relation("ServiceAssignedTo")
+  createdServices  Service[] @relation("ServiceCreatedBy")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -259,7 +263,8 @@ model Contact {
   vendorId Int?
   vendor   Vendor? @relation(fields: [vendorId], references: [id], onDelete: Cascade)
 
-  leads Lead[]
+  leads    Lead[]
+  services Service[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -310,6 +315,7 @@ model Client {
   payments Payment[]
   offers   Offer[]
   leads    Lead[]
+  services Service[]
 
   createdById Int
   createdBy   User @relation("CreatedBy", fields: [createdById], references: [id])
@@ -495,8 +501,11 @@ model Task {
 model TimeRecord {
   id Int @id @default(autoincrement())
 
-  taskId Int
-  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId Int?
+  task   Task? @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  serviceId Int?
+  service   Service? @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
   date        DateTime // Selectable date (when the work was done)
   minutes     Int // Duration in minutes (e.g. 30, 90, 120)
@@ -518,6 +527,7 @@ model TimeRecord {
   updatedAt DateTime @updatedAt
 
   @@index([taskId])
+  @@index([serviceId])
   @@index([createdById])
   @@index([userId])
   @@index([date])
@@ -728,6 +738,9 @@ model Income {
   taxRate          Decimal? @db.Decimal(5, 2)
 
   notes String?
+
+  // Service link (one-to-one via incomeId on Service)
+  service Service?
 
   createdById Int
   createdBy   User @relation("CreatedBy", fields: [createdById], references: [id])
@@ -1025,6 +1038,65 @@ model EnumValue {
 
   @@unique([enumTypeId, value])
   @@index([enumTypeId, isActive])
+}
+
+// ============================================================================
+// SERVICES (monthly recurring services)
+// ============================================================================
+
+model Service {
+  id Int @id @default(autoincrement())
+
+  name        String
+  description String? @db.Text // Markdown format (SLA, scope, etc.)
+
+  type   String? // Managed via enums (service_type)
+  status String  @default("active") // Managed via enums (service_status)
+
+  // Client
+  clientId   Int?
+  clientName String? // Denormalized: preserved when client is deleted
+  client     Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  // Contact person at the client
+  contactId   Int?
+  contactName String? // Denormalized: preserved when contact is deleted
+  contact     Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  // People
+  assignedToId Int?
+  assignedTo   User? @relation("ServiceAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  createdById Int
+  createdBy   User @relation("ServiceCreatedBy", fields: [createdById], references: [id])
+
+  // Financial
+  monthlyFee      Decimal? @db.Decimal(10, 2)
+  currency        String   @default("HUF")
+  recurringPeriod String   @default("monthly") // Managed via enums (recurring_period)
+  taxRate         Decimal? @db.Decimal(5, 2)   // Tax percentage (0-100)
+
+  // Time tracking
+  budgetedHours Int? // Minutes per month
+  spentTime     Int  @default(0) // Total minutes from timeRecords (materialized aggregate)
+
+  // Dates
+  startDate DateTime
+  endDate   DateTime?
+
+  // Link to auto-generated recurring Income parent
+  incomeId Int?     @unique
+  income   Income?  @relation(fields: [incomeId], references: [id], onDelete: SetNull)
+
+  // Relations
+  timeRecords TimeRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([assignedToId])
+  @@index([status])
 }
 
 // ============================================================================

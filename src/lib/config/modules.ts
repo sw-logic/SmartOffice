@@ -21,7 +21,8 @@ import {
 	FolderOpen,
 	Wrench,
 	Search,
-	Target
+	Target,
+	RefreshCw
 } from 'lucide-svelte';
 import type { ComponentType } from 'svelte';
 
@@ -67,6 +68,14 @@ export const modules: Module[] = [
 		route: '/crm',
 		permissions: ['crm.read'],
 		description: 'CRM pipeline and lead management'
+	},
+	{
+		id: 'services',
+		name: 'Services',
+		icon: RefreshCw,
+		route: '/services',
+		permissions: ['services.read'],
+		description: 'Monthly recurring services'
 	},
 	{
 		id: 'projects',
@@ -313,6 +322,9 @@ export const defaultGroupPermissions: Record<string, Array<{ module: string; act
 		{ module: 'crm', action: 'read' },
 		{ module: 'crm', action: 'create' },
 		{ module: 'crm', action: 'update' },
+		{ module: 'services', action: 'read' },
+		{ module: 'services', action: 'create' },
+		{ module: 'services', action: 'update' },
 		{ module: 'employees', action: 'read' },
 		{ module: 'projects', action: 'read' },
 		{ module: 'projects', action: 'create' },
@@ -345,6 +357,7 @@ export const defaultGroupPermissions: Record<string, Array<{ module: string; act
 		{ module: 'dashboard', action: 'read' },
 		{ module: 'clients', action: 'read' },
 		{ module: 'crm', action: 'read' },
+		{ module: 'services', action: 'read' },
 		{ module: 'projects', action: 'read' },
 		{ module: 'offers', action: 'read' }
 	]
