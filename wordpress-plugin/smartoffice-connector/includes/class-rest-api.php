@@ -108,7 +108,6 @@ class SmartOffice_REST_API {
         }
 
         $health = WP_Site_Health::get_instance();
-
         $tests  = WP_Site_Health::get_tests();
         $results = [
             'good'        => 0,
@@ -117,55 +116,100 @@ class SmartOffice_REST_API {
         ];
         $issues = [];
 
-        // Run both direct and async tests to get full results with issue details
-        $all_tests = array_merge( $tests['direct'] ?? [], $tests['async'] ?? [] );
-
-        foreach ( $all_tests as $key => $test ) {
-            $callback = null;
-
-            // 1. WP 6.1+ async tests provide a direct callable via 'async_direct_test'
-            if ( ! empty( $test['async_direct_test'] ) && is_callable( $test['async_direct_test'] ) ) {
-                $callback = $test['async_direct_test'];
+        // Helper: record a test result
+        $record = function ( array $result, string $fallback_label = '' ) use ( &$results, &$issues ) {
+            if ( ! isset( $result['status'] ) ) {
+                return;
             }
-
-            // 2. String test name — resolve to WP_Site_Health::get_test_{name}()
-            if ( ! $callback && isset( $test['test'] ) && is_string( $test['test'] ) ) {
-                $test_name = $test['test'];
-                // If it's a REST URL, extract the test name from the end
-                if ( strpos( $test_name, '/' ) !== false ) {
-                    $test_name = basename( $test_name );
-                    // Convert dashes to underscores (e.g. dotorg-communication → dotorg_communication)
-                    $test_name = str_replace( '-', '_', $test_name );
-                }
-                if ( method_exists( $health, 'get_test_' . $test_name ) ) {
-                    $callback = [ $health, 'get_test_' . $test_name ];
-                }
+            $status = $result['status'];
+            if ( isset( $results[ $status ] ) ) {
+                $results[ $status ]++;
             }
-
-            // 3. Already a callable (closure or [class, method])
-            if ( ! $callback && isset( $test['test'] ) && is_callable( $test['test'] ) ) {
-                $callback = $test['test'];
+            if ( $status !== 'good' ) {
+                $issues[] = [
+                    'label'  => $result['label'] ?? $fallback_label,
+                    'status' => $status,
+                    'badge'  => $result['badge']['label'] ?? '',
+                ];
             }
+        };
 
-            if ( $callback ) {
+        // Phase 1: Run direct tests via callable resolution
+        foreach ( $tests['direct'] ?? [] as $test ) {
+            $callback = $test['test'] ?? null;
+            if ( is_string( $callback ) && method_exists( $health, 'get_test_' . $callback ) ) {
+                $callback = [ $health, 'get_test_' . $callback ];
+            }
+            if ( is_callable( $callback ) ) {
                 try {
-                    $result = call_user_func( $callback );
-                    if ( isset( $result['status'] ) ) {
-                        $status = $result['status'];
-                        if ( isset( $results[ $status ] ) ) {
-                            $results[ $status ]++;
-                        }
-                        if ( $status !== 'good' ) {
-                            $issues[] = [
-                                'label'  => $result['label'] ?? $test['label'] ?? '',
-                                'status' => $status,
-                                'badge'  => $result['badge']['label'] ?? '',
-                            ];
-                        }
-                    }
+                    $record( call_user_func( $callback ), $test['label'] ?? '' );
                 } catch ( \Throwable $e ) {
                     // Skip failing tests
                 }
+            }
+        }
+
+        // Phase 2: Run async tests via internal REST dispatch (official WP REST endpoints)
+        foreach ( $tests['async'] ?? [] as $test ) {
+            $ran = false;
+
+            // 2a. If test has a REST route (has_rest flag), use internal REST dispatch
+            if ( ! empty( $test['has_rest'] ) && ! empty( $test['test'] ) && is_string( $test['test'] ) ) {
+                $rest_url = $test['test'];
+                // Extract the REST path from full URL (e.g. https://site/wp-json/wp-site-health/v1/tests/xxx)
+                $rest_path = $rest_url;
+                $rest_base = rest_url();
+                if ( strpos( $rest_url, $rest_base ) === 0 ) {
+                    $rest_path = '/' . substr( $rest_url, strlen( $rest_base ) );
+                }
+                try {
+                    $request  = new WP_REST_Request( 'GET', $rest_path );
+                    $response = rest_do_request( $request );
+                    if ( ! $response->is_error() ) {
+                        $record( $response->get_data(), $test['label'] ?? '' );
+                        $ran = true;
+                    }
+                } catch ( \Throwable $e ) {
+                    // Fall through to next method
+                }
+            }
+
+            // 2b. Fallback: async_direct_test callable (WP 6.1+)
+            if ( ! $ran && ! empty( $test['async_direct_test'] ) && is_callable( $test['async_direct_test'] ) ) {
+                try {
+                    $record( call_user_func( $test['async_direct_test'] ), $test['label'] ?? '' );
+                    $ran = true;
+                } catch ( \Throwable $e ) {
+                    // Skip
+                }
+            }
+
+            // 2c. Fallback: resolve string test name to WP_Site_Health method
+            if ( ! $ran && isset( $test['test'] ) && is_string( $test['test'] ) ) {
+                $test_name = $test['test'];
+                if ( strpos( $test_name, '/' ) !== false ) {
+                    $test_name = str_replace( '-', '_', basename( $test_name ) );
+                }
+                if ( method_exists( $health, 'get_test_' . $test_name ) ) {
+                    try {
+                        $record( call_user_func( [ $health, 'get_test_' . $test_name ] ), $test['label'] ?? '' );
+                        $ran = true;
+                    } catch ( \Throwable $e ) {
+                        // Skip
+                    }
+                }
+            }
+        }
+
+        // Phase 3: Fallback — if cached transient has higher counts, use those
+        // This catches tests we couldn't run (custom plugin tests, missing context, etc.)
+        $cached = get_transient( 'health-check-site-status-result' );
+        if ( $cached ) {
+            $cached_data = is_string( $cached ) ? json_decode( $cached, true ) : $cached;
+            if ( is_array( $cached_data ) && isset( $cached_data['good'] ) && ! is_array( $cached_data['good'] ) ) {
+                $results['good']        = max( $results['good'],        (int) ( $cached_data['good'] ?? 0 ) );
+                $results['recommended'] = max( $results['recommended'], (int) ( $cached_data['recommended'] ?? 0 ) );
+                $results['critical']    = max( $results['critical'],    (int) ( $cached_data['critical'] ?? 0 ) );
             }
         }
 
