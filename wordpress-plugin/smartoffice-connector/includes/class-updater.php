@@ -187,18 +187,18 @@ class SmartOffice_Updater {
     }
 
     /**
-     * Add Authorization header for GitHub download requests.
+     * Add Authorization header for GitHub API requests.
+     *
+     * For asset downloads, sets Accept: application/octet-stream which triggers
+     * a 302 redirect to a pre-signed S3 URL (no auth needed for the redirect target).
      *
      * @param array  $args HTTP request args.
      * @param string $url  Request URL.
      * @return array
      */
     public static function inject_auth_header( $args, $url ) {
-        // Only intercept GitHub requests (API and browser download URLs).
-        $is_api      = strpos( $url, 'api.github.com' ) !== false;
-        $is_download = strpos( $url, 'github.com/' ) !== false && strpos( $url, '/releases/download/' ) !== false;
-
-        if ( ! $is_api && ! $is_download ) {
+        // Only intercept GitHub API requests — browser URLs don't support Bearer auth.
+        if ( strpos( $url, 'api.github.com' ) === false ) {
             return $args;
         }
 
@@ -213,8 +213,8 @@ class SmartOffice_Updater {
         }
 
         $args['headers']['Authorization'] = 'Bearer ' . $pat;
-        // Only set octet-stream for API asset downloads, not for JSON calls or browser downloads
-        if ( $is_api && strpos( $url, '/assets/' ) !== false ) {
+        // Asset downloads: octet-stream triggers 302 to pre-signed S3 URL
+        if ( strpos( $url, '/assets/' ) !== false ) {
             $args['headers']['Accept'] = 'application/octet-stream';
         }
 
@@ -325,8 +325,9 @@ class SmartOffice_Updater {
     /**
      * Determine the download URL for a release.
      *
-     * Prefers a .zip release asset (downloaded via GitHub API with auth header),
-     * falls back to the zipball URL.
+     * Uses the GitHub API asset URL (not browser_download_url) because private repos
+     * require Bearer token auth which only works via the API. The API returns a 302
+     * redirect to a pre-signed S3 URL that needs no authentication.
      *
      * @param array $release Release data from fetch_release().
      * @return string|false Download URL or false.
@@ -339,13 +340,12 @@ class SmartOffice_Updater {
             return false;
         }
 
-        // Prefer browser download URL for .zip asset (simpler, no redirect dance).
+        // Prefer API URL for .zip asset (works with Bearer auth for private repos).
+        // browser_download_url requires cookie-based auth and doesn't work with tokens.
         if ( ! empty( $release['assets'] ) ) {
-            if ( ! empty( $release['assets'][0]['browser_download_url'] ) ) {
-                return $release['assets'][0]['browser_download_url'];
+            if ( ! empty( $release['assets'][0]['url'] ) ) {
+                return $release['assets'][0]['url'];
             }
-            // Fallback to API URL
-            return $release['assets'][0]['url'];
         }
 
         // Fallback to zipball (also goes through the auth filter).
