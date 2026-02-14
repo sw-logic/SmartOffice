@@ -119,9 +119,14 @@ class SmartOffice_REST_API {
 
         // 1. Run direct (synchronous) tests
         foreach ( $tests['direct'] as $test ) {
-            if ( is_callable( $test['test'] ) ) {
+            $callback = $test['test'];
+            // WP stores test names as strings — resolve to WP_Site_Health method
+            if ( is_string( $callback ) && method_exists( $health, 'get_test_' . $callback ) ) {
+                $callback = [ $health, 'get_test_' . $callback ];
+            }
+            if ( is_callable( $callback ) ) {
                 try {
-                    $result = call_user_func( $test['test'] );
+                    $result = call_user_func( $callback );
                     if ( isset( $result['status'] ) ) {
                         $status = $result['status'];
                         if ( isset( $results[ $status ] ) ) {
@@ -146,18 +151,26 @@ class SmartOffice_REST_API {
         if ( $async_results ) {
             $async_data = is_string( $async_results ) ? json_decode( $async_results, true ) : $async_results;
             if ( is_array( $async_data ) ) {
-                foreach ( $async_data as $result ) {
-                    if ( isset( $result['status'] ) ) {
-                        $status = $result['status'];
-                        if ( isset( $results[ $status ] ) ) {
-                            $results[ $status ]++;
-                        }
-                        if ( $status !== 'good' ) {
-                            $issues[] = [
-                                'label'  => $result['label'] ?? '',
-                                'status' => $status,
-                                'badge'  => $result['badge']['label'] ?? '',
-                            ];
+                // WP stores counts: {"good": N, "recommended": N, "critical": N}
+                if ( isset( $async_data['good'] ) && ! is_array( $async_data['good'] ) ) {
+                    $results['good']        += (int) ( $async_data['good'] ?? 0 );
+                    $results['recommended'] += (int) ( $async_data['recommended'] ?? 0 );
+                    $results['critical']    += (int) ( $async_data['critical'] ?? 0 );
+                } else {
+                    // Fallback: array of individual test results
+                    foreach ( $async_data as $result ) {
+                        if ( isset( $result['status'] ) ) {
+                            $status = $result['status'];
+                            if ( isset( $results[ $status ] ) ) {
+                                $results[ $status ]++;
+                            }
+                            if ( $status !== 'good' ) {
+                                $issues[] = [
+                                    'label'  => $result['label'] ?? '',
+                                    'status' => $status,
+                                    'badge'  => $result['badge']['label'] ?? '',
+                                ];
+                            }
                         }
                     }
                 }
