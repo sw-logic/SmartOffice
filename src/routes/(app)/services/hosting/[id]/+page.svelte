@@ -3,6 +3,7 @@
 	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
+	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Card from '$lib/components/ui/card';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as Table from '$lib/components/ui/table';
@@ -57,13 +58,39 @@
 	});
 
 	// Update state
-	let updatingPlugins = $state<Set<string>>(new Set());
+	let updatingSelectedPlugins = $state(false);
 	let updatingThemes = $state<Set<string>>(new Set());
-	let updatingAllPlugins = $state(false);
 	let updatingAllThemes = $state(false);
 
-	let anyPluginUpdating = $derived(updatingPlugins.size > 0 || updatingAllPlugins);
+	let anyPluginUpdating = $derived(updatingSelectedPlugins);
 	let anyThemeUpdating = $derived(updatingThemes.size > 0 || updatingAllThemes);
+
+	// Plugin checkbox selection
+	let selectedPlugins = $state<Set<string>>(new Set());
+	let updatablePluginFiles = $derived<string[]>(
+		pluginData?.plugins?.filter((p: any) => p.update).map((p: any) => p.file) ?? []
+	);
+	let allPluginsSelected = $derived(
+		updatablePluginFiles.length > 0 && selectedPlugins.size === updatablePluginFiles.length
+	);
+	let somePluginsSelected = $derived(
+		selectedPlugins.size > 0 && selectedPlugins.size < updatablePluginFiles.length
+	);
+
+	function toggleSelectAllPlugins() {
+		if (allPluginsSelected) {
+			selectedPlugins = new Set();
+		} else {
+			selectedPlugins = new Set(updatablePluginFiles);
+		}
+	}
+
+	function toggleSelectPlugin(file: string) {
+		const next = new Set(selectedPlugins);
+		if (next.has(file)) next.delete(file);
+		else next.add(file);
+		selectedPlugins = next;
+	}
 
 	function statusIcon(status: string) {
 		switch (status) {
@@ -120,7 +147,7 @@
 			if (res.ok) {
 				const result = await res.json();
 				switch (endpoint) {
-					case 'plugins': pluginData = result.data; break;
+					case 'plugins': pluginData = result.data; selectedPlugins = new Set(); break;
 					case 'themes': themeData = result.data; break;
 					case 'health': healthData = result.data; break;
 					case 'core': coreData = result.data; break;
@@ -139,51 +166,24 @@
 		}
 	}
 
-	async function updatePlugin(file: string) {
-		updatingPlugins = new Set([...updatingPlugins, file]);
+	async function updateSelectedPlugins() {
+		const files = [...selectedPlugins];
+		if (files.length === 0) return;
+		updatingSelectedPlugins = true;
 		try {
 			const res = await fetch(`/api/hosting/${data.site.id}/sync?endpoint=plugins&action=update`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ plugins: [file] })
-			});
-			if (res.ok) {
-				const { data: result } = await res.json();
-				if (result.updated > 0) {
-					const r = result.results[0];
-					toast.success(`${r.name} updated to ${r.new_version}`);
-				} else if (result.failed > 0) {
-					toast.error(`Failed to update: ${result.results[0]?.error || 'Unknown error'}`);
-				}
-			} else {
-				const err = await res.json().catch(() => ({}));
-				toast.error(err.message || 'Update failed');
-			}
-		} catch {
-			toast.error('Connection failed');
-		} finally {
-			updatingPlugins = new Set([...updatingPlugins].filter(f => f !== file));
-		}
-		// Refresh plugin data and overview
-		await Promise.all([fetchTabData('plugins'), syncOverview()]);
-	}
-
-	async function updateAllPlugins() {
-		updatingAllPlugins = true;
-		try {
-			const res = await fetch(`/api/hosting/${data.site.id}/sync?endpoint=plugins&action=update`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ all: true })
+				body: JSON.stringify({ plugins: files })
 			});
 			if (res.ok) {
 				const { data: result } = await res.json();
 				if (result.updated > 0 && result.failed === 0) {
-					toast.success(`All ${result.updated} plugins updated`);
+					toast.success(`${result.updated} plugin${result.updated !== 1 ? 's' : ''} updated`);
 				} else if (result.updated > 0 && result.failed > 0) {
 					toast.warning(`${result.updated} updated, ${result.failed} failed`);
 				} else if (result.failed > 0) {
-					toast.error(`Failed to update ${result.failed} plugins`);
+					toast.error(`Failed to update ${result.failed} plugin${result.failed !== 1 ? 's' : ''}`);
 				}
 			} else {
 				const err = await res.json().catch(() => ({}));
@@ -192,7 +192,8 @@
 		} catch {
 			toast.error('Connection failed');
 		} finally {
-			updatingAllPlugins = false;
+			updatingSelectedPlugins = false;
+			selectedPlugins = new Set();
 		}
 		await Promise.all([fetchTabData('plugins'), syncOverview()]);
 	}
@@ -552,19 +553,19 @@
 								{pluginData.total} plugins, {pluginData.active} active, {pluginData.updates} with updates
 							</p>
 							<div class="flex items-center gap-2">
-								{#if data.canUpdate && pluginData.updates > 0}
+								{#if data.canUpdate && selectedPlugins.size > 0}
 									<Button
 										variant="outline"
 										size="sm"
-										onclick={updateAllPlugins}
+										onclick={updateSelectedPlugins}
 										disabled={anyPluginUpdating}
 									>
-										{#if updatingAllPlugins}
+										{#if updatingSelectedPlugins}
 											<LoaderCircle class="mr-1 h-3.5 w-3.5 animate-spin" />
 											Updating...
 										{:else}
 											<Download class="mr-1 h-3.5 w-3.5" />
-											Update All ({pluginData.updates})
+											Update Selected ({selectedPlugins.size})
 										{/if}
 									</Button>
 								{/if}
@@ -578,6 +579,16 @@
 							<Table.Root>
 								<Table.Header>
 									<Table.Row>
+										{#if data.canUpdate && pluginData.updates > 0}
+											<Table.Head class="w-10">
+												<Checkbox
+													checked={allPluginsSelected}
+													indeterminate={somePluginsSelected}
+													onCheckedChange={toggleSelectAllPlugins}
+													disabled={anyPluginUpdating}
+												/>
+											</Table.Head>
+										{/if}
 										<Table.Head>Plugin</Table.Head>
 										<Table.Head>Version</Table.Head>
 										<Table.Head>Status</Table.Head>
@@ -587,6 +598,17 @@
 								<Table.Body>
 									{#each pluginData.plugins as plugin}
 										<Table.Row>
+											{#if data.canUpdate && pluginData.updates > 0}
+												<Table.Cell class="w-10">
+													{#if plugin.update}
+														<Checkbox
+															checked={selectedPlugins.has(plugin.file)}
+															onCheckedChange={() => toggleSelectPlugin(plugin.file)}
+															disabled={anyPluginUpdating}
+														/>
+													{/if}
+												</Table.Cell>
+											{/if}
 											<Table.Cell>
 												<div>
 													<span class="font-medium">{plugin.name}</span>
@@ -602,23 +624,7 @@
 												</Badge>
 											</Table.Cell>
 											<Table.Cell>
-												{#if plugin.update && data.canUpdate}
-													<Button
-														variant="secondary"
-														size="sm"
-														class="h-7 gap-1 text-xs"
-														onclick={() => updatePlugin(plugin.file)}
-														disabled={anyPluginUpdating}
-													>
-														{#if updatingPlugins.has(plugin.file)}
-															<LoaderCircle class="h-3 w-3 animate-spin" />
-															Updating...
-														{:else}
-															<ArrowUpCircle class="h-3 w-3" />
-															{plugin.new_version}
-														{/if}
-													</Button>
-												{:else if plugin.update}
+												{#if plugin.update}
 													<Badge variant="secondary" class="gap-1">
 														<ArrowUpCircle class="h-3 w-3" />
 														{plugin.new_version}

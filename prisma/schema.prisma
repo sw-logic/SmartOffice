@@ -82,6 +82,9 @@ model User {
   assignedServices Service[] @relation("ServiceAssignedTo")
   createdServices  Service[] @relation("ServiceCreatedBy")
 
+  // Hosting
+  createdHostingSites HostingSite[] @relation("HostingSiteCreatedBy")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -314,8 +317,9 @@ model Client {
   income   Income[]
   payments Payment[]
   offers   Offer[]
-  leads    Lead[]
-  services Service[]
+  leads        Lead[]
+  services     Service[]
+  hostingSites HostingSite[]
 
   createdById Int
   createdBy   User @relation("CreatedBy", fields: [createdById], references: [id])
@@ -1089,13 +1093,62 @@ model Service {
   income   Income?  @relation(fields: [incomeId], references: [id], onDelete: SetNull)
 
   // Relations
-  timeRecords TimeRecord[]
+  timeRecords  TimeRecord[]
+  hostingSites HostingSite[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([clientId])
   @@index([assignedToId])
+  @@index([status])
+}
+
+// ============================================================================
+// HOSTING SITES (WordPress monitoring via SmartOffice Connector plugin)
+// ============================================================================
+
+model HostingSite {
+  id Int @id @default(autoincrement())
+
+  name   String // Display name, e.g. "Client X Website"
+  domain String // e.g. "clientx.com"
+  apiUrl String // e.g. "https://clientx.com/wp-json/smartoffice/v1"
+  apiKey String // SmartOffice Connector plugin API key
+
+  // Cached status from last sync
+  status        String  @default("unknown") // "good", "should_improve", "critical", "unknown", "offline"
+  wpVersion     String?
+  phpVersion    String?
+  coreUpdate    Boolean @default(false)
+  pluginUpdates Int     @default(0)
+  themeUpdates  Int     @default(0)
+  totalUpdates  Int     @default(0)
+  activePlugins Int     @default(0)
+
+  thumbnailPath String? // Desktop screenshot relative path
+
+  // Full cached response (JSON) from /overview endpoint
+  lastSyncData Json?
+  lastSyncAt   DateTime?
+  lastSyncError String?
+
+  // Relations
+  serviceId Int?
+  service   Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+
+  clientId   Int?
+  clientName String? // Denormalized
+  client     Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  createdById Int
+  createdBy   User @relation("HostingSiteCreatedBy", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([serviceId])
+  @@index([clientId])
   @@index([status])
 }
 

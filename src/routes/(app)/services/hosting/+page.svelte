@@ -4,6 +4,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Card from '$lib/components/ui/card';
+	import * as Table from '$lib/components/ui/table';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { DeleteConfirmDialog } from '$lib/components/shared/list';
 	import HostingSiteFormModal from '$lib/components/shared/HostingSiteFormModal.svelte';
@@ -17,12 +18,23 @@
 		ShieldX,
 		WifiOff,
 		CircleHelp,
-		ArrowUpCircle
+		ArrowUpCircle,
+		LayoutGrid,
+		LayoutList,
+		Pencil
 	} from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
 	import { formatDate } from '$lib/utils/date';
 
 	let { data } = $props();
+
+	// View mode (persisted in localStorage)
+	let viewMode = $state<'card' | 'list'>(
+		(typeof localStorage !== 'undefined' && localStorage.getItem('hosting-view') as 'card' | 'list') || 'card'
+	);
+	$effect(() => {
+		localStorage.setItem('hosting-view', viewMode);
+	});
 
 	// Form modal
 	let formModalOpen = $state(false);
@@ -86,6 +98,13 @@
 			case 'should_improve': return 'secondary';
 			case 'critical': return 'destructive';
 			default: return 'outline';
+		}
+	}
+
+	function statusLabel(status: string): string {
+		switch (status) {
+			case 'should_improve': return 'Needs Attention';
+			default: return status.charAt(0).toUpperCase() + status.slice(1);
 		}
 	}
 
@@ -190,6 +209,26 @@
 				</Button>
 			{/if}
 			{#if data.sites.length > 0}
+				<div class="flex items-center border rounded-md">
+					<Button
+						variant={viewMode === 'card' ? 'secondary' : 'ghost'}
+						size="icon"
+						class="h-9 w-9 rounded-r-none"
+						onclick={() => (viewMode = 'card')}
+						title="Card view"
+					>
+						<LayoutGrid class="h-4 w-4" />
+					</Button>
+					<Button
+						variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+						size="icon"
+						class="h-9 w-9 rounded-l-none"
+						onclick={() => (viewMode = 'list')}
+						title="List view"
+					>
+						<LayoutList class="h-4 w-4" />
+					</Button>
+				</div>
 				<Button variant="outline" onclick={syncAll} disabled={syncAllLoading}>
 					<RefreshCw class="mr-2 h-4 w-4 {syncAllLoading ? 'animate-spin' : ''}" />
 					Sync All
@@ -220,7 +259,126 @@
 				{/if}
 			</Card.Content>
 		</Card.Root>
+	{:else if viewMode === 'list'}
+		<!-- List View -->
+		<div class="rounded-md border">
+			<Table.Root>
+				<Table.Header>
+					<Table.Row>
+						{#if data.canDelete}
+							<Table.Head class="w-10">
+								<Checkbox
+									checked={allSelected}
+									indeterminate={someSelected}
+									onCheckedChange={toggleSelectAll}
+								/>
+							</Table.Head>
+						{/if}
+						<Table.Head>Site</Table.Head>
+						<Table.Head class="w-24 text-center">Status</Table.Head>
+						<Table.Head class="w-20 text-center">Updates</Table.Head>
+						<Table.Head class="w-16 text-center">WP</Table.Head>
+						<Table.Head class="w-16 text-center">PHP</Table.Head>
+						<Table.Head class="w-20 text-center">Plugins</Table.Head>
+						<Table.Head class="w-28">Client</Table.Head>
+						<Table.Head class="w-28">Last Sync</Table.Head>
+						<Table.Head class="w-24"></Table.Head>
+					</Table.Row>
+				</Table.Header>
+				<Table.Body>
+					{#each data.sites as site}
+						{@const StatusIcon = statusIcon(site.status)}
+						{@const isSyncing = syncingIds.has(site.id)}
+						<Table.Row
+							class="cursor-pointer"
+							onclick={() => goto(`/services/hosting/${site.id}`)}
+						>
+							{#if data.canDelete}
+								<Table.Cell onclick={(e) => e.stopPropagation()}>
+									<Checkbox
+										checked={selectedIds.has(site.id)}
+										onCheckedChange={() => toggleSelect(site.id)}
+									/>
+								</Table.Cell>
+							{/if}
+							<Table.Cell>
+								<div class="flex items-center gap-2">
+									<StatusIcon class="h-4 w-4 shrink-0 {statusColor(site.status)}" />
+									<div class="min-w-0">
+										<p class="font-medium truncate">{site.name}</p>
+										<p class="text-xs text-muted-foreground truncate">{site.domain}</p>
+									</div>
+								</div>
+							</Table.Cell>
+							<Table.Cell class="text-center">
+								<Badge variant={statusBadgeVariant(site.status)} class="text-xs">
+									{statusLabel(site.status)}
+								</Badge>
+							</Table.Cell>
+							<Table.Cell class="text-center">
+								{#if site.totalUpdates > 0}
+									<Badge variant="secondary" class="gap-1 text-xs">
+										<ArrowUpCircle class="h-3 w-3" />
+										{site.totalUpdates}
+									</Badge>
+								{:else}
+									<span class="text-xs text-muted-foreground">0</span>
+								{/if}
+							</Table.Cell>
+							<Table.Cell class="text-center text-sm">{site.wpVersion || '-'}</Table.Cell>
+							<Table.Cell class="text-center text-sm">{site.phpVersion || '-'}</Table.Cell>
+							<Table.Cell class="text-center text-sm">{site.activePlugins || '-'}</Table.Cell>
+							<Table.Cell class="text-sm truncate max-w-[7rem]">{site.client?.name || site.clientName || '-'}</Table.Cell>
+							<Table.Cell class="text-xs text-muted-foreground">
+								{#if site.lastSyncAt}
+									{formatDate(site.lastSyncAt)}
+								{:else}
+									Never
+								{/if}
+							</Table.Cell>
+							<Table.Cell>
+								<div class="flex items-center gap-1" onclick={(e) => e.stopPropagation()}>
+									<Button
+										variant="ghost"
+										size="icon"
+										class="h-7 w-7"
+										onclick={() => syncSite(site.id)}
+										disabled={isSyncing}
+										title="Sync now"
+									>
+										<RefreshCw class="h-3.5 w-3.5 {isSyncing ? 'animate-spin' : ''}" />
+									</Button>
+									{#if data.canUpdate}
+										<Button
+											variant="ghost"
+											size="icon"
+											class="h-7 w-7"
+											onclick={() => openEditModal(site)}
+											title="Edit"
+										>
+											<Pencil class="h-3.5 w-3.5" />
+										</Button>
+									{/if}
+									{#if data.canDelete}
+										<Button
+											variant="ghost"
+											size="icon"
+											class="h-7 w-7"
+											onclick={() => confirmDelete({ id: site.id, name: site.name })}
+											title="Delete"
+										>
+											<Trash2 class="h-3.5 w-3.5" />
+										</Button>
+									{/if}
+								</div>
+							</Table.Cell>
+						</Table.Row>
+					{/each}
+				</Table.Body>
+			</Table.Root>
+		</div>
 	{:else}
+		<!-- Card View -->
 		<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
 			{#each data.sites as site}
 				{@const StatusIcon = statusIcon(site.status)}
@@ -249,7 +407,7 @@
                                             <p class="text-sm text-muted-foreground truncate">{site.domain}</p>
                                             <hr class="my-3">
                                             <Badge variant={statusBadgeVariant(site.status)}>
-                                                {site.status === 'should_improve' ? 'Needs Attention' : site.status.charAt(0).toUpperCase() + site.status.slice(1)}
+                                                {statusLabel(site.status)}
                                             </Badge>
                                             {#if site.totalUpdates > 0}
                                                 <Badge variant="secondary" class="gap-1">
@@ -331,7 +489,7 @@
 											onclick={() => openEditModal(site)}
 											title="Edit"
 										>
-											<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></svg>
+											<Pencil class="h-3.5 w-3.5" />
 										</Button>
 									{/if}
 									{#if data.canDelete}

@@ -2,9 +2,9 @@
 
 ## Project Overview
 
-A web-based company management system for managing clients, employees, vendors, projects, finances (
-income/expenses/payments), price lists, and offers. Single-company deployment with role-based access control and audit
-logging.
+A web-based company management system for managing clients, vendors, CRM leads, recurring services,
+WordPress hosting monitoring, projects, finances (income/expenses/payments), price lists, offers, and SEO audits.
+Single-company deployment with role-based access control and audit logging.
 
 ### Target Users
 
@@ -12,6 +12,17 @@ logging.
 - Managers
 - Employees
 - Accountants/Financial staff
+
+### Module Documentation
+
+Detailed module docs are in `docs/modules/`:
+- [`docs/modules/clients.md`](docs/modules/clients.md) — Client records, contact management, linked entities
+- [`docs/modules/vendors.md`](docs/modules/vendors.md) — Vendor/supplier records, contact management, expenses
+- [`docs/modules/projects.md`](docs/modules/projects.md) — Projects, Kanban boards, tasks, time tracking, milestones
+- [`docs/modules/finances.md`](docs/modules/finances.md) — Income/expenses, recurring transactions, dashboard, tax/payment terms
+- [`docs/modules/crm.md`](docs/modules/crm.md) — CRM pipeline, Lead model, Kanban board, stages
+- [`docs/modules/services.md`](docs/modules/services.md) — Recurring services, hosting monitoring, WordPress plugin, screenshots
+- [`docs/modules/seo-audit.md`](docs/modules/seo-audit.md) — SEO audit tool, Lighthouse, AI analysis, PDF reports
 
 ---
 
@@ -27,6 +38,7 @@ logging.
 - **Forms**: Superforms with Zod validation (full-page forms), fetch-based API calls (modals)
 - **Notifications**: svelte-sonner
 - **Rich Text**: Tiptap core with `@tiptap/markdown` for markdown I/O; Edra vendored for toolbar/menu UI only
+- **Browser Automation**: Playwright (screenshots, SEO crawling, Lighthouse)
 
 ### Additional Libraries
 
@@ -34,7 +46,7 @@ logging.
 - **jsPDF / @pdfme** - PDF generation
 - **xlsx (SheetJS)** - Excel import/export
 - **Nodemailer** - Email sending
-- **svelte-dnd-action** - Drag-and-drop for kanban boards
+- **svelte-dnd-action** - Drag-and-drop for kanban boards and CRM pipeline
 - **tailwind-variants** (tv) - Component variant styling (used in shadcn-svelte Button, etc.)
 
 ### Infrastructure
@@ -60,7 +72,12 @@ src/
 │   │                     # MarkdownEditor, MarkdownViewer, TextareaWithVoice,
 │   │                     # ColorInput, DurationInput, TaskDetailModal,
 │   │                     # TaskTimeRecordsList, TimeRecordFormModal,
-│   │                     # NoteFormModal, DateRangeSelector
+│   │                     # NoteFormModal, DateRangeSelector, LeadCard,
+│   │                     # ServiceTimeRecordsList, ServiceTimeRecordFormModal,
+│   │                     # HostingSiteFormModal
+│   ├── config/
+│   │   ├── modules.ts    # Navigation module definitions with permissions
+│   │   └── lead-stages.ts # CRM pipeline stage definitions (LEAD_STAGES, ACTIVE_STAGES)
 │   ├── server/
 │   │   ├── prisma.ts     # Prisma client singleton
 │   │   ├── access-control.ts  # RBAC: requirePermission, checkPermission, isAdmin
@@ -69,9 +86,11 @@ src/
 │   │   ├── email.ts      # Nodemailer integration
 │   │   ├── file-upload.ts # Secure file upload with category-based paths
 │   │   ├── rate-limit.ts  # Sliding-window rate limiter (login, API mutations, reads)
-│   │   ├── recurring.ts   # Recurring income/expense generation and promotion
-│   │   ├── time-records.ts # recalcTaskSpentTime, formatMinutes
-│   │   └── user-cache.ts  # TTL-based user validity cache (5 min)
+│   │   ├── recurring.ts   # Recurring income/expense/service-income generation
+│   │   ├── screenshot.ts  # Shared Playwright browser: getBrowser, closeBrowser, captureScreenshot
+│   │   ├── time-records.ts # recalcTaskSpentTime, recalcServiceSpentTime, formatMinutes
+│   │   ├── user-cache.ts  # TTL-based user validity cache (5 min)
+│   │   └── seo/          # SEO audit: crawler, analyzer, lighthouse, AI, PDF, charts
 │   ├── stores/
 │   └── utils/
 │       └── date.ts       # formatDate utility
@@ -80,18 +99,30 @@ src/
 │   ├── (app)/            # Protected app routes
 │   │   ├── clients/
 │   │   ├── vendors/
+│   │   ├── crm/          # CRM pipeline, lead CRUD (new, [id], [id]/edit)
+│   │   ├── services/     # Recurring services (new, [id], [id]/edit)
+│   │   │   └── hosting/  # WordPress hosting sites ([id] detail)
 │   │   ├── projects/     # projects, boards, tasks
 │   │   ├── finances/     # dashboard, income, expenses
 │   │   ├── pricelists/
-│   │   └── settings/     # users, groups, enums
+│   │   ├── tools/
+│   │   │   └── seo-audit/ # SEO audit tool ([id] detail)
+│   │   └── settings/     # users, groups, enums, company
 │   └── api/              # REST endpoints for modal-based CRUD
 │       ├── income/       # POST, GET/PUT/DELETE [id]
 │       ├── expenses/     # POST, GET/PUT/DELETE [id]
 │       ├── notes/        # POST, GET/PATCH/DELETE [id]
-│       └── tasks/        # POST, GET/PUT/DELETE [id], time-records, modal-data
+│       ├── tasks/        # POST, GET/PUT/DELETE [id], time-records, modal-data
+│       ├── leads/        # POST, GET/PUT/DELETE [id]
+│       ├── services/     # [id]/time-records (POST, PATCH/DELETE [recordId])
+│       ├── hosting/      # POST, GET/PUT/DELETE [id], [id]/sync, [id]/login
+│       ├── tools/seo-audit/ # POST, GET/DELETE [id], [id]/pdf
+│       └── uploads/      # Static file serving: GET [...path]
 ├── styles/
 │   └── app.scss          # Global styles
 └── hooks.server.ts       # Auth middleware + permission pre-loading
+wordpress-plugin/
+└── smartoffice-connector/ # WordPress plugin for hosting site monitoring
 ```
 
 ---
@@ -117,7 +148,7 @@ We use Svelte 5 runes throughout the application:
 - Use `checkPermission(locals, module, action)` for conditional UI (returns boolean)
 - Use `isAdmin(locals)` to check for `*.*` wildcard
 - Row-level: `canAccessProject(locals, projectId)`, `isProjectManager(locals, projectId)`
-- Permission modules: `clients`, `vendors`, `projects`, `finances.income`, `finances.expenses`, `settings`, `*`
+- Permission modules: `clients`, `vendors`, `crm`, `services`, `projects`, `finances.income`, `finances.expenses`, `tools`, `settings`, `*`
 
 ### Hard Delete + Audit Log
 
@@ -128,9 +159,11 @@ We use Svelte 5 runes throughout the application:
 - Self-referential recurring records use `onDelete: Cascade` (deleting parent cascades to projected children)
 - `ProjectEmployee`, `KanbanBoardMember` join tables use `onDelete: Cascade`
 
-### Denormalized Names (Financial Records)
+### Denormalized Names
 
-- `Income.clientName` and `Expense.vendorName` preserve the entity name when the linked client/vendor is deleted
+Used on: `Income.clientName`, `Expense.vendorName`, `Lead.clientName`, `Lead.contactName`, `Service.clientName`, `Service.contactName`, `HostingSite.clientName`
+
+- Preserve the entity name when the linked client/vendor/contact is deleted
 - Populated on create and update (API handlers and full-page forms)
 - Copied from parent in recurring occurrence generation (`recurring.ts`)
 - Display pattern: `entity.client?.name || entity.clientName || '-'` (prefer live relation, fall back to denormalized)
@@ -159,20 +192,20 @@ Composable helper functions that eliminate repeated boilerplate across `+page.se
 | `calculateDueDate(date, paymentTermDays)` | `date + days * 86400000` or null | income/expenses create & edit |
 | `fetchDenormalizedName(model, id)` | Fetch client/vendor name for denormalization | income/expenses create & edit |
 | `createDeleteAction(config)` | Factory: permission → parse ID → find → logDelete → delete | All list pages |
-| `createBulkDeleteAction(config)` | Factory: permission → parse IDs → find → logDelete each → deleteMany | users, income, expenses, offers |
+| `createBulkDeleteAction(config)` | Factory: permission → parse IDs → find → logDelete each → deleteMany | users, income, expenses, offers, hosting |
 
 **Action factories** accept hooks for module-specific logic:
 - `validate(record, locals)` — e.g., prevent self-delete on users
 - `beforeDelete(record)` — e.g., delete projected children for recurring income/expenses
 - `afterDelete(record)` — e.g., invalidate user cache
 
-**What stays module-specific**: Where clause building, select fields, aggregate queries, conditional field selection, and any non-delete form actions (updateStatus, toggleActive, etc.).
+**What stays module-specific**: Where clause building, select fields, aggregate queries, conditional field selection, and any non-delete form actions (updateStatus, toggleActive, reorderLeads, etc.).
 
 ### Enum Management
 
 - Dynamic enums stored in `EnumType` and `EnumValue` tables
-- Grouped by module: Generic, Finances, Clients, Vendors, Employees, Projects, Offers, Price Lists
-- 26 registered enum codes in `ALL_ENUM_CODES` (see full list below)
+- Grouped by module: Generic, Finances, Clients, Vendors, Employees, Projects, CRM, Services, Offers, Price Lists
+- 29 registered enum codes in `ALL_ENUM_CODES` (see full list below)
 - Functions: `getEnumValues(typeCode)`, `getEnumValuesBatch(typeCodes)`, `clearEnumCache()`, `getEnumDefaultValue()`, `getEnumLabel()`
 - 5-minute cache TTL for performance
 - `EnumOption` type: `{ value, label, description?, isDefault, color?, metadata? }`
@@ -190,6 +223,8 @@ Vendors:    vendor_category
 Employees:  department, employment_type, employee_status
 Projects:   project_status, task_status, task_type, task_category
 Time:       time_record_type, time_record_category
+CRM:        lead_source
+Services:   service_type, service_status
 Other:      offer_status, unit_of_measure, pricelist_category
 ```
 
@@ -214,6 +249,14 @@ Other:      offer_status, unit_of_measure, pricelist_category
 - Security: `resolveSecurePath()` validates against directory traversal
 - Allowed types: images (jpeg, png, gif, webp), documents (pdf, doc, docx), spreadsheets (xls, xlsx, csv)
 - Max size: 10MB default (configurable via `MAX_FILE_SIZE` env var)
+- Static serving: `GET /api/uploads/[...path]` with immutable cache headers
+
+### Screenshot Utility (`src/lib/server/screenshot.ts`)
+
+Shared Playwright browser management used by hosting thumbnails and SEO audit:
+- `getBrowser()` — Reuses or launches headless Chromium (supports `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` env)
+- `closeBrowser()` — Closes browser connection
+- `captureScreenshot(url, absolutePath, relativePath)` — 1920x1080 viewport, `networkidle` wait, returns relative path or null on failure
 
 ---
 
@@ -247,11 +290,11 @@ For list pages with clickable rows (`<Table.Row onclick={() => goto(...)}>"`), a
 </Table.Cell>
 ```
 
-Applied on: users, clients, vendors, projects list pages. Not needed on income/expenses (no clickable rows).
+Applied on: users, clients, vendors, projects, services list pages. Not needed on income/expenses (no clickable rows).
 
 ### Checkbox Selection / Bulk Delete Pattern
 
-Implemented on: users, tasks, income, expenses list pages.
+Implemented on: users, tasks, income, expenses, hosting sites list pages.
 
 **State variables:**
 ```typescript
@@ -320,7 +363,7 @@ Reference implementations:
 
 - Company/person records with contact info
 - `paymentTerms: Int @default(30)` — used as default for income payment terms dropdown
-- Link to projects, income, payments, offers
+- Link to projects, income, payments, offers, services, leads
 - Status: active, inactive
 - Contacts via `Contact` model (firstName, lastName, email, phone, mobile, position, isPrimaryContact)
 
@@ -331,6 +374,39 @@ Reference implementations:
 - Link to expenses
 - Categories managed via enums (`vendor_category`)
 - Contacts via `Contact` model (same as clients)
+
+### CRM (see [`docs/modules/crm.md`](docs/modules/crm.md))
+
+- Pipeline-based lead management with 7 stages: lead → offer → approval → won/lost/postponed/archived
+- Kanban drag-and-drop board via `svelte-dnd-action`
+- `Lead` model with budget, deadline, client/contact links, assigned employee
+- Full-page forms for CRUD, `LeadCard` component for pipeline display
+- Stages defined in `src/lib/config/lead-stages.ts` (`LEAD_STAGES`, `ACTIVE_STAGES`, `STAGE_MAP`)
+- Denormalized: `clientName`, `contactName`
+- Enum: `lead_source` (referral, website, cold_call, event, social_media, partner, other)
+- Permissions: `crm.read/create/update/delete`
+
+### Services (see [`docs/modules/services.md`](docs/modules/services.md))
+
+- Monthly recurring services with time tracking and budget management
+- `Service` model: name, description (markdown), monthlyFee, taxRate, budgetedHours, spentTime (materialized)
+- Auto-generates recurring Income parent when monthlyFee > 0 (via `generateServiceIncome()` in `recurring.ts`)
+- Service detail page with tabs: Overview (budget progress), Time Records, Notes
+- `recalcServiceSpentTime(serviceId)` aggregates TimeRecord minutes
+- Denormalized: `clientName`, `contactName`
+- Enums: `service_type`, `service_status`
+- Permissions: `services.read/create/update/delete`
+
+### Hosting (sub-module of Services, see [`docs/modules/services.md`](docs/modules/services.md))
+
+- WordPress site monitoring via SmartOffice Connector plugin
+- `HostingSite` model: domain, apiUrl, apiKey, cached sync data (status, versions, update counts)
+- Card grid layout with desktop screenshot thumbnails (`thumbnailPath`)
+- Sync: fetches `{apiUrl}/overview` with `X-SmartOffice-Key` header, captures screenshot non-blocking
+- Detail page with tabs: Overview, Plugins, Themes, Health, System (lazy-loaded)
+- WP Admin auto-login: one-time token via `{apiUrl}/auth/token` (30s TTL, IP binding)
+- WordPress plugin: `wordpress-plugin/smartoffice-connector/` (PHP, WP 5.6+)
+- Same `services.*` permissions as parent module
 
 ### Projects
 
@@ -378,14 +454,15 @@ Reference implementations:
 
 ### Time Records
 
-- Time records belong to a task (`TimeRecord` model)
+- Time records belong to a task or service (`TimeRecord` model)
 - Fields: date, minutes (Int), description, billable (Boolean), type (enum), category (enum), userId
+- Optional FK: `taskId` (for project tasks) or `serviceId` (for recurring services)
 - `DurationInput` component: accepts "1w 2d 3h 30m" format (1w = 5 working days, 1d = 8 hours)
-- `recalcTaskSpentTime(taskId)` — aggregates SUM(minutes) and updates `task.spentTime`
+- `recalcTaskSpentTime(taskId)` / `recalcServiceSpentTime(serviceId)` — aggregates SUM(minutes)
 - `formatMinutes(minutes)` — returns "Xh Ym" format
 - Permission: editable by creator, admins, and project manager
-- API: `POST /api/tasks/[id]/time-records`, `PATCH/DELETE /api/tasks/[id]/time-records/[recordId]`
-- UI: `TimeRecordFormModal` for create/edit, `TaskTimeRecordsList` for display
+- Task API: `POST /api/tasks/[id]/time-records`, `PATCH/DELETE /api/tasks/[id]/time-records/[recordId]`
+- Service API: `POST /api/services/[id]/time-records`, `PATCH/DELETE /api/services/[id]/time-records/[recordId]`
 
 ### Notes
 
@@ -441,6 +518,7 @@ Reference implementations:
   - `advanceDate()` — handles weekly/biweekly/monthly/quarterly/yearly with month-end clamping
   - `generateIncomeOccurrences(parentId, userId)` — deletes old projected children, creates new batch
   - `generateExpenseOccurrences(parentId, userId)` — same pattern
+  - `generateServiceIncome(service, userId)` — creates recurring Income parent linked to a Service
   - `promoteProjectedRecords()` — updates status from `projected` to `pending` when `date <= today`
 - Each projected child gets its own `dueDate` calculated from its date + parent's `paymentTermDays`
 - Copying fields from parent: amount, tax, tax_value, currency, description, category, paymentTermDays, etc.
@@ -456,6 +534,21 @@ Reference implementations:
 - Form modals show Select dropdown for payment terms + read-only calculated due date preview
 - Auto-default: when client/vendor is selected, populate from `client.paymentTerms` / `vendor.paymentTerms`
 - Client/Vendor edit forms use the same enum dropdown for their `paymentTerms` field
+
+### SEO Audit (see [`docs/modules/seo-audit.md`](docs/modules/seo-audit.md))
+
+- Comprehensive website SEO analysis at `/tools/seo-audit`
+- Playwright-based crawling with desktop/mobile screenshots
+- HTML analysis: meta tags, headings, images, links, structured data
+- Google Lighthouse integration: performance, accessibility, best practices, SEO scores
+- Core Web Vitals: LCP, FID, CLS, FCP, TTFB
+- AI-powered content analysis (quality, readability, keyword relevance) + executive summary
+- Multi-language support (20 languages including Hungarian)
+- PDF report generation with charts
+- SSRF protection: blocks private IPs, validates DNS
+- Fire-and-forget execution with real-time progress polling
+- Max 1 concurrent audit per user, max 20 URLs
+- Permissions: `tools.read/create/delete`
 
 ### Offers
 
@@ -502,7 +595,7 @@ Reference implementations:
 - Mic button appears inline with label when Web Speech API is available
 - Character counter bottom-right, turns red when over limit
 - Props: `value` (bindable string), `label`, `id`, `placeholder`, `maxlength` (default 160), `rows`, `class`
-- Used in: `TimeRecordFormModal` (description field)
+- Used in: `TimeRecordFormModal`, `ServiceTimeRecordFormModal` (description fields)
 
 ### ColorInput (`src/lib/components/shared/ColorInput.svelte`)
 - Combined color picker + hex text input
@@ -537,10 +630,13 @@ Key models (see `prisma/schema.prisma` for full schema):
 - **Contact** - Client/vendor contacts: firstName, lastName, email, phone, mobile, position, isPrimaryContact; linked to Client or Vendor via FK
 - **Client** - Company client with paymentTerms, currency, industry
 - **Vendor** - Supplier with paymentTerms, currency, category
+- **Lead** - CRM pipeline lead with stage, budget, deadline, client/contact/assignee links, denormalized names
+- **Service** - Monthly recurring service with monthlyFee, taxRate, budgetedHours, spentTime, linked Income parent
+- **HostingSite** - WordPress site monitoring with apiUrl, apiKey, cached sync data, thumbnailPath
 - **Project** - Linked to client, has budget, milestones, kanban boards
 - **ProjectEmployee** - Many-to-many: project ↔ user with role
 - **Task** - Belongs to project, optional kanban board placement, time tracking
-- **TimeRecord** - Belongs to task, minutes-based, billable flag, userId
+- **TimeRecord** - Belongs to task or service, minutes-based, billable flag, userId
 - **Milestone** - Belongs to project, with completion tracking
 - **KanbanBoard, KanbanColumn, KanbanSwimlane** - Board structure with ordering and colors
 - **KanbanBoardMember** - Board access control with roles (userId)
@@ -552,6 +648,7 @@ Key models (see `prisma/schema.prisma` for full schema):
 - **Payment** - Payment transactions (received/paid), reconciliation
 - **PriceListItem** - Catalog with SKU, pricing, validity dates
 - **Offer, OfferItem** - Quotes with line items, status workflow, PDF support
+- **SeoAudit** - SEO audit with URLs, progress, results, summary, pdfPath
 
 All models have `createdAt/updatedAt` timestamps. Deletions are hard deletes with audit log snapshots.
 All financial amounts use `Decimal @db.Decimal(10, 2)`. Tax rates use `Decimal @db.Decimal(5, 2)`.
@@ -567,6 +664,9 @@ AUTH_SECRET="..."
 UPLOAD_DIR="/var/uploads"
 MAX_FILE_SIZE="10485760"
 SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM
+PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH  # Optional: custom Chromium path for screenshots/SEO
+SEO_AUDIT_TIMEOUT                    # Optional: per-URL timeout in ms (default 120000)
+SEO_AUDIT_MAX_URLS                   # Optional: max URLs per audit (default 20)
 ```
 
 ---
@@ -596,7 +696,7 @@ npm run build
 
 ### Known Issues
 
-- 9 pre-existing lucide-svelte type compatibility errors (`Type 'typeof X' is not assignable to type 'Component<...>'`). These are false positives from icon type definitions and do not affect runtime behavior.
+- ~19 pre-existing lucide-svelte type compatibility errors (`Type 'typeof X' is not assignable to type 'Component<...>'`). These are false positives from icon type definitions and do not affect runtime behavior.
 
 ---
 
@@ -609,6 +709,7 @@ npm run build
 5. Configure PM2 or systemd service
 6. Set up database backups
 7. Configure file upload directory permissions
+8. Install Playwright Chromium: `npx playwright install chromium`
 
 ---
 
@@ -631,13 +732,14 @@ npm run build
 6. Add checkbox selection for bulk delete on list pages
 7. Prevent event bubbling on action cells in clickable table rows
 8. Serialize Decimal fields to Number before passing to client
+9. Denormalize client/vendor/contact names on entities that need them after deletion
 
 ### Form Patterns
 
 Two patterns are used for CRUD operations:
 
-1. **Full-page forms** (clients, vendors, users, projects, pricelists): SvelteKit form actions with `use:enhance`, hidden inputs, server-side validation
-2. **Modal forms** (income, expenses, tasks, notes, time records): Fetch-based API calls, client-side state, `invalidateAll()` on save
+1. **Full-page forms** (clients, vendors, users, projects, pricelists, services, CRM leads): SvelteKit form actions with `use:enhance`, hidden inputs, server-side validation
+2. **Modal forms** (income, expenses, tasks, notes, time records, hosting sites): Fetch-based API calls, client-side state, `invalidateAll()` on save
 
 ### Naming Conventions
 
@@ -668,3 +770,4 @@ Two patterns are used for CRUD operations:
 - [Tiptap Docs](https://tiptap.dev/docs)
 - [Tiptap Markdown](https://tiptap.dev/docs/editor/markdown)
 - [Edra (vendored toolbar/menu UI)](https://github.com/Tsuzat/Edra)
+- [Playwright Docs](https://playwright.dev/docs)
