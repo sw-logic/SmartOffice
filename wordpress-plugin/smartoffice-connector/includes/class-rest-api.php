@@ -125,13 +125,11 @@ class SmartOffice_REST_API {
             if ( isset( $results[ $status ] ) ) {
                 $results[ $status ]++;
             }
-            if ( $status !== 'good' ) {
-                $issues[] = [
-                    'label'  => $result['label'] ?? $fallback_label,
-                    'status' => $status,
-                    'badge'  => $result['badge']['label'] ?? '',
-                ];
-            }
+            $issues[] = [
+                'label'  => $result['label'] ?? $fallback_label,
+                'status' => $status,
+                'badge'  => $result['badge']['label'] ?? '',
+            ];
         };
 
         // Phase 1: Run direct tests via callable resolution

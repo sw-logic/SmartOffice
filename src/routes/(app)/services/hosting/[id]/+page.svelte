@@ -589,8 +589,8 @@
 						<div class="grid grid-cols-3 gap-4 mb-4">
 							<Card.Root>
 								<Card.Content class="pt-4 text-center">
-									<p class="text-2xl font-bold text-green-600">{healthData.counts.good}</p>
-									<p class="text-xs text-muted-foreground">Passed</p>
+									<p class="text-2xl font-bold text-red-600">{healthData.counts.critical}</p>
+									<p class="text-xs text-muted-foreground">Critical</p>
 								</Card.Content>
 							</Card.Root>
 							<Card.Root>
@@ -601,30 +601,40 @@
 							</Card.Root>
 							<Card.Root>
 								<Card.Content class="pt-4 text-center">
-									<p class="text-2xl font-bold text-red-600">{healthData.counts.critical}</p>
-									<p class="text-xs text-muted-foreground">Critical</p>
+									<p class="text-2xl font-bold text-green-600">{healthData.counts.good}</p>
+									<p class="text-xs text-muted-foreground">Passed</p>
 								</Card.Content>
 							</Card.Root>
 						</div>
 
 						{#if healthData.issues?.length > 0}
-							<div class="space-y-2">
-								<h3 class="text-sm font-semibold">Issues</h3>
-								{#each healthData.issues as issue}
-									<div class="flex items-start gap-2 p-3 rounded-md border text-sm {issue.status === 'critical' ? 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950' : 'border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950'}">
-										{#if issue.status === 'critical'}
-											<ShieldX class="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
-										{:else}
-											<ShieldAlert class="h-4 w-4 text-yellow-600 mt-0.5 shrink-0" />
-										{/if}
-										<div>
-											<p class="font-medium">{issue.label}</p>
-											{#if issue.badge}
-												<p class="text-xs text-muted-foreground">{issue.badge}</p>
-											{/if}
-										</div>
-									</div>
-								{/each}
+							<div class="rounded-md border">
+								<Table.Root>
+									<Table.Header>
+										<Table.Row>
+											<Table.Head>Check</Table.Head>
+											<Table.Head>Category</Table.Head>
+											<Table.Head>Status</Table.Head>
+										</Table.Row>
+									</Table.Header>
+									<Table.Body>
+										{#each healthData.issues as issue}
+											<Table.Row>
+												<Table.Cell class="font-medium">{issue.label}</Table.Cell>
+												<Table.Cell class="text-sm text-muted-foreground">{issue.badge || '-'}</Table.Cell>
+												<Table.Cell>
+													{#if issue.status === 'critical'}
+														<Badge variant="destructive">Critical</Badge>
+													{:else if issue.status === 'recommended'}
+														<Badge variant="secondary">Recommended</Badge>
+													{:else}
+														<Badge variant="default">Passed</Badge>
+													{/if}
+												</Table.Cell>
+											</Table.Row>
+										{/each}
+									</Table.Body>
+								</Table.Root>
 							</div>
 						{/if}
 					{:else}
