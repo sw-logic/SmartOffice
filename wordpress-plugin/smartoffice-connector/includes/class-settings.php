@@ -217,7 +217,8 @@ class SmartOffice_Settings {
                 'has_update' => version_compare( $remote_version, SMARTOFFICE_CONNECTOR_VERSION, '>' ),
             ] );
         } else {
-            wp_send_json_error( __( 'Could not reach GitHub. Check your repository and token settings.', 'smartoffice-connector' ) );
+            $error = SmartOffice_Updater::get_last_error();
+            wp_send_json_error( $error ?: __( 'Could not reach GitHub. Check your repository and token settings.', 'smartoffice-connector' ) );
         }
     }
 
@@ -326,10 +327,15 @@ class SmartOffice_Settings {
                             </a>
                         </p>
                     <?php endif; ?>
-                <?php else : ?>
+                <?php else :
+                    $fetch_error = SmartOffice_Updater::get_last_error();
+                ?>
                     <p><span class="dashicons dashicons-warning" style="color:#d63638;"></span>
-                        <?php esc_html_e( 'Could not fetch release info from GitHub. Check your repository and token.', 'smartoffice-connector' ); ?>
+                        <?php esc_html_e( 'Could not fetch release info from GitHub.', 'smartoffice-connector' ); ?>
                     </p>
+                    <?php if ( $fetch_error ) : ?>
+                        <p><code style="display:block; padding:8px; background:#f0f0f0; word-break:break-all;"><?php echo esc_html( $fetch_error ); ?></code></p>
+                    <?php endif; ?>
                 <?php endif; ?>
 
                 <p style="margin-bottom:0;">

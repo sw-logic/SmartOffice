@@ -24,6 +24,9 @@ class SmartOffice_Updater {
     /** Cache lifetime in seconds (12 hours). */
     private static $cache_ttl = 43200;
 
+    /** Last error message from fetch_release(). */
+    private static $last_error = '';
+
     /**
      * Register WordPress filters for the update system.
      */
@@ -218,11 +221,22 @@ class SmartOffice_Updater {
      * @param bool $force_refresh Skip cache and fetch fresh data.
      * @return array|false Release data or false on failure.
      */
+    /**
+     * Get the last error message from fetch_release().
+     *
+     * @return string
+     */
+    public static function get_last_error(): string {
+        return self::$last_error;
+    }
+
     public static function fetch_release( $force_refresh = false ) {
+        self::$last_error = '';
         $repo = self::get_repo();
         $pat  = self::get_pat();
 
         if ( ! $repo || ! $pat ) {
+            self::$last_error = 'GitHub repository or access token is not configured.';
             return false;
         }
 
@@ -246,18 +260,24 @@ class SmartOffice_Updater {
         ] );
 
         if ( is_wp_error( $response ) ) {
+            self::$last_error = 'Network error: ' . $response->get_error_message();
             error_log( 'SmartOffice Updater: GitHub API error — ' . $response->get_error_message() );
             return false;
         }
 
         $code = wp_remote_retrieve_response_code( $response );
         if ( 200 !== $code ) {
-            error_log( 'SmartOffice Updater: GitHub API returned HTTP ' . $code );
+            $body_text = wp_remote_retrieve_body( $response );
+            $body_json = json_decode( $body_text, true );
+            $detail    = $body_json['message'] ?? substr( $body_text, 0, 200 );
+            self::$last_error = "GitHub API returned HTTP {$code}: {$detail}";
+            error_log( 'SmartOffice Updater: GitHub API returned HTTP ' . $code . ' — ' . $detail );
             return false;
         }
 
         $body = json_decode( wp_remote_retrieve_body( $response ), true );
         if ( ! is_array( $body ) || empty( $body['tag_name'] ) ) {
+            self::$last_error = 'Invalid response from GitHub API (no tag_name found).';
             error_log( 'SmartOffice Updater: Invalid response from GitHub API.' );
             return false;
         }
